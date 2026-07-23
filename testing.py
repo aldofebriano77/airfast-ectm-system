@@ -1,17 +1,17 @@
 """
 ========================================================================================
- ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v3)
+ ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v4)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
  Compliance   : P&WC PT6A-34 Fault Isolation Manual (P/N 3021242, Rev 75.0)
- Enhancements : - Automated Data Quality & Outlier Audit (Pre-Flight Ingestion Check)
+ Enhancements : - [v4] Single Source of Truth (SSOT) via EngineHealth Enum (Anti-Contradiction)
+                - [v4] Clean Tooltip UI (Rounded Residuals & Simplified Hovertemplate)
+                - Automated Data Quality & Outlier Audit (Pre-Flight Ingestion Check)
                 - Adaptive Expanding Statistical Noise Banding (Dynamic Control Limits)
                 - Robust Regex Registration Matching for Defect Correlator
                 - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
                 - Native Print-Ready PDF Engineering Work Order (EWO) Generator
-                - [FIX v2] Pure Python List Plotly Tracing to Prevent PyArrow Index Clash
-                - [FIX v3] Streamlit on_click Callbacks for Safe Navigation & ATA Mapping
 ========================================================================================
 """
 
@@ -22,6 +22,7 @@ import smtplib
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from enum import Enum
 
 import numpy as np
 import pandas as pd
@@ -37,9 +38,6 @@ except ImportError:
 # ======================================================================================
 # 1. PAGE CONFIGURATION & SYSTEM INITIALIZATION
 # ======================================================================================
-# [FIX] page_icon previously pointed to a local file with no existence check -
-# unlike the sidebar logo below, which already does this correctly. Fall back
-# to a portable emoji icon so the app never depends on that file being present.
 _icon_path = "airfasticon.png"
 _page_icon = _icon_path if os.path.exists(_icon_path) else "\u2708\ufe0f"
 
@@ -52,24 +50,23 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .stAlert {
-        color: #1f2937 !important;
-    }
-    div[data-baseweb="notification"], div.element-container stMarkdown {
-        color: inherit;
-    }
-    .st-emotion-cache-1wivap2, div[data-testid="stNotification"] {
-        color: #1f2937 !important;
-    }
+    .stAlert { color: #1f2937 !important; }
+    div[data-baseweb="notification"], div.element-container stMarkdown { color: inherit; }
+    .st-emotion-cache-1wivap2, div[data-testid="stNotification"] { color: #1f2937 !important; }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ======================================================================================
-# 2. OEM CONSTANTS & FIM THRESHOLD MATRIX
+# 2. OEM CONSTANTS, FIM THRESHOLDS & ABSOLUTE HEALTH STATE
 # Source: PT6A-34 Fault Isolation Manual, P/N 3021242, Rev 75.0
 # ======================================================================================
+class EngineHealth(Enum):
+    NORMAL = 1
+    ADVISORY = 2
+    CRITICAL = 3
+
 SHIFT_T5_C = 5.0        
 SHIFT_NG_PCT = 0.5      
 SHIFT_WF_PCT = 2.0      
@@ -135,7 +132,6 @@ st.markdown(
         color: #F8FAFC !important;
     }
     
-    /* Mengatur kontainer radio button di sidebar */
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
         padding: 12px 16px !important; margin-bottom: 4px !important;
         border-bottom: 1px solid rgba(255,255,255,0.08) !important;
@@ -148,7 +144,6 @@ st.markdown(
         font-size: 0.92rem !important; font-weight: 500 !important; color: #CBD5E1 !important; margin: 0 !important;
     }
     
-    /* State aktif / dipilih pada radio button */
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
         border-left: 4px solid #f0b73d !important; background-color: rgba(255,255,255,0.12) !important;
     }
@@ -156,14 +151,11 @@ st.markdown(
         color: #FFFFFF !important; font-weight: 700 !important;
     }
 
-    /* Memaksa titik/lingkaran indikator radio button aktif berubah jadi kuning keemasan Airfast */
     [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] div {
-        background-color: transparent !important;
-        border-color: #f0b73d !important;
+        background-color: transparent !important; border-color: #f0b73d !important;
     }
     [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"][aria-checked="true"] div:first-child {
-        background-color: #f0b73d !important;
-        border-color: #f0b73d !important;
+        background-color: #f0b73d !important; border-color: #f0b73d !important;
     }
     
     div[data-testid="stButton"] > button[kind="primary"] {
@@ -248,13 +240,6 @@ def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
                 if not isinstance(val, str): return "UNKNOWN"
                 match = re.search(r"(PK-[A-Z0-9]{3,4})", val.upper())
                 if match: return match.group(1)
-                # [FIX] Was a hardcoded whitelist of 5 known tail numbers - any
-                # new airframe added to the fleet would fall through to a raw
-                # prefix without "PK-", silently breaking correlation against
-                # reg_prefix elsewhere (which always uses the "PK-XXX" form).
-                # Generalize: any 3-4 alphanumeric prefix is treated as a
-                # PK- suffix, matching standard Indonesian civil registration
-                # format, rather than enumerating known tails by hand.
                 p = val.split('-')[0].strip().upper()
                 if re.fullmatch(r"[A-Z0-9]{3,4}", p):
                     return f"PK-{p}"
@@ -340,13 +325,7 @@ def init_all_datasets():
             ))
     df_ectm = pd.DataFrame(rows_ectm)
 
-    # [FIX] "Utilization" was a typo for "Utilization" - if the real file uses
-    # correct spelling, os.path.exists() on the old string always returned
-    # False and the app silently fell back to fake data forever, with no
-    # indication in the UI that this had happened. We now check both
-    # spellings and explicitly track provenance (util_is_real) so the UI can
-    # tell the user which one is actually in use.
-    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utilization DHC6-400.xlsx"]
+    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utulization DHC6-400.xlsx"]
     df_util = pd.DataFrame()
     util_is_real = False
     for util_file in util_file_candidates:
@@ -472,23 +451,17 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
         if models[target].get("downgraded", False) and use_correction and len(predictors) > 0:
             is_downgraded = True
         df_engine[f"{target}_pred"] = apply_correction_model(models[target], df_engine)
-        df_engine[f"Delta_{target}"] = df_engine[target] - df_engine[f"{target}_pred"]
+        # [UI FIX] Pembulatan 2 desimal langsung di level dataframe untuk mencegah tooltip overflow
+        df_engine[f"Delta_{target}"] = (df_engine[target] - df_engine[f"{target}_pred"]).round(2)
         
     df_engine["Delta_Ng_pct"] = df_engine["Delta_Ng"]
     baseline_wf_mean = df_baseline["Wf"].mean()
-    df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)
+    df_engine["Delta_Wf_pct"] = (100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)).round(2)
     
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
-    # [FIX] An ever-expanding window folds any real, ongoing degradation into
-    # its own "noise" estimate, so the control band keeps widening exactly
-    # when it should be tightening - a classic creeping-baseline problem in
-    # statistical process control. We use a fixed-size trailing window
-    # instead, floored at the healthy-baseline noise (so it never gets
-    # tighter than genuine sensor noise) and capped at 3x that floor (so a
-    # slow drift can't inflate its own tolerance band indefinitely).
     for t in ["T5", "Ng", "Wf"]:
         rolling_std = df_engine[f"Delta_{t}"].rolling(window=TREND_WINDOW, min_periods=n).std()
-        df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3)
+        df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3).round(2)
 
     df_engine.attrs["models"] = models
     df_engine.attrs["noise"] = noise
@@ -516,28 +489,16 @@ def isolated_spike_flag(series: pd.Series, threshold: float) -> bool:
     return bool(last > threshold and prev < half) if threshold > 0 else bool(last < threshold and prev > -half)
 
 def detect_trend_acceleration(series: pd.Series, window: int) -> bool:
-    """[NEW] calculate_rul() below extrapolates a single straight-line slope,
-    which understates how soon a threshold will be reached if degradation is
-    actually accelerating (superlinear) rather than constant - exactly the
-    kind of curve the BORESCOPE_CRITICAL demo scenario in this file itself
-    simulates (t5_phys += ... + 0.05 * i**1.3). This helper compares the
-    slope of the first half of the window against the second half; if the
-    second half is meaningfully steeper in the same direction, the linear
-    RUL estimate should be flagged as optimistic rather than trusted as-is."""
-    if len(series) < window or window < 4:
-        return False
+    if len(series) < window or window < 4: return False
     tail = series.iloc[-window:].rolling(3, min_periods=1).mean().values
     half = len(tail) // 2
-    if half < 2:
-        return False
+    if half < 2: return False
     x_old, x_new = np.arange(half), np.arange(len(tail) - half)
     slope_old, _ = np.polyfit(x_old, tail[:half], 1)
     slope_new, _ = np.polyfit(x_new, tail[half:], 1)
     same_sign = (slope_old > 0 and slope_new > 0) or (slope_old < 0 and slope_new < 0)
-    if not same_sign:
-        return False
-    if abs(slope_old) < 1e-6:
-        return abs(slope_new) > 0.05
+    if not same_sign: return False
+    if abs(slope_old) < 1e-6: return abs(slope_new) > 0.05
     return bool(abs(slope_new / slope_old) > 1.4)
 
 # ======================================================================================
@@ -565,7 +526,7 @@ def get_aircraft_utilization_rate(reg: str, df_util: pd.DataFrame):
     return max(0.5, total_fc / days)
 
 # ======================================================================================
-# 9. DIAGNOSTIC CLASSIFICATION & FIM DIRECTIVE GENERATION
+# 9. DIAGNOSTIC CLASSIFICATION & FIM DIRECTIVE GENERATION (SSOT ENGINE)
 # ======================================================================================
 def classify_direction(value, shift_band):
     if value > shift_band: return "UP"
@@ -595,21 +556,23 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     
     stat_band_breach = (abs(d_t5) > CONTROL_SIGMA * dyn_sig_t5 or abs(d_ng) > CONTROL_SIGMA * dyn_sig_ng or abs(d_wf) > CONTROL_SIGMA * dyn_sig_wf)
 
-    # [FIX] Severity tiers are now aligned 1:1 with the recommendation-card
-    # levels produced by generate_recommendations() below:
-    #   CRITICAL  -> only the FIM-mandated borescope thresholds (Fig.103
-    #                Sheet 9, Note 3) - matches the "red" cards.
-    #   ADVISORY/WATCH -> wash threshold, a sustained (but not yet
-    #                borescope-level) trend, or a pure statistical
-    #                control-band breach - matches the "amber" cards.
-    # Previously alarm_wash alone (a routine "recommend a compressor wash"
-    # finding) already flipped the whole engine to CRITICAL/ABNORMAL, which
-    # contradicted the amber-level recommendation text and triggered
-    # "[URGENT-CRITICAL]" emails for a routine wash - a false-alarm pattern
-    # that erodes trust in the alerts that matter.
     is_abnormal = alarm_borescope_t5 or alarm_borescope_ng
     control_breach = stat_band_breach or alarm_wash or sustained_t5 or sustained_ng
     
+    # [SSOT CORE] Penentuan keparahan absolut di satu tempat agar UI, PDF, dan Email tidak bertentangan
+    if is_abnormal:
+        health_level = EngineHealth.CRITICAL
+    elif control_breach:
+        health_level = EngineHealth.ADVISORY
+    else:
+        health_level = EngineHealth.NORMAL
+
+    status_label = {
+        EngineHealth.NORMAL: "NORMAL TREND",
+        EngineHealth.ADVISORY: "ADVISORY / WATCH",
+        EngineHealth.CRITICAL: "CRITICAL / ABNORMAL"
+    }[health_level]
+
     slope_t5 = rolling_slope(df_engine["Delta_T5"], TREND_WINDOW)
     slope_ng = rolling_slope(df_engine["Delta_Ng"], TREND_WINDOW)
     
@@ -643,6 +606,7 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         sustained_t5=sustained_t5, isolated_t5=isolated_t5,
         sustained_ng=sustained_ng, isolated_ng=isolated_ng,
         control_breach=control_breach, is_abnormal=is_abnormal,
+        health_level=health_level, status_label=status_label,
         slope_t5=slope_t5, slope_ng=slope_ng,
         rul_cycles=rul_cycles, proj_date=proj_date, fc_per_day=fc_per_day,
         rul_confidence=rul_confidence, rul_is_linear_caution=rul_is_linear_caution,
@@ -692,7 +656,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                   "2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units.")))
     
     if not recs:
-        if status["control_breach"] and not status["is_abnormal"]:
+        if status["health_level"] == EngineHealth.ADVISORY:
             recs.append(dict(
                 level="amber", 
                 title="Advisory Watch | Statistical Baseline Trend Deviation", 
@@ -715,20 +679,20 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     return recs
 
 # ======================================================================================
-# 10. PLOTLY VISUALIZATION ENGINE (PURE PYTHON LISTS TO PREVENT PYARROW INDEX CLASH)
+# 10. PLOTLY VISUALIZATION ENGINE (CLEAN HOVERTEMPLATE UI)
 # ======================================================================================
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
-    ioat_col = df_engine["IOAT"] if "IOAT" in df_engine.columns else np.zeros(len(df_engine))
-    alt_col = df_engine["Press_Alt"] if "Press_Alt" in df_engine.columns else np.zeros(len(df_engine))
-    tq_col = df_engine["TQ"] if "TQ" in df_engine.columns else np.zeros(len(df_engine))
-    custom_data = np.stack((ioat_col, alt_col, tq_col), axis=-1)
-
+    
+    # [UI FIX] Menghapus duplikasi info cuaca di hover agar tooltip tidak panjang menutupi grafik
     specs = [("Delta_T5", "\u0394 T5 (ITT) [\u00b0C]", "#B42318"), ("Delta_Ng", "\u0394 Ng [%]", "#003B6F"), ("Delta_Wf", "\u0394 Wf [PPH]", "#B54708")]
     for col, label, color in specs:
-        fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[col], mode="lines+markers", name=label, line=dict(color=color, width=2), marker=dict(size=5, color=color), customdata=custom_data,
-            hovertemplate=(f"<b>{label}</b><br>Date: %{{x|%Y-%m-%d}}<br>Residual Deviation: <b>%{{y:+.2f}}</b><br>------------------------------<br><b>Flight Parameters:</b><br>• IOAT (OAT)     : %{{customdata[0]:.1f}} °C<br>• Press Altitude : %{{customdata[1]:,.0f}} ft<br>• Engine Torque  : %{{customdata[2]:.1f}} PSI<br><extra></extra>")))
-        ma = df_engine[col].rolling(3, min_periods=1).mean()
+        fig.add_trace(go.Scatter(
+            x=df_engine["Date"], y=df_engine[col], mode="lines+markers", name=label, 
+            line=dict(color=color, width=2), marker=dict(size=5, color=color),
+            hovertemplate="<b>%{y:+.2f}</b><extra></extra>"
+        ))
+        ma = df_engine[col].rolling(3, min_periods=1).mean().round(2)
         fig.add_trace(go.Scatter(x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", line=dict(color=color, width=1, dash="dot"), opacity=0.4, showlegend=False, hoverinfo="skip"))
 
     if "Adaptive_Sigma_T5" in df_engine.columns:
@@ -770,9 +734,9 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
     return fig
 
 # ======================================================================================
-# 11. AUTOMATED EMAIL DISPATCH PROTOCOL & NATIVE PDF EWO GENERATOR
+# 11. AUTOMATED EMAIL DISPATCH PROTOCOL (SSOT INTEGRATED) & NATIVE PDF EWO GENERATOR
 # ======================================================================================
-def send_engineering_notice(engine_id: str, status_label: str, report_body: str, recipients: list):
+def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list):
     try:
         sender_email = st.secrets["email"]["sender_address"]
         sender_password = st.secrets["email"]["app_password"]
@@ -782,23 +746,27 @@ def send_engineering_notice(engine_id: str, status_label: str, report_body: str,
     except Exception:
         live_mode = False
 
+    health = status_dict["health_level"]
+    status_label = status_dict["status_label"]
+
     if not live_mode:
         st.info(f"**[SYSTEM SIMULATION MODE]** SMTP secrets not configured in `.streamlit/secrets.toml`. "
                 f"In production, notice for **{engine_id} ({status_label})** is dispatched to: `{', '.join(recipients)}`.")
         return True
 
-    if "NORMAL" in status_label.upper():
-        intro_text = (f"Powerplant {engine_id} is operating normal within OEM thermodynamic tolerances.\n"
-                      "Please find the routine condition logging evaluation and trend summary below:")
-        subject_prefix = "[ROUTINE - NORMAL]"
-    elif "ADVISORY" in status_label.upper():
+    # [SSOT ANTI-CONTRADICTION] Evaluasi menggunakan status Enum absolut, bukan tebak-tebakan string
+    if health == EngineHealth.CRITICAL:
+        intro_text = (f"An abnormal thermodynamic parameter shift has been confirmed on Powerplant {engine_id}.\n"
+                      "Please immediately review the computed residuals and OEM-referenced maintenance directives below:")
+        subject_prefix = "[URGENT - CRITICAL]"
+    elif health == EngineHealth.ADVISORY:
         intro_text = (f"A statistical baseline deviation (Advisory Watch) has been detected on Powerplant {engine_id}.\n"
                       "Please review the computed residuals and monitoring directives below:")
         subject_prefix = "[ADVISORY - WATCH]"
     else:
-        intro_text = (f"An abnormal thermodynamic parameter shift has been confirmed on Powerplant {engine_id}.\n"
-                      "Please immediately review the computed residuals and OEM-referenced maintenance directives below:")
-        subject_prefix = "[URGENT - CRITICAL]"
+        intro_text = (f"Powerplant {engine_id} is operating normal within OEM thermodynamic tolerances.\n"
+                      "Please find the routine condition logging evaluation and trend summary below:")
+        subject_prefix = "[ROUTINE - NORMAL]"
 
     msg = MIMEMultipart()
     msg['From'] = f"AIRFAST ECTM Automated System <{sender_email}>"
@@ -943,9 +911,6 @@ for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.co
 
 df_raw["Date"] = pd.to_datetime(df_raw["Date"], errors="coerce")
 
-# [FIX] Rows with unparseable dates/numbers used to be dropped with zero
-# feedback - for maintenance logbook data, a technician needs to know an
-# entry was unreadable so it can be corrected, not have it vanish silently.
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
 _rows_dropped = _rows_before_clean - len(df_raw)
@@ -984,8 +949,6 @@ if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<h3 style='color:#475569; font-size:1.05rem; font-weight:500; margin-top:0px;'>Technical Services & Fleet Maintenance | DHC-6 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
-    st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Active Fleet Health & RUL Projections</h3>", unsafe_allow_html=True)
-
     if not st.session_state.get("util_is_real", False):
         st.info("ℹ️ RUL calendar dates below use a **simulated** flight-utilization dataset (no real "
                 "'Flight Utilization DHC6-400.xlsx' found). Upload the real file in Data Collection & Setup "
@@ -997,7 +960,7 @@ if menu_selection == "Home (Fleet Matrix)":
         if len(df_sub) >= 2:
             df_sub_proc = compute_engine_trend(df_sub, int(baseline_n_input), use_correction)
             st_sub = build_status(df_sub_proc, df_util_current)
-            stat_lbl = "CRITICAL" if st_sub["is_abnormal"] else ("ADVISORY" if st_sub["control_breach"] else "NORMAL")
+            stat_lbl = "CRITICAL" if st_sub["health_level"] == EngineHealth.CRITICAL else ("ADVISORY" if st_sub["health_level"] == EngineHealth.ADVISORY else "NORMAL")
             rul_val = st_sub["rul_cycles"]
             accel_marker = " ⚠ accelerating" if st_sub["rul_is_linear_caution"] else ""
             rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}"
@@ -1065,7 +1028,7 @@ elif menu_selection == "Data Collection & Setup":
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
     with tab_util:
-        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utilization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
+        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utulization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
             df_u_new = pd.read_excel(up_util)
@@ -1075,8 +1038,7 @@ elif menu_selection == "Data Collection & Setup":
             st.success("Flight Utilization dataset synchronized!")
             st.rerun()
         if not st.session_state.get("util_is_real", False):
-            st.warning("⚠️ No real utilization file found on disk (checked both 'Flight Utilization DHC6-400.xlsx' "
-                       "and the legacy misspelled filename). RUL calendar projections are currently using a "
+            st.warning("⚠️ No real utilization file found on disk. RUL calendar projections are currently using a "
                        "**simulated** utilization dataset - upload the real file above for accurate dates.")
         st.dataframe(st.session_state["df_util"].head(100), use_container_width=True)
 
@@ -1143,9 +1105,12 @@ elif menu_selection == "Trend Analysis & RUL":
 
     with col_status:
         st.markdown("<h3 style='margin-bottom:8px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
-        if status["is_abnormal"]: st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
-        elif status["control_breach"]: st.markdown("<span class='badge-amber'>ADVISORY / WATCH</span>", unsafe_allow_html=True)
-        else: st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
+        if status["health_level"] == EngineHealth.CRITICAL:
+            st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
+        elif status["health_level"] == EngineHealth.ADVISORY:
+            st.markdown("<span class='badge-amber'>ADVISORY / WATCH</span>", unsafe_allow_html=True)
+        else:
+            st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
 
         st.write("")
         st.metric("Latest \u0394 T5 Residual", f"{status['d_t5']:+.1f} \u00b0C", delta=f"{status['slope_t5']:+.2f} °C/cyc", delta_color="inverse")
@@ -1251,7 +1216,7 @@ elif menu_selection == "Recommendations & Dispatch":
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | P&WC PT6A-34 FIM (Rev 75.0)</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
-    overall_status_label = "CRITICAL / ABNORMAL" if status["is_abnormal"] else ("ADVISORY / WATCH" if status["control_breach"] else "NORMAL")
+    overall_status_label = status["status_label"]
     st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **System Classification:** **{overall_status_label}**")
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1306,5 +1271,5 @@ elif menu_selection == "Recommendations & Dispatch":
             if st.button("Dispatch Notice to MCC", type="primary", use_container_width=True):
                 with st.spinner("Transmitting engineering notice via secure SMTP..."):
                     recipients_list = [e.strip() for e in target_emails.split(",") if e.strip()]
-                    success = send_engineering_notice(selected_engine, overall_status_label, "\n".join(report_lines), recipients_list)
+                    success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list)
                     if success: st.success("Engineering Notice dispatched successfully to target recipients.")
