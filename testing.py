@@ -478,7 +478,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     return recs
 
 # ======================================================================================
-# 9. PLOTLY VISUALIZATION ENGINE
+# 9. PLOTLY VISUALIZATION ENGINE (UPDATED WITH PROFESSIONAL SPACING & LAYOUT)
 # ======================================================================================
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
@@ -502,21 +502,62 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#B42318", line_width=1, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#B42318"))
 
-    fig.update_layout(title=dict(text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", font=dict(color=NAVY, size=14)),
-        xaxis_title="Flight Date / Cycle", yaxis_title="Residual Delta from Baseline", hovermode="x unified", template="plotly_white", height=440,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=11)), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=60, b=40),
-        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569")), yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569")))
+    # PERBAIKAN LAYOUT & SPACING: Pindahkan legend ke bawah dan tambah margin
+    fig.update_layout(
+        title=dict(
+            text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", 
+            font=dict(color=NAVY, size=14)
+        ),
+        xaxis_title="Flight Date / Cycle", 
+        yaxis_title="Residual Delta from Baseline", 
+        hovermode="x unified", 
+        template="plotly_white", 
+        height=480,  # Ditinggikan sedikit dari 440 agar ruang legend di bawah lebih lega
+        legend=dict(
+            orientation="h", 
+            yanchor="top", 
+            y=-0.2,            # Menggeser legend ke bawah area grafik
+            xanchor="center", 
+            x=0.5, 
+            font=dict(size=11)
+        ), 
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(248,250,252,1)", 
+        margin=dict(l=40, r=20, t=70, b=80),  # Margin Top (t=70) dan Bottom (b=80) diperbesar
+        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569")), 
+        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"))
+    )
     return fig
 
 def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color: str) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[param], mode="lines+markers", name=f"Actual {param}", line=dict(color=color, width=1.8), marker=dict(size=4)))
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[f"{param}_pred"], mode="lines", name="Predicted Baseline", line=dict(color="#64748B", width=1.5, dash="dash")))
-    fig.update_layout(title=dict(text=f"<b>{param} | Actual vs. Condition Baseline ({unit})</b>", font=dict(color=NAVY, size=12)), template="plotly_white", height=280, hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=50, b=30),
-        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)), yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)))
+    
+    # PERBAIKAN LAYOUT & SPACING: Pindahkan legend ke bawah agar tidak menabrak judul di kolom sempit
+    fig.update_layout(
+        title=dict(
+            text=f"<b>{param} | Actual vs. Condition Baseline ({unit})</b>", 
+            font=dict(color=NAVY, size=12)
+        ), 
+        template="plotly_white", 
+        height=320,  # Ditinggikan sedikit dari 280 agar grafik tidak tertekan legend
+        hovermode="x unified",
+        legend=dict(
+            orientation="h", 
+            yanchor="top", 
+            y=-0.3,            # Menggeser legend ke bawah area grafik
+            xanchor="center", 
+            x=0.5, 
+            font=dict(size=10)
+        ), 
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(248,250,252,1)", 
+        margin=dict(l=40, r=20, t=60, b=80),  # Memberi ruang bernapas di atas dan bawah
+        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)), 
+        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
+    )
     return fig
-
 # ======================================================================================
 # 10. AUTOMATED EMAIL DISPATCH PROTOCOL & EWO GENERATOR
 # ======================================================================================
