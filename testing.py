@@ -47,6 +47,39 @@ st.set_page_config(
     layout="wide",
 )
 
+# ======================================================================================
+# EXECUTIVE DASHBOARD HEADER (TOP-RIGHT LOGO)
+# ======================================================================================
+
+# Membagi area atas menjadi 2 kolom: Kiri untuk Judul Dasbor (lebar), Kanan untuk Logo (ringkas)
+header_col1, header_col2 = st.columns([4, 1.2])
+
+with header_col1:
+    st.title("ECTM Fleet Diagnostics Matrix")
+    st.markdown("**PT. AIRFAST Indonesia** | DHC-6 / P&WC PT6A-34 Engine Telemetry")
+
+with header_col2:
+    # Logo SVG kompak warna Navy & Gold, diatur rata kanan (float right / text-align right)
+    top_right_logo_svg = """
+    <div style="text-align: right; padding-top: 15px;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 50" width="100%" height="100%" style="max-width: 220px;">
+          <!-- Ikon Monogram 'A' / Emblem Sayap Kompak -->
+          <g transform="translate(0, 3)">
+            <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
+            <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
+          </g>
+          <!-- Teks Brand Rapi dan Proporsional -->
+          <g transform="translate(52, 32)">
+            <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="24" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
+            <text x="70" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="24" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
+          </g>
+        </svg>
+    </div>
+    """
+    st.markdown(top_right_logo_svg, unsafe_allow_html=True)
+
+# Garis pembatas elegan sebelum masuk ke metrik dasbor
+st.markdown("<hr style='margin-top: -5px; margin-bottom: 20px; border: 0; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
 st.markdown(
     """
     <style>
