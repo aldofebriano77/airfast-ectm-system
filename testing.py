@@ -38,10 +38,31 @@ except ImportError:
 # 1. PAGE CONFIGURATION & SYSTEM INITIALIZATION
 # ======================================================================================
 st.set_page_config(
-    page_title="AIRFAST ECTM | Maintenance Control System",
-    page_icon="▪️",
+    page_title="PT. AIRFAST Indonesia ECTM Dashboard",
+    page_icon="✈️",
     layout="wide",
-    initial_sidebar_state="expanded",
+)
+
+st.markdown(
+    """
+    <style>
+    /* Memastikan teks di dalam alert/warning bawaan tetap kontras dan terbaca di dark mode */
+    .stAlert {
+        color: #1f2937 !important;
+    }
+    
+    /* Jika ada kotak kustom menggunakan div atau notification, atur warna teksnya gelap */
+    div[data-baseweb="notification"], div.element-container stMarkdown {
+        color: inherit;
+    }
+    
+    /* Memperbaiki kontras teks pada kotak peringatan khusus (kuning muda) agar teksnya tidak ikut kuning */
+    .st-emotion-cache-1wivap2, div[data-testid="stNotification"] {
+        color: #1f2937 !important;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
 )
 
 # ======================================================================================
