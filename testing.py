@@ -37,9 +37,15 @@ except ImportError:
 # ======================================================================================
 # 1. PAGE CONFIGURATION & SYSTEM INITIALIZATION
 # ======================================================================================
+# [FIX] page_icon previously pointed to a local file with no existence check -
+# unlike the sidebar logo below, which already does this correctly. Fall back
+# to a portable emoji icon so the app never depends on that file being present.
+_icon_path = "airfasticon.png"
+_page_icon = _icon_path if os.path.exists(_icon_path) else "\u2708\ufe0f"
+
 st.set_page_config(
     page_title="AIRFAST Indonesia ECTM Dashboard",
-    page_icon="airfasticon.png",  
+    page_icon=_page_icon,
     layout="wide",
 )
 
@@ -242,8 +248,17 @@ def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
                 if not isinstance(val, str): return "UNKNOWN"
                 match = re.search(r"(PK-[A-Z0-9]{3,4})", val.upper())
                 if match: return match.group(1)
-                p = val.split('-')[0].strip()
-                return f"PK-{p}" if p in ['OAM', 'OCH', 'OCI', 'OCG', 'OCF'] else p
+                # [FIX] Was a hardcoded whitelist of 5 known tail numbers - any
+                # new airframe added to the fleet would fall through to a raw
+                # prefix without "PK-", silently breaking correlation against
+                # reg_prefix elsewhere (which always uses the "PK-XXX" form).
+                # Generalize: any 3-4 alphanumeric prefix is treated as a
+                # PK- suffix, matching standard Indonesian civil registration
+                # format, rather than enumerating known tails by hand.
+                p = val.split('-')[0].strip().upper()
+                if re.fullmatch(r"[A-Z0-9]{3,4}", p):
+                    return f"PK-{p}"
+                return p if p else "UNKNOWN"
             df_rep['Registration'] = df_rep['AML No'].apply(ext_reg)
         else:
             df_rep['Registration'] = "PK-OAM"
@@ -325,16 +340,25 @@ def init_all_datasets():
             ))
     df_ectm = pd.DataFrame(rows_ectm)
 
-    util_file = "Flight Utulization DHC6-400.xlsx"
-    if os.path.exists(util_file):
-        try:
-            df_util = pd.read_excel(util_file)
-            df_util['Work (Date)'] = pd.to_datetime(df_util['Work (Date)'], errors='coerce')
-            df_util = df_util.dropna(subset=['Registration', 'Work (Date)']).sort_values('Work (Date)')
-        except Exception:
-            df_util = pd.DataFrame()
-    else:
-        df_util = pd.DataFrame()
+    # [FIX] "Utulization" was a typo for "Utilization" - if the real file uses
+    # correct spelling, os.path.exists() on the old string always returned
+    # False and the app silently fell back to fake data forever, with no
+    # indication in the UI that this had happened. We now check both
+    # spellings and explicitly track provenance (util_is_real) so the UI can
+    # tell the user which one is actually in use.
+    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utulization DHC6-400.xlsx"]
+    df_util = pd.DataFrame()
+    util_is_real = False
+    for util_file in util_file_candidates:
+        if os.path.exists(util_file):
+            try:
+                df_util = pd.read_excel(util_file)
+                df_util['Work (Date)'] = pd.to_datetime(df_util['Work (Date)'], errors='coerce')
+                df_util = df_util.dropna(subset=['Registration', 'Work (Date)']).sort_values('Work (Date)')
+                util_is_real = not df_util.empty
+            except Exception:
+                df_util = pd.DataFrame()
+            break
 
     if df_util.empty:
         util_rows = []
@@ -351,9 +375,11 @@ def init_all_datasets():
         df_util = pd.DataFrame(util_rows)
 
     rep_file = "Pilot & Maintenance Report DHC6-400.xlsx"
+    rep_is_real = False
     if os.path.exists(rep_file):
         try:
             df_rep = pd.read_excel(rep_file)
+            rep_is_real = not df_rep.empty
         except Exception:
             df_rep = pd.DataFrame()
     else:
@@ -369,13 +395,15 @@ def init_all_datasets():
         ])
 
     df_rep = process_maintenance_reports(df_rep)
-    return df_ectm, df_util, df_rep
+    return df_ectm, df_util, df_rep, util_is_real, rep_is_real
 
 if "df_data" not in st.session_state or "df_util" not in st.session_state or "df_rep" not in st.session_state:
-    e_df, u_df, r_df = init_all_datasets()
+    e_df, u_df, r_df, u_is_real, r_is_real = init_all_datasets()
     st.session_state["df_data"] = e_df
     st.session_state["df_util"] = u_df
     st.session_state["df_rep"] = r_df
+    st.session_state["util_is_real"] = u_is_real
+    st.session_state["rep_is_real"] = r_is_real
 
 def csv_template() -> bytes:
     cols = REQUIRED_COLUMNS + [c for c in OPTIONAL_COLUMNS if c not in REQUIRED_COLUMNS]
@@ -430,6 +458,7 @@ def apply_correction_model(model: dict, df: pd.DataFrame) -> np.ndarray:
     X = np.column_stack([np.ones(len(X)), X])
     return X @ model["coef"]
 
+@st.cache_data(show_spinner=False)
 def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correction: bool):
     df_engine = df_engine.sort_values("Date").reset_index(drop=True)
     n = max(2, min(baseline_n, len(df_engine)))
@@ -450,9 +479,16 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
     df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)
     
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
+    # [FIX] An ever-expanding window folds any real, ongoing degradation into
+    # its own "noise" estimate, so the control band keeps widening exactly
+    # when it should be tightening - a classic creeping-baseline problem in
+    # statistical process control. We use a fixed-size trailing window
+    # instead, floored at the healthy-baseline noise (so it never gets
+    # tighter than genuine sensor noise) and capped at 3x that floor (so a
+    # slow drift can't inflate its own tolerance band indefinitely).
     for t in ["T5", "Ng", "Wf"]:
-        df_engine[f"Adaptive_Sigma_{t}"] = df_engine[f"Delta_{t}"].expanding(min_periods=n).std().fillna(noise[t])
-        df_engine[f"Adaptive_Sigma_{t}"] = np.maximum(df_engine[f"Adaptive_Sigma_{t}"], noise[t])
+        rolling_std = df_engine[f"Delta_{t}"].rolling(window=TREND_WINDOW, min_periods=n).std()
+        df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3)
 
     df_engine.attrs["models"] = models
     df_engine.attrs["noise"] = noise
@@ -478,6 +514,31 @@ def isolated_spike_flag(series: pd.Series, threshold: float) -> bool:
     last, prev = series.iloc[-1], series.iloc[-2]
     half = abs(threshold) / 2
     return bool(last > threshold and prev < half) if threshold > 0 else bool(last < threshold and prev > -half)
+
+def detect_trend_acceleration(series: pd.Series, window: int) -> bool:
+    """[NEW] calculate_rul() below extrapolates a single straight-line slope,
+    which understates how soon a threshold will be reached if degradation is
+    actually accelerating (superlinear) rather than constant - exactly the
+    kind of curve the BORESCOPE_CRITICAL demo scenario in this file itself
+    simulates (t5_phys += ... + 0.05 * i**1.3). This helper compares the
+    slope of the first half of the window against the second half; if the
+    second half is meaningfully steeper in the same direction, the linear
+    RUL estimate should be flagged as optimistic rather than trusted as-is."""
+    if len(series) < window or window < 4:
+        return False
+    tail = series.iloc[-window:].rolling(3, min_periods=1).mean().values
+    half = len(tail) // 2
+    if half < 2:
+        return False
+    x_old, x_new = np.arange(half), np.arange(len(tail) - half)
+    slope_old, _ = np.polyfit(x_old, tail[:half], 1)
+    slope_new, _ = np.polyfit(x_new, tail[half:], 1)
+    same_sign = (slope_old > 0 and slope_new > 0) or (slope_old < 0 and slope_new < 0)
+    if not same_sign:
+        return False
+    if abs(slope_old) < 1e-6:
+        return abs(slope_new) > 0.05
+    return bool(abs(slope_new / slope_old) > 1.4)
 
 # ======================================================================================
 # 8. PREDICTIVE EXTRAPOLATION & UTILIZATION CORRELATION (RUL ENGINE)
@@ -532,8 +593,22 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     dyn_sig_ng = latest.get("Adaptive_Sigma_Ng", df_engine.attrs.get("noise", {}).get("Ng", 1))
     dyn_sig_wf = latest.get("Adaptive_Sigma_Wf", df_engine.attrs.get("noise", {}).get("Wf", 1))
     
-    control_breach = (abs(d_t5) > CONTROL_SIGMA * dyn_sig_t5 or abs(d_ng) > CONTROL_SIGMA * dyn_sig_ng or abs(d_wf) > CONTROL_SIGMA * dyn_sig_wf)
-    is_abnormal = alarm_wash or alarm_borescope_t5 or alarm_borescope_ng or sustained_t5 or sustained_ng
+    stat_band_breach = (abs(d_t5) > CONTROL_SIGMA * dyn_sig_t5 or abs(d_ng) > CONTROL_SIGMA * dyn_sig_ng or abs(d_wf) > CONTROL_SIGMA * dyn_sig_wf)
+
+    # [FIX] Severity tiers are now aligned 1:1 with the recommendation-card
+    # levels produced by generate_recommendations() below:
+    #   CRITICAL  -> only the FIM-mandated borescope thresholds (Fig.103
+    #                Sheet 9, Note 3) - matches the "red" cards.
+    #   ADVISORY/WATCH -> wash threshold, a sustained (but not yet
+    #                borescope-level) trend, or a pure statistical
+    #                control-band breach - matches the "amber" cards.
+    # Previously alarm_wash alone (a routine "recommend a compressor wash"
+    # finding) already flipped the whole engine to CRITICAL/ABNORMAL, which
+    # contradicted the amber-level recommendation text and triggered
+    # "[URGENT-CRITICAL]" emails for a routine wash - a false-alarm pattern
+    # that erodes trust in the alerts that matter.
+    is_abnormal = alarm_borescope_t5 or alarm_borescope_ng
+    control_breach = stat_band_breach or alarm_wash or sustained_t5 or sustained_ng
     
     slope_t5 = rolling_slope(df_engine["Delta_T5"], TREND_WINDOW)
     slope_ng = rolling_slope(df_engine["Delta_Ng"], TREND_WINDOW)
@@ -541,6 +616,16 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     rul_t5_borescope = calculate_rul(d_t5, slope_t5, T5_BORESCOPE_C, "UP")
     rul_ng_borescope = calculate_rul(d_ng, slope_ng, NG_BORESCOPE_LOW_PCT, "DOWN")
     rul_cycles = min(rul_t5_borescope, rul_ng_borescope)
+
+    accel_window = min(TREND_WINDOW * 2, len(df_engine))
+    accel_t5 = detect_trend_acceleration(df_engine["Delta_T5"], accel_window)
+    accel_ng = detect_trend_acceleration(df_engine["Delta_Ng"], accel_window)
+    rul_is_linear_caution = bool(accel_t5 or accel_ng)
+    rul_confidence = (
+        "Low - trend is accelerating; linear extrapolation likely overstates remaining life"
+        if rul_is_linear_caution else
+        "Indicative only - assumes a constant (linear) degradation rate"
+    )
     
     match_reg = re.search(r"(PK-[A-Z0-9]{3,4})", str(latest["Engine"]).upper())
     reg_prefix = match_reg.group(1) if match_reg else str(latest["Engine"]).split("|")[0].strip()
@@ -560,6 +645,7 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         control_breach=control_breach, is_abnormal=is_abnormal,
         slope_t5=slope_t5, slope_ng=slope_ng,
         rul_cycles=rul_cycles, proj_date=proj_date, fc_per_day=fc_per_day,
+        rul_confidence=rul_confidence, rul_is_linear_caution=rul_is_linear_caution,
         reg_prefix=reg_prefix
     )
 
@@ -856,7 +942,18 @@ for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.co
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
 df_raw["Date"] = pd.to_datetime(df_raw["Date"], errors="coerce")
+
+# [FIX] Rows with unparseable dates/numbers used to be dropped with zero
+# feedback - for maintenance logbook data, a technician needs to know an
+# entry was unreadable so it can be corrected, not have it vanish silently.
+_rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
+_rows_dropped = _rows_before_clean - len(df_raw)
+if _rows_dropped > 0:
+    st.sidebar.warning(
+        f"⚠️ {_rows_dropped} logbook row(s) ignored - invalid or missing "
+        f"Date/{'/'.join(REQUIRED_COLUMNS[2:])} values. Check Data Collection & Setup."
+    )
 
 engines_available = sorted(df_raw["Engine"].dropna().unique().tolist())
 if not engines_available:
@@ -888,7 +985,12 @@ if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Active Fleet Health & RUL Projections</h3>", unsafe_allow_html=True)
-    
+
+    if not st.session_state.get("util_is_real", False):
+        st.info("ℹ️ RUL calendar dates below use a **simulated** flight-utilization dataset (no real "
+                "'Flight Utilization DHC6-400.xlsx' found). Upload the real file in Data Collection & Setup "
+                "for accurate projections.", icon="ℹ️")
+
     fleet_summary_data = []
     for eng in engines_available:
         df_sub = df_raw[df_raw["Engine"] == eng].copy()
@@ -897,7 +999,8 @@ if menu_selection == "Home (Fleet Matrix)":
             st_sub = build_status(df_sub_proc, df_util_current)
             stat_lbl = "CRITICAL" if st_sub["is_abnormal"] else ("ADVISORY" if st_sub["control_breach"] else "NORMAL")
             rul_val = st_sub["rul_cycles"]
-            rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']})"
+            accel_marker = " ⚠ accelerating" if st_sub["rul_is_linear_caution"] else ""
+            rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}"
             
             fleet_summary_data.append({
                 "Powerplant Serial / Position": eng,
@@ -968,8 +1071,13 @@ elif menu_selection == "Data Collection & Setup":
             df_u_new = pd.read_excel(up_util)
             df_u_new['Work (Date)'] = pd.to_datetime(df_u_new['Work (Date)'], errors='coerce')
             st.session_state["df_util"] = df_u_new.dropna(subset=['Registration', 'Work (Date)'])
+            st.session_state["util_is_real"] = not st.session_state["df_util"].empty
             st.success("Flight Utilization dataset synchronized!")
             st.rerun()
+        if not st.session_state.get("util_is_real", False):
+            st.warning("⚠️ No real utilization file found on disk (checked both 'Flight Utilization DHC6-400.xlsx' "
+                       "and the legacy misspelled filename). RUL calendar projections are currently using a "
+                       "**simulated** utilization dataset - upload the real file above for accurate dates.")
         st.dataframe(st.session_state["df_util"].head(100), use_container_width=True)
 
     with tab_rep:
@@ -978,8 +1086,12 @@ elif menu_selection == "Data Collection & Setup":
         if up_rep is not None:
             df_r_new = pd.read_excel(up_rep)
             st.session_state["df_rep"] = process_maintenance_reports(df_r_new)
+            st.session_state["rep_is_real"] = not st.session_state["df_rep"].empty
             st.success("Maintenance Reports synchronized & mapped!")
             st.rerun()
+        if not st.session_state.get("rep_is_real", False):
+            st.warning("⚠️ No real maintenance report file found on disk. The Defect Correlator is currently "
+                       "showing **simulated** PIREP/MAREP entries - upload the real file above.")
         st.dataframe(st.session_state["df_rep"].head(100), use_container_width=True)
 
     st.markdown("---")
@@ -1042,13 +1154,15 @@ elif menu_selection == "Trend Analysis & RUL":
 
         rul_val = status["rul_cycles"]
         rul_display = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Flight Cycles"
-        date_display = f"Projected Date: {status['proj_date']} ({status['fc_per_day']} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
-        
+        date_display = f"Est. Date: {status['proj_date']} ({status['fc_per_day']:.1f} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
+        rul_caution_color = "#B42318" if status["rul_is_linear_caution"] else "#64748B"
+
         st.markdown(f"""
         <div class="rul-box">
             <div class="rul-title">Predictive RUL (Borescope Limit)</div>
             <div class="rul-val">{rul_display}</div>
             <div class="rul-sub">{date_display}</div>
+            <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">⚠ {status['rul_confidence']}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1159,6 +1273,7 @@ elif menu_selection == "Recommendations & Dispatch":
         "-------------------------------------------------------------------------",
         f"Computed Residuals: Delta T5: {status['d_t5']:+.1f} degC | Delta Ng: {status['d_ng']:+.2f} % | Delta Wf: {status['d_wf']:+.1f} PPH",
         f"System Status Classification: {overall_status_label} | Predictive RUL: {status['rul_cycles']} Cycles ({status['proj_date']})",
+        f"RUL Confidence Note: {status['rul_confidence']}",
         "-------------------------------------------------------------------------",
         "MAINTENANCE DIRECTIVES & RECOMMENDATIONS:",
     ]
