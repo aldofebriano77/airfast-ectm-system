@@ -39,7 +39,7 @@ except ImportError:
 # ======================================================================================
 st.set_page_config(
     page_title="PT. AIRFAST Indonesia ECTM Dashboard",
-    page_icon="images.png",  # Ganti dengan path file logo kamu
+    page_icon="airfasticon.png",  # Ganti dengan path file logo kamu
     layout="wide",
 )
 
