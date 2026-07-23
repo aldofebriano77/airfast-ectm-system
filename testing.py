@@ -39,24 +39,19 @@ except ImportError:
 # ======================================================================================
 st.set_page_config(
     page_title="AIRFAST Indonesia ECTM Dashboard",
-    page_icon="airfasticon.png",  # Ganti dengan path file logo kamu
+    page_icon="airfasticon.png",  
     layout="wide",
 )
 
 st.markdown(
     """
     <style>
-    /* Memastikan teks di dalam alert/warning bawaan tetap kontras dan terbaca di dark mode */
     .stAlert {
         color: #1f2937 !important;
     }
-    
-    /* Jika ada kotak kustom menggunakan div atau notification, atur warna teksnya gelap */
     div[data-baseweb="notification"], div.element-container stMarkdown {
         color: inherit;
     }
-    
-    /* Memperbaiki kontras teks pada kotak peringatan khusus (kuning muda) agar teksnya tidak ikut kuning */
     .st-emotion-cache-1wivap2, div[data-testid="stNotification"] {
         color: #1f2937 !important;
     }
@@ -133,7 +128,8 @@ st.markdown(
     [data-testid="stSidebar"] div, [data-testid="stSidebar"] b {
         color: #F8FAFC !important;
     }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child { display: none !important; }
+    
+    /* Mengatur kontainer radio button di sidebar */
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
         padding: 12px 16px !important; margin-bottom: 4px !important;
         border-bottom: 1px solid rgba(255,255,255,0.08) !important;
@@ -145,11 +141,23 @@ st.markdown(
     [data-testid="stSidebar"] div[role="radiogroup"] p {
         font-size: 0.92rem !important; font-weight: 500 !important; color: #CBD5E1 !important; margin: 0 !important;
     }
+    
+    /* State aktif / dipilih pada radio button */
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
         border-left: 4px solid #f0b73d !important; background-color: rgba(255,255,255,0.12) !important;
     }
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p {
         color: #FFFFFF !important; font-weight: 700 !important;
+    }
+
+    /* Memaksa titik/lingkaran indikator radio button aktif berubah jadi kuning keemasan Airfast */
+    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] div {
+        background-color: transparent !important;
+        border-color: #f0b73d !important;
+    }
+    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"][aria-checked="true"] div:first-child {
+        background-color: #f0b73d !important;
+        border-color: #f0b73d !important;
     }
     
     div[data-testid="stButton"] > button[kind="primary"] {
@@ -210,7 +218,6 @@ if "target_engine" not in st.session_state:
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
-# PERBAIKAN v3: Callback resmi Streamlit agar perpindahan menu dari tombol tidak memicu StreamlitAPIException
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
     if reg_filter:
@@ -219,7 +226,6 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
 # ======================================================================================
 # 5. DATA NORMALIZATION & INGESTION MODULE
 # ======================================================================================
-# PERBAIKAN v3: Fungsi pengaman otomatis untuk menjamin kolom ATA_Desc & Registration selalu ada
 def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
     if df_rep.empty:
         return pd.DataFrame(columns=['AML No', 'Date', 'Registration', 'ATA', 'ATA_Desc', 'Note / Report', 'Corrective Action', 'Position', 'P/N Off', 'P/N On'])
@@ -971,7 +977,6 @@ elif menu_selection == "Data Collection & Setup":
         up_rep = st.file_uploader("Upload Maintenance Report File (.xlsx)", type=["xlsx"], key="up_rep_file")
         if up_rep is not None:
             df_r_new = pd.read_excel(up_rep)
-            # PERBAIKAN v3: Langsung normalisasikan kolom ATA_Desc saat file Excel baru diunggah
             st.session_state["df_rep"] = process_maintenance_reports(df_r_new)
             st.success("Maintenance Reports synchronized & mapped!")
             st.rerun()
@@ -1057,7 +1062,6 @@ elif menu_selection == "Trend Analysis & RUL":
             st.write("▪ No active anomalies detected")
             
         st.markdown("---")
-        # PERBAIKAN v3: Penggunaan parameter on_click resmi Streamlit
         st.button(
             "🔗 Cross-Check Logbook Defect Correlator", 
             use_container_width=True,
@@ -1081,7 +1085,6 @@ elif menu_selection == "Logbook & Defect Correlator":
         st.warning("No Pilot & Maintenance Report dataset loaded. Please upload `Pilot & Maintenance Report DHC6-400.xlsx` in Data Collection.")
         st.stop()
 
-    # PERBAIKAN v3: Safeguard ganda agar kolom ATA_Desc pasti ada sebelum dropdown dirender
     if 'ATA_Desc' not in df_rep_current.columns or 'Registration' not in df_rep_current.columns:
         df_rep_current = process_maintenance_reports(df_rep_current)
 
