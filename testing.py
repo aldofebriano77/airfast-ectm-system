@@ -1,17 +1,21 @@
 """
 ========================================================================================
- ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM
+ ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
  Compliance   : P&WC PT6A-34 Fault Isolation Manual (P/N 3021242, Rev 75.0)
- Integration  : Engine Thermodynamic Residuals + Real-World Airframe Utilization Tracking
-                + Pilot & Maintenance Defect Logbook Correlator (PIREP/MAREP/ATA Mapping).
+ Enhancements : - Automated Data Quality & Outlier Audit (Pre-Flight Ingestion Check)
+                - Adaptive Expanding Statistical Noise Banding (Dynamic Control Limits)
+                - Robust Regex Registration Matching for Defect Correlator
+                - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
+                - Native Print-Ready PDF Engineering Work Order (EWO) Generator
 ========================================================================================
 """
 
 import io
 import os
+import re
 import smtplib
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -21,6 +25,13 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+# Import FPDF secara aman untuk pembuatan EWO PDF native
+try:
+    from fpdf import FPDF
+    HAS_FPDF = True
+except ImportError:
+    HAS_FPDF = False
 
 # ======================================================================================
 # 1. PAGE CONFIGURATION & SYSTEM INITIALIZATION
@@ -170,40 +181,73 @@ if "active_menu" not in st.session_state:
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
 if "target_use_correction" not in st.session_state:
     st.session_state["target_use_correction"] = True
+# HARDENING FIX: Baseline default dinaikkan ke 6 siklus untuk menjamin OLS Regression aktif
 if "target_baseline_n" not in st.session_state:
-    st.session_state["target_baseline_n"] = 3
+    st.session_state["target_baseline_n"] = 6
 if "target_engine" not in st.session_state:
     st.session_state["target_engine"] = None
+if "filter_reg_kw" not in st.session_state:
+    st.session_state["filter_reg_kw"] = None
 
 # ======================================================================================
-# 5. DATA INGESTION & SYNTHESIS MODULE
+# 5. DATA INGESTION & SYNTHESIS MODULE (ADVANCED ENTERPRISE DATASET)
 # ======================================================================================
 def init_all_datasets():
-    rng = np.random.default_rng(42)
-    rows = []
-    fleet_ectm = [
-        ("PK-OAM | LH (SN: PC-E101)", 0.42, -0.015, 624.0, 91.50, 288.0), # Critical T5 drift -> Wash Alarm
-        ("PK-OAM | RH (SN: PC-E102)", 0.04, -0.002, 625.5, 91.60, 290.5), # Stable
-        ("PK-OCH | LH (SN: PC-E103)", -0.02, 0.001, 623.0, 91.45, 289.0), # Stable
-        ("PK-OCH | RH (SN: PC-E104)", 0.12, -0.005, 626.0, 91.55, 291.0), # Advisory Watch (Statistical Breach)
-        ("PK-OCG | LH (SN: PC-E105)", 0.05, 0.000, 624.5, 91.50, 289.5), # Advisory Watch (Statistical Breach)
+    rng = np.random.default_rng(101)
+    rows_ectm = []
+    
+    fleet_scenarios = [
+        ("PK-OAM | LH (SN: PC-E101)", 0.28, -0.010, 0.45, 624.0, 91.50, 288.0, "WASH_RECOVERY"),
+        ("PK-OAM | RH (SN: PC-E102)", 0.02, -0.001, 0.05, 625.5, 91.60, 290.5, "ISOLATED_SPIKE"),
+        ("PK-OCH | LH (SN: PC-E103)", 0.45, -0.035, 0.85, 623.0, 91.45, 289.0, "BORESCOPE_CRITICAL"),
+        ("PK-OCH | RH (SN: PC-E104)", -0.15, -0.020, -0.60, 626.0, 91.55, 291.0, "PNEUMATIC_LEAK"),
+        ("PK-OCG | LH (SN: PC-E105)", 0.12, -0.005, 0.25, 624.5, 91.50, 289.5, "ADVISORY_WATCH"),
+        ("PK-OCG | RH (SN: PC-E106)", 0.01,  0.001, 0.02, 622.0, 91.70, 287.5, "NORMAL_OPTIMAL"),
     ]
-    for eng_id, t5_drift, ng_drift, base_t5, base_ng, base_wf in fleet_ectm:
-        for i in range(35):
-            ioat = 12.0 + rng.normal(0, 1.2)
-            alt = 11000 + rng.normal(0, 200)
-            tq = 42.0 + rng.normal(0, 0.6)
-            t5 = base_t5 + (t5_drift * i) + 0.38 * (ioat - 12.0) + rng.normal(0, 0.5)
-            ng = base_ng + (ng_drift * i) - 0.012 * (ioat - 12.0) + rng.normal(0, 0.06)
-            wf = base_wf + 0.85 * (ioat - 12.0) + (0.18 * i if "PC-E101" in eng_id else 0.02 * i) + rng.normal(0, 0.7)
-            rows.append(dict(
-                Date=pd.Timestamp("2026-06-01") + pd.Timedelta(days=i),
+    total_cycles = 60
+    
+    for eng_id, t5_d, ng_d, wf_d, b_t5, b_ng, b_wf, scenario in fleet_scenarios:
+        for i in range(total_cycles):
+            ioat = 14.0 + 4.5 * np.sin(i / 5.0) + rng.normal(0, 0.8)
+            alt = 10500 + rng.normal(0, 350)
+            tq = 42.5 + rng.normal(0, 0.4)
+            
+            t5_phys = b_t5 + 0.42 * (ioat - 14.0) + rng.normal(0, 0.4)
+            ng_phys = b_ng - 0.015 * (ioat - 14.0) + rng.normal(0, 0.05)
+            wf_phys = b_wf + 0.90 * (ioat - 14.0) + rng.normal(0, 0.6)
+            
+            if scenario == "WASH_RECOVERY":
+                drift_factor = i if i < 40 else max(0, (i - 40) * 0.1)
+                t5_phys += t5_d * drift_factor
+                ng_phys += ng_d * drift_factor
+                wf_phys += wf_d * drift_factor
+            elif scenario == "ISOLATED_SPIKE":
+                spike = 1.0 if i == 25 else 0.0
+                t5_phys += (t5_d * i) + (14.5 * spike)
+                ng_phys += (ng_d * i) - (0.8 * spike)
+                wf_phys += (wf_d * i) + (6.0 * spike)
+            elif scenario == "BORESCOPE_CRITICAL":
+                t5_phys += t5_d * i + (0.05 * (i ** 1.3))
+                ng_phys += ng_d * i - (0.001 * (i ** 1.4))
+                wf_phys += wf_d * i + (0.08 * (i ** 1.2))
+            elif scenario == "PNEUMATIC_LEAK":
+                t5_phys += t5_d * i
+                ng_phys += ng_d * i
+                wf_phys += wf_d * i
+            else:
+                t5_phys += t5_d * i
+                ng_phys += ng_d * i
+                wf_phys += wf_d * i
+                
+            rows_ectm.append(dict(
+                Date=pd.Timestamp("2026-05-01") + pd.Timedelta(days=i),
                 Engine=eng_id, Press_Alt=round(alt, 0), IOAT=round(ioat, 1),
-                IAS=round(135.0 + rng.normal(0, 1.2), 1), TQ=round(tq, 1), Np=75,
-                T5=round(t5, 1), Ng=round(ng, 2), Wf=round(wf, 1),
-                Oil_Temp=round(72.5 + rng.normal(0, 0.6), 1), Oil_Press=round(91.0 + rng.normal(0, 0.5), 1),
+                IAS=round(135.0 + rng.normal(0, 1.5), 1), TQ=round(tq, 1), Np=75,
+                T5=round(t5_phys, 1), Ng=round(ng_phys, 2), Wf=round(wf_phys, 1),
+                Oil_Temp=round(71.0 + 0.05 * i + rng.normal(0, 0.4), 1), 
+                Oil_Press=round(92.0 - 0.02 * i + rng.normal(0, 0.3), 1),
             ))
-    df_ectm = pd.DataFrame(rows)
+    df_ectm = pd.DataFrame(rows_ectm)
 
     util_file = "Flight Utulization DHC6-400.xlsx"
     if os.path.exists(util_file):
@@ -212,9 +256,23 @@ def init_all_datasets():
             df_util['Work (Date)'] = pd.to_datetime(df_util['Work (Date)'], errors='coerce')
             df_util = df_util.dropna(subset=['Registration', 'Work (Date)']).sort_values('Work (Date)')
         except Exception:
-            df_util = pd.DataFrame(columns=['Work (Date)', 'Registration', 'FH', 'FC', 'Block Hours', 'From', 'To'])
+            df_util = pd.DataFrame()
     else:
-        df_util = pd.DataFrame(columns=['Work (Date)', 'Registration', 'FH', 'FC', 'Block Hours', 'From', 'To'])
+        df_util = pd.DataFrame()
+
+    if df_util.empty:
+        util_rows = []
+        for reg in ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]:
+            for d in range(60):
+                fc = int(rng.choice([2, 4, 6, 8], p=[0.2, 0.4, 0.3, 0.1]))
+                fh = round(fc * rng.uniform(0.6, 0.9), 1)
+                util_rows.append(dict(
+                    Registration=reg,
+                    **{'Work (Date)': pd.Timestamp("2026-05-01") + pd.Timedelta(days=d)},
+                    FH=fh, FC=fc, **{'Block Hours': round(fh * 1.1, 1)},
+                    From="WAY", To="TIM"
+                ))
+        df_util = pd.DataFrame(util_rows)
 
     rep_file = "Pilot & Maintenance Report DHC6-400.xlsx"
     if os.path.exists(rep_file):
@@ -222,31 +280,27 @@ def init_all_datasets():
             df_rep = pd.read_excel(rep_file)
             df_rep['Date'] = pd.to_datetime(df_rep['Date'], errors='coerce')
             df_rep = df_rep.dropna(subset=['Note / Report', 'Date']).sort_values('Date', ascending=False)
-            
             def ext_reg(val):
                 if not isinstance(val, str): return "UNKNOWN"
-                p = val.split('-')[0]
-                if p in ['OAM', 'OCH', 'OCI', 'OCG', 'OCF']: return f"PK-{p}"
-                return p
+                match = re.search(r"(PK-[A-Z0-9]{3,4})", val.upper())
+                if match: return match.group(1)
+                p = val.split('-')[0].strip()
+                return f"PK-{p}" if p in ['OAM', 'OCH', 'OCI', 'OCG', 'OCF'] else p
             df_rep['Registration'] = df_rep['AML No'].apply(ext_reg)
-            
-            ata_map = {
-                21: "21 - Air Conditioning", 22: "22 - Auto Flight", 23: "23 - Communications",
-                24: "24 - Electrical Power", 25: "25 - Equipment / Furnishings", 26: "26 - Fire Protection",
-                27: "27 - Flight Controls", 28: "28 - Fuel System", 29: "29 - Hydraulic Power",
-                30: "30 - Ice & Rain Protection", 31: "31 - Indicating / Recording Systems",
-                32: "32 - Landing Gear", 33: "33 - Lights", 34: "34 - Navigation",
-                45: "45 - Central Maintenance System (CAS)", 52: "52 - Doors", 53: "53 - Fuselage",
-                55: "55 - Stabilizers", 56: "56 - Windows", 57: "57 - Wings",
-                61: "61 - Propellers", 71: "71 - Powerplant General", 72: "72 - Engine",
-                73: "73 - Engine Fuel & Control", 74: "74 - Ignition", 77: "77 - Engine Indicating",
-                78: "78 - Exhaust", 79: "79 - Engine Oil", 80: "80 - Starting"
-            }
-            df_rep['ATA_Desc'] = df_rep['ATA'].map(lambda x: ata_map.get(int(x) if pd.notnull(x) and str(x).isdigit() else x, f"ATA {x} - General"))
         except Exception:
-            df_rep = pd.DataFrame(columns=['AML No', 'Date', 'Registration', 'ATA', 'ATA_Desc', 'Note / Report', 'Corrective Action', 'Position', 'P/N Off', 'P/N On'])
+            df_rep = pd.DataFrame()
     else:
-        df_rep = pd.DataFrame(columns=['AML No', 'Date', 'Registration', 'ATA', 'ATA_Desc', 'Note / Report', 'Corrective Action', 'Position', 'P/N Off', 'P/N On'])
+        df_rep = pd.DataFrame()
+
+    if df_rep.empty:
+        df_rep = pd.DataFrame([
+            {"AML No": "OAM-2026-001", "Date": "2026-06-10", "Registration": "PK-OAM", "ATA": 71, "ATA_Desc": "71 - Powerplant General", "Note / Report": "Pilot reported engine T5 ITT running 8 deg C above normal during cruise at 10,000 ft.", "Corrective Action": "Performed Compressor Performance Recovery Wash per AMM 71-00-00. Ground run test SAT. ITT dropped by 7 deg C.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OAM-2026-002", "Date": "2026-05-26", "Registration": "PK-OAM", "ATA": 77, "ATA_Desc": "77 - Engine Indicating", "Note / Report": "ITT cockpit gauge flickered and showed momentary high spike during climb.", "Corrective Action": "Checked ITT wiring harness and thermocouple terminal connections. Found loose ground wire. Re-torqued and tested SAT.", "Position": "RH", "P/N Off": "3021100", "P/N On": "3021100", "S/N Off": "TH-991", "S/N On": "TH-992"},
+            {"AML No": "OCH-2026-003", "Date": "2026-06-20", "Registration": "PK-OCH", "ATA": 72, "ATA_Desc": "72 - Engine", "Note / Report": "High T5 trend paired with Ng drop. Suspected CT vane erosion or bleed valve leak.", "Corrective Action": "Scheduled engine for mandatory borescope inspection. Replaced faulty compressor bleed valve assembly.", "Position": "LH", "P/N Off": "3100250-01", "P/N On": "3100250-01", "S/N Off": "BV-102", "S/N On": "BV-884"},
+            {"AML No": "OCH-2026-004", "Date": "2026-06-05", "Registration": "PK-OCH", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "All engine parameters (Ng, ITT, Wf) reading slightly lower than baseline at cruise power.", "Corrective Action": "Inspected P3 pneumatic sensing line. Found minor air leak at FCU Bellows B-nut fitting. Re-sealed and leak tested SAT.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OCG-2026-005", "Date": "2026-06-15", "Registration": "PK-OCG", "ATA": 79, "ATA_Desc": "79 - Engine Oil", "Note / Report": "Oil temperature slightly elevated by 3 deg C over the last 10 sectors.", "Corrective Action": "Inspected oil cooler matrix and cleaned external dust accumulation. Re-verified oil pressure relief valve setting.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+        ])
+        df_rep['Date'] = pd.to_datetime(df_rep['Date'])
 
     return df_ectm, df_util, df_rep
 
@@ -270,18 +324,37 @@ def validate_columns(df: pd.DataFrame):
     return missing_required, available_correction
 
 # ======================================================================================
-# 6. THERMODYNAMIC LEAST-SQUARES REGRESSION & NORMALIZATION
+# 6. AUTOMATED DATA QUALITY AUDIT MODULE (NEW ENHANCEMENT)
+# ======================================================================================
+def run_data_quality_audit(df: pd.DataFrame) -> list:
+    alerts = []
+    if not df.empty:
+        if "IOAT" in df.columns:
+            if (df["IOAT"] > 55.0).any() or (df["IOAT"] < -40.0).any():
+                alerts.append("⚠️ Physical Outlier: IOAT exceeds standard operational atmospheric envelope (-40°C to +55°C).")
+        if "T5" in df.columns and (df["T5"] <= 0).any():
+            alerts.append("⚠️ Sensor Error: T5 recorded at or below 0°C during engine operation.")
+        
+        for col in ["T5", "Ng", "Wf"]:
+            if col in df.columns and len(df) >= 3:
+                stuck_mask = (df[col].diff() == 0) & (df[col].diff().shift(-1) == 0)
+                if stuck_mask.any():
+                    alerts.append(f"🔒 Sensor Freeze Suspected: Column '{col}' contains identical consecutive static values for 3+ cycles.")
+    return alerts
+
+# ======================================================================================
+# 7. THERMODYNAMIC LEAST-SQUARES REGRESSION & ADAPTIVE NOISE BANDING
 # ======================================================================================
 def fit_correction_model(df_baseline: pd.DataFrame, predictors: list, target: str):
     usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 1e-6]
     if len(usable) == 0 or len(df_baseline) < len(usable) + 2:
-        mean_val = df_baseline[target].mean()
-        return {"mode": "mean", "predictors": [], "coef": np.array([mean_val])}
+        mean_val = df_baseline[target].mean() if not df_baseline.empty else 0.0
+        return {"mode": "mean", "predictors": [], "coef": np.array([mean_val]), "downgraded": True}
     X = df_baseline[usable].astype(float).values
     X = np.column_stack([np.ones(len(X)), X])
     y = df_baseline[target].astype(float).values
     coef, *_ = np.linalg.lstsq(X, y, rcond=None)
-    return {"mode": "regression", "predictors": usable, "coef": coef}
+    return {"mode": "regression", "predictors": usable, "coef": coef, "downgraded": False}
 
 def apply_correction_model(model: dict, df: pd.DataFrame) -> np.ndarray:
     if model["mode"] == "mean":
@@ -296,17 +369,29 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
     df_baseline = df_engine.iloc[:n]
     predictors = [c for c in CORRECTION_CANDIDATES if c in df_engine.columns] if use_correction else []
     models = {}
+    is_downgraded = False
+    
     for target in ["T5", "Ng", "Wf"]:
         models[target] = fit_correction_model(df_baseline, predictors, target)
+        if models[target].get("downgraded", False) and use_correction and len(predictors) > 0:
+            is_downgraded = True
         df_engine[f"{target}_pred"] = apply_correction_model(models[target], df_engine)
         df_engine[f"Delta_{target}"] = df_engine[target] - df_engine[f"{target}_pred"]
+        
     df_engine["Delta_Ng_pct"] = df_engine["Delta_Ng"]
     baseline_wf_mean = df_baseline["Wf"].mean()
-    df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / baseline_wf_mean
+    df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)
+    
+    # HARDENING FIX: Adaptive Expanding Statistical Noise Banding (EWMA / Expanding Std)
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
+    for t in ["T5", "Ng", "Wf"]:
+        df_engine[f"Adaptive_Sigma_{t}"] = df_engine[f"Delta_{t}"].expanding(min_periods=n).std().fillna(noise[t])
+        df_engine[f"Adaptive_Sigma_{t}"] = np.maximum(df_engine[f"Adaptive_Sigma_{t}"], noise[t])
+
     df_engine.attrs["models"] = models
     df_engine.attrs["noise"] = noise
     df_engine.attrs["baseline_n"] = n
+    df_engine.attrs["regression_downgraded"] = is_downgraded
     return df_engine
 
 def rolling_slope(series: pd.Series, window: int) -> float:
@@ -329,7 +414,7 @@ def isolated_spike_flag(series: pd.Series, threshold: float) -> bool:
     return bool(last > threshold and prev < half) if threshold > 0 else bool(last < threshold and prev > -half)
 
 # ======================================================================================
-# 7. PREDICTIVE EXTRAPOLATION & UTILIZATION CORRELATION (RUL ENGINE)
+# 8. PREDICTIVE EXTRAPOLATION & UTILIZATION CORRELATION (RUL ENGINE)
 # ======================================================================================
 def calculate_rul(current_val: float, slope: float, threshold: float, direction: str = "UP"):
     if direction == "UP":
@@ -353,7 +438,7 @@ def get_aircraft_utilization_rate(reg: str, df_util: pd.DataFrame):
     return max(0.5, total_fc / days)
 
 # ======================================================================================
-# 8. DIAGNOSTIC CLASSIFICATION & FIM DIRECTIVE GENERATION
+# 9. DIAGNOSTIC CLASSIFICATION & FIM DIRECTIVE GENERATION
 # ======================================================================================
 def classify_direction(value, shift_band):
     if value > shift_band: return "UP"
@@ -377,10 +462,12 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     sustained_ng = sustained_flag(df_engine["Delta_Ng"], NG_BORESCOPE_LOW_PCT, SUSTAIN_WINDOW)
     isolated_ng = isolated_spike_flag(df_engine["Delta_Ng"], NG_BORESCOPE_LOW_PCT)
     
-    noise = df_engine.attrs.get("noise", {"T5": 1, "Ng": 1, "Wf": 1})
-    control_breach = (abs(d_t5) > CONTROL_SIGMA * noise["T5"] or abs(d_ng) > CONTROL_SIGMA * noise["Ng"] or abs(d_wf) > CONTROL_SIGMA * noise["Wf"])
+    # HARDENING FIX: Adaptive Statistical Breach checking
+    dyn_sig_t5 = latest.get("Adaptive_Sigma_T5", df_engine.attrs.get("noise", {}).get("T5", 1))
+    dyn_sig_ng = latest.get("Adaptive_Sigma_Ng", df_engine.attrs.get("noise", {}).get("Ng", 1))
+    dyn_sig_wf = latest.get("Adaptive_Sigma_Wf", df_engine.attrs.get("noise", {}).get("Wf", 1))
     
-    # HARDENING FIX: is_abnormal ONLY activates upon Hard OEM Limit breach or confirmed sustained shift!
+    control_breach = (abs(d_t5) > CONTROL_SIGMA * dyn_sig_t5 or abs(d_ng) > CONTROL_SIGMA * dyn_sig_ng or abs(d_wf) > CONTROL_SIGMA * dyn_sig_wf)
     is_abnormal = alarm_wash or alarm_borescope_t5 or alarm_borescope_ng or sustained_t5 or sustained_ng
     
     slope_t5 = rolling_slope(df_engine["Delta_T5"], TREND_WINDOW)
@@ -390,12 +477,13 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     rul_ng_borescope = calculate_rul(d_ng, slope_ng, NG_BORESCOPE_LOW_PCT, "DOWN")
     rul_cycles = min(rul_t5_borescope, rul_ng_borescope)
     
-    reg_prefix = str(latest["Engine"]).split("|")[0].strip()
-    fc_per_day = get_aircraft_utilization_rate(reg_prefix, df_util)
+    # HARDENING FIX: Regex extraction to prevent split format crash
+    match_reg = re.search(r"(PK-[A-Z0-9]{3,4})", str(latest["Engine"]).upper())
+    reg_prefix = match_reg.group(1) if match_reg else str(latest["Engine"]).split("|")[0].strip()
     
-    # HARDENING FIX: Cap days_left to prevent OverflowError in calendar datetime calculation
+    fc_per_day = get_aircraft_utilization_rate(reg_prefix, df_util)
     days_left = int(rul_cycles / fc_per_day) if fc_per_day > 0 else 999
-    days_left = min(days_left, 3650) # Cap projection at 10 years maximum
+    days_left = min(days_left, 3650)
     proj_date = (datetime.now() + timedelta(days=days_left)).strftime("%Y-%m-%d") if rul_cycles < 999 else "Stable"
     
     return dict(
@@ -407,12 +495,12 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         sustained_ng=sustained_ng, isolated_ng=isolated_ng,
         control_breach=control_breach, is_abnormal=is_abnormal,
         slope_t5=slope_t5, slope_ng=slope_ng,
-        rul_cycles=rul_cycles, proj_date=proj_date, fc_per_day=fc_per_day
+        rul_cycles=rul_cycles, proj_date=proj_date, fc_per_day=fc_per_day,
+        reg_prefix=reg_prefix
     )
 
 def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     recs = []
-    latest = status["latest"]
     if status["isolated_t5"] or status["isolated_ng"]:
         recs.append(dict(level="amber", title="Possible Indicating System Anomaly (Isolated Point Shift)", fim_ref="FIM Table 101, Note 2",
             body=("The latest observation indicates a rapid single-cycle parameter shift inconsistent with preceding thermodynamic regression trends. "
@@ -453,7 +541,6 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                   "**Line Engineering Directives:**\n1. Inspect P3 and Py pneumatic sensing lines, fittings, and FCU bellows for leakage.\n"
                   "2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units.")))
     
-    # HARDENING FIX: Explicit handling for Statistical Advisory Watch vs. Green Normal Condition
     if not recs:
         if status["control_breach"] and not status["is_abnormal"]:
             recs.append(dict(
@@ -478,7 +565,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     return recs
 
 # ======================================================================================
-# 9. PLOTLY VISUALIZATION ENGINE (UPDATED WITH PROFESSIONAL SPACING & LAYOUT)
+# 10. PLOTLY VISUALIZATION ENGINE (WITH ADAPTIVE NOISE BANDING & SPACED LAYOUT)
 # ======================================================================================
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
@@ -494,36 +581,25 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
         ma = df_engine[col].rolling(3, min_periods=1).mean()
         fig.add_trace(go.Scatter(x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", line=dict(color=color, width=1, dash="dot"), opacity=0.4, showlegend=False, hoverinfo="skip"))
 
-    noise = df_engine.attrs.get("noise", {})
-    if "T5" in noise:
-        band = CONTROL_SIGMA * noise["T5"]
-        fig.add_hrect(y0=-band, y1=band, fillcolor="rgba(0, 59, 111, 0.04)", line_width=0)
+    # HARDENING FIX: Dynamic Expanding Adaptive Statistical Control Band
+    if "Adaptive_Sigma_T5" in df_engine.columns:
+        upper_band = CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]
+        lower_band = -upper_band
+        fig.add_trace(go.Scatter(
+            x=pd.concat([df_engine["Date"], df_engine["Date"][::-1]]),
+            y=pd.concat([upper_band, lower_band[::-1]]),
+            fill='toself', fillcolor='rgba(0, 59, 111, 0.05)',
+            line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip", showlegend=True, name="2.5σ Adaptive Noise Band"
+        ))
 
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#B42318", line_width=1, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#B42318"))
 
-    # PERBAIKAN LAYOUT & SPACING: Pindahkan legend ke bawah dan tambah margin
     fig.update_layout(
-        title=dict(
-            text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", 
-            font=dict(color=NAVY, size=14)
-        ),
-        xaxis_title="Flight Date / Cycle", 
-        yaxis_title="Residual Delta from Baseline", 
-        hovermode="x unified", 
-        template="plotly_white", 
-        height=480,  # Ditinggikan sedikit dari 440 agar ruang legend di bawah lebih lega
-        legend=dict(
-            orientation="h", 
-            yanchor="top", 
-            y=-0.2,            # Menggeser legend ke bawah area grafik
-            xanchor="center", 
-            x=0.5, 
-            font=dict(size=11)
-        ), 
-        paper_bgcolor="rgba(0,0,0,0)", 
-        plot_bgcolor="rgba(248,250,252,1)", 
-        margin=dict(l=40, r=20, t=70, b=80),  # Margin Top (t=70) dan Bottom (b=80) diperbesar
+        title=dict(text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", font=dict(color=NAVY, size=14)),
+        xaxis_title="Flight Date / Cycle", yaxis_title="Residual Delta from Baseline", hovermode="x unified", template="plotly_white", height=480,
+        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11)), 
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=70, b=80),
         xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569")), 
         yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"))
     )
@@ -533,33 +609,17 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[param], mode="lines+markers", name=f"Actual {param}", line=dict(color=color, width=1.8), marker=dict(size=4)))
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[f"{param}_pred"], mode="lines", name="Predicted Baseline", line=dict(color="#64748B", width=1.5, dash="dash")))
-    
-    # PERBAIKAN LAYOUT & SPACING: Pindahkan legend ke bawah agar tidak menabrak judul di kolom sempit
     fig.update_layout(
-        title=dict(
-            text=f"<b>{param} | Actual vs. Condition Baseline ({unit})</b>", 
-            font=dict(color=NAVY, size=12)
-        ), 
-        template="plotly_white", 
-        height=320,  # Ditinggikan sedikit dari 280 agar grafik tidak tertekan legend
-        hovermode="x unified",
-        legend=dict(
-            orientation="h", 
-            yanchor="top", 
-            y=-0.3,            # Menggeser legend ke bawah area grafik
-            xanchor="center", 
-            x=0.5, 
-            font=dict(size=10)
-        ), 
-        paper_bgcolor="rgba(0,0,0,0)", 
-        plot_bgcolor="rgba(248,250,252,1)", 
-        margin=dict(l=40, r=20, t=60, b=80),  # Memberi ruang bernapas di atas dan bawah
-        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)), 
-        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
+        title=dict(text=f"<b>{param} | Actual vs. Condition Baseline ({unit})</b>", font=dict(color=NAVY, size=12)), 
+        template="plotly_white", height=320, hovermode="x unified",
+        legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5, font=dict(size=10)), 
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=60, b=80),
+        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)), yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
     )
     return fig
+
 # ======================================================================================
-# 10. AUTOMATED EMAIL DISPATCH PROTOCOL & EWO GENERATOR (UPDATED WITH DYNAMIC TEXT)
+# 11. AUTOMATED EMAIL DISPATCH PROTOCOL & NATIVE PDF EWO GENERATOR
 # ======================================================================================
 def send_engineering_notice(engine_id: str, status_label: str, report_body: str, recipients: list):
     try:
@@ -576,7 +636,6 @@ def send_engineering_notice(engine_id: str, status_label: str, report_body: str,
                 f"In production, notice for **{engine_id} ({status_label})** is dispatched to: `{', '.join(recipients)}`.")
         return True
 
-    # PERBAIKAN: Kalimat pengantar email dibuat dinamis sesuai status mesin
     if "NORMAL" in status_label.upper():
         intro_text = (f"Powerplant {engine_id} is operating normal within OEM thermodynamic tolerances.\n"
                       "Please find the routine condition logging evaluation and trend summary below:")
@@ -609,14 +668,23 @@ def send_engineering_notice(engine_id: str, status_label: str, report_body: str,
         f"Do not reply directly to this automated service address."
     )
     msg.attach(MIMEText(email_content, 'plain'))
+    
+    # HARDENING FIX: Dual-Protocol SMTP Fallback (SSL 465 -> STARTTLS 587)
     try:
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
             server.login(sender_email, sender_password)
             server.send_message(msg)
         return True
-    except Exception as e:
-        st.error(f"SMTP Transmission Failure: {str(e)}")
-        return False
+    except Exception as ssl_err:
+        try:
+            with smtplib.SMTP(smtp_server, 587, timeout=10) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.send_message(msg)
+            return True
+        except Exception as tls_err:
+            st.error(f"SMTP Transmission Failure (SSL Error: {ssl_err} | TLS Error: {tls_err})")
+            return False
 
 def generate_ewo_html(engine_id: str, status_label: str, status_dict: dict, recs: list) -> str:
     date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -626,8 +694,68 @@ def generate_ewo_html(engine_id: str, status_label: str, status_dict: dict, recs
         rows_html += f'<div style="border: 1px solid #CBD5E1; padding: 12px; margin-bottom: 10px; border-radius: 4px;"><b style="color: #003B6F; font-size: 14px;">[{r["fim_ref"]}] {r["title"]}</b><p style="font-size: 12px; color: #334155; margin-top: 6px; white-space: pre-line;">{r["body"]}</p><div style="margin-top: 10px; font-size: 11px; color: #64748B;">[ &nbsp; ] Action Completed &nbsp;&nbsp;&nbsp;&nbsp; Mech Sign: __________________ &nbsp;&nbsp;&nbsp;&nbsp; Date: ______________</div></div>'
     return f'<!DOCTYPE html><html><head><title>Engineering Work Order - {engine_id}</title><style>body {{ font-family: Arial, sans-serif; color: #0F172A; margin: 40px; }} .header {{ border-bottom: 3px solid #003B6F; padding-bottom: 10px; margin-bottom: 20px; }} .title {{ font-size: 20px; font-weight: bold; color: #003B6F; }} .subtitle {{ font-size: 12px; color: #64748B; font-weight: bold; letter-spacing: 1px; }} .meta-table {{ width: 100%; margin-bottom: 20px; border-collapse: collapse; }} .meta-table td, .meta-table th {{ padding: 6px; border: 1px solid #E2E8F0; font-size: 12px; }} .meta-table th {{ background: #F8FAFC; text-align: left; color: #475569; }} .section-title {{ font-size: 14px; font-weight: bold; color: #003B6F; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; }} .footer {{ margin-top: 40px; border-top: 1px solid #CBD5E1; padding-top: 15px; font-size: 11px; color: #64748B; display: flex; justify-content: space-between; }} .sign-box {{ width: 200px; border-top: 1px solid #000; text-align: center; margin-top: 40px; font-size: 11px; padding-top: 5px; }}</style></head><body><div class="header"><div class="title">PT. AIRFAST INDONESIA</div><div class="subtitle">TECHNICAL SERVICES DIVISION | ENGINEERING WORK ORDER (EWO)</div></div><table class="meta-table"><tr><th>Powerplant Serial / Position</th><td><b>{engine_id}</b></td><th>Document Type</th><td>ECTM Directive Order</td></tr><tr><th>Evaluation Timestamp</th><td>{date_str}</td><th>Latest Logbook Date</th><td>{latest_date}</td></tr><tr><th>System Status Classification</th><td colspan="3"><b style="color: {"#B42318" if "ABNORMAL" in status_label else "#003B6F"};">{status_label}</b></td></tr><tr><th>Thermodynamic Residuals</th><td colspan="3">Δ T5: <b>{status_dict["d_t5"]:+.1f} °C</b> (Slope: {status_dict["slope_t5"]:+.2f}) | Δ Ng: <b>{status_dict["d_ng"]:+.2f} %</b> | Δ Wf: <b>{status_dict["d_wf"]:+.1f} PPH</b></td></tr></table><div class="section-title">OEM Maintenance Directives & Action Checklist</div>{rows_html}<div style="display: flex; justify-content: space-between; margin-top: 30px;"><div class="sign-box">Licensed Aircraft Engineer (LAE)</div><div class="sign-box">Chief Inspector / Quality Control</div></div><div class="footer"><div>PT. AIRFAST Indonesia | DHC-6 / PT6A-34 Fleet Maintenance Program</div><div>Generated by Enterprise ECTM System</div></div></body></html>'
 
+# NEW ENHANCEMENT: Native FPDF Print-Ready Document Generator
+def generate_ewo_pdf(engine_id: str, status_label: str, status_dict: dict, recs: list) -> bytes:
+    if not HAS_FPDF: return b""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.set_text_color(0, 59, 111)
+    pdf.cell(0, 8, "PT. AIRFAST INDONESIA", ln=True, align="L")
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(0, 5, "TECHNICAL SERVICES DIVISION | ENGINEERING WORK ORDER (EWO)", ln=True, align="L")
+    pdf.ln(4)
+    
+    pdf.set_font("Arial", "", 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(45, 7, "Powerplant Serial:", border=1)
+    pdf.set_font("Arial", "B", 9)
+    pdf.cell(145, 7, f"  {engine_id}", border=1, ln=True)
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(45, 7, "Status Classification:", border=1)
+    if "ABNORMAL" in status_label: pdf.set_text_color(180, 35, 24)
+    else: pdf.set_text_color(0, 59, 111)
+    pdf.set_font("Arial", "B", 9)
+    pdf.cell(145, 7, f"  {status_label}", border=1, ln=True)
+    pdf.set_text_color(15, 23, 42)
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(45, 7, "Thermodynamic Residuals:", border=1)
+    pdf.cell(145, 7, f"  Delta T5: {status_dict['d_t5']:+.1f} degC | Delta Ng: {status_dict['d_ng']:+.2f} % | Delta Wf: {status_dict['d_wf']:+.1f} PPH", border=1, ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", "B", 11)
+    pdf.set_text_color(0, 59, 111)
+    pdf.cell(0, 8, "OEM MAINTENANCE DIRECTIVES & ACTION CHECKLIST", ln=True)
+    
+    for r in recs:
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_text_color(0, 59, 111)
+        pdf.cell(0, 6, f"[{r['fim_ref']}] {r['title']}", ln=True)
+        pdf.set_font("Arial", "", 8)
+        pdf.set_text_color(51, 65, 85)
+        clean_body = r['body'].replace("**", "").replace("\u2192", "->").replace("\u0394", "Delta ")
+        pdf.multi_cell(0, 4.5, clean_body)
+        pdf.ln(1)
+        pdf.set_font("Arial", "I", 8)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(0, 5, "[   ] Action Completed    Mech Sign: __________________    Date: ______________", ln=True)
+        pdf.ln(3)
+        
+    pdf.ln(8)
+    pdf.set_font("Arial", "", 9)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(95, 8, "Licensed Aircraft Engineer (LAE): ___________________", align="L")
+    pdf.cell(95, 8, "Quality Control / Inspector: ___________________", align="R", ln=True)
+    
+    try:
+        res = pdf.output()
+        return res.encode("latin-1", errors="replace") if isinstance(res, str) else bytes(res)
+    except Exception:
+        return pdf.output(dest="S").encode("latin-1", errors="replace")
+
 # ======================================================================================
-# 11. CLEAN EXECUTIVE SIDEBAR
+# 12. CLEAN EXECUTIVE SIDEBAR
 # ======================================================================================
 logo_path = "images.png"  
 if os.path.exists(logo_path):
@@ -650,7 +778,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Engineering & Maintenance Division</span></div>", unsafe_allow_html=True)
 
 # ======================================================================================
-# 12. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
+# 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
 # ======================================================================================
 df_raw = st.session_state["df_data"].copy()
 df_util_current = st.session_state["df_util"].copy()
@@ -661,7 +789,6 @@ if missing_required:
     st.error(f"Ingestion Error: Mandatory schema columns missing: {', '.join(missing_required)}. Rectify within Data Collection.")
     st.stop()
 
-# HARDENING FIX: Coerce all numeric columns to prevent regression crashes from text strings
 for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns]:
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
@@ -673,7 +800,6 @@ if not engines_available:
     st.error("Data Processing Error: No valid powerplant identifiers ('Engine') located within dataset.")
     st.stop()
 
-# IMMUTABLE PERSISTENT FALLBACK: Guard against Streamlit widget cleanup
 if st.session_state["target_engine"] not in engines_available:
     st.session_state["target_engine"] = engines_available[0]
 
@@ -691,7 +817,7 @@ status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
 
 # ======================================================================================
-# 13. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
+# 14. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
 # ======================================================================================
 if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Engine Condition Trend Monitoring Dashboard</h1>", unsafe_allow_html=True)
@@ -739,7 +865,7 @@ if menu_selection == "Home (Fleet Matrix)":
         st.dataframe(df_u_summary, use_container_width=True, hide_index=True)
 
 # ======================================================================================
-# 14. PAGE 2: DATA COLLECTION & CONFIGURATION
+# 15. PAGE 2: DATA COLLECTION & CONFIGURATION
 # ======================================================================================
 elif menu_selection == "Data Collection & Setup":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Data Ingestion & System Setup</h1>", unsafe_allow_html=True)
@@ -763,7 +889,16 @@ elif menu_selection == "Data Collection & Setup":
             st.write("")
             st.write("")
             st.download_button("Download CSV Template", data=csv_template(), file_name="AIRFAST_ECTM_Template.csv", mime="text/csv", use_container_width=True)
-        st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
+        
+        # HARDENING FIX: Pengecekan Kualitas Data Otomatis (Pre-Flight Audit)
+        audit_alerts = run_data_quality_audit(st.session_state["df_data"])
+        if audit_alerts:
+            with st.expander("⚠️ Data Quality Audit Alerts Detected (Click to expand)", expanded=True):
+                for alert in audit_alerts:
+                    st.warning(alert)
+
+        # HARDENING FIX: Menampung kembali return value st.data_editor agar perubahan tidak hilang!
+        st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
     with tab_util:
         st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utulization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
@@ -792,14 +927,10 @@ elif menu_selection == "Data Collection & Setup":
     with st.container(border=True):
         col_set1, col_set2, col_set3 = st.columns([1.2, 1, 1.2])
         
-        # CALLBACK SYNC: Persists selection across menu transitions
         def sync_config():
-            if "ui_sel_eng" in st.session_state:
-                st.session_state["target_engine"] = st.session_state["ui_sel_eng"]
-            if "ui_sel_base" in st.session_state:
-                st.session_state["target_baseline_n"] = st.session_state["ui_sel_base"]
-            if "ui_sel_corr" in st.session_state:
-                st.session_state["target_use_correction"] = st.session_state["ui_sel_corr"]
+            if "ui_sel_eng" in st.session_state: st.session_state["target_engine"] = st.session_state["ui_sel_eng"]
+            if "ui_sel_base" in st.session_state: st.session_state["target_baseline_n"] = st.session_state["ui_sel_base"]
+            if "ui_sel_corr" in st.session_state: st.session_state["target_use_correction"] = st.session_state["ui_sel_corr"]
 
         with col_set1:
             curr_idx = engines_available.index(st.session_state["target_engine"]) if st.session_state["target_engine"] in engines_available else 0
@@ -819,12 +950,16 @@ elif menu_selection == "Data Collection & Setup":
         st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=lambda: st.session_state.update(active_menu="Trend Analysis & RUL"))
 
 # ======================================================================================
-# 15. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL
+# 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL
 # ======================================================================================
 elif menu_selection == "Trend Analysis & RUL":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Thermodynamic Trend Analysis</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | Condition-Corrected Residual Shifts</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
+
+    # HARDENING FIX: Peringatan visual jika terjadi downgrade regresi karena baseline kurang
+    if df_engine.attrs.get("regression_downgraded", False):
+        st.warning("⚠️ **Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
 
     col_chart, col_status = st.columns([3, 1])
     with col_chart:
@@ -866,13 +1001,20 @@ elif menu_selection == "Trend Analysis & RUL":
         if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]: st.write("▪ OEM borescope threshold breached")
         if not (status["isolated_t5"] or status["isolated_ng"] or status["sustained_t5"] or status["alarm_wash"] or status["alarm_borescope_t5"] or status["alarm_borescope_ng"]):
             st.write("▪ No active anomalies detected")
+            
+        # NEW ENHANCEMENT: Click-to-Correlate Shortcut Button
+        st.markdown("---")
+        if st.button("🔗 Cross-Check Logbook Defect Correlator", use_container_width=True):
+            st.session_state["filter_reg_kw"] = status["reg_prefix"]
+            st.session_state["active_menu"] = "Logbook & Defect Correlator"
+            st.rerun()
 
     st.markdown("---")
     show_cols = [c for c in ["Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
     st.dataframe(df_engine[show_cols].sort_values("Date", ascending=False), use_container_width=True, height=240)
 
 # ======================================================================================
-# 16. PAGE 4: LOGBOOK & DEFECT CORRELATOR
+# 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR
 # ======================================================================================
 elif menu_selection == "Logbook & Defect Correlator":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Logbook & Defect Correlator</h1>", unsafe_allow_html=True)
@@ -883,7 +1025,7 @@ elif menu_selection == "Logbook & Defect Correlator":
         st.warning("No Pilot & Maintenance Report dataset loaded. Please upload `Pilot & Maintenance Report DHC6-400.xlsx` in Data Collection.")
         st.stop()
 
-    target_reg = selected_engine.split("|")[0].strip()
+    target_reg = status["reg_prefix"]
     
     col_filt1, col_filt2, col_filt3 = st.columns([1, 1.5, 1.5])
     with col_filt1:
@@ -925,7 +1067,7 @@ elif menu_selection == "Logbook & Defect Correlator":
                     st.caption(f"🔧 Component Change Tracking -> P/N Off: `{pn_off}` (S/N: `{row.get('S/N Off', '-')}`) ➔ P/N On: `{pn_on}` (S/N: `{row.get('S/N On', '-')}`)")
 
 # ======================================================================================
-# 17. PAGE 5: RECOMMENDATIONS, EWO EXPORT & DISPATCH
+# 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & DISPATCH
 # ======================================================================================
 elif menu_selection == "Recommendations & Dispatch":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Recommendations & Dispatch</h1>", unsafe_allow_html=True)
@@ -959,12 +1101,18 @@ elif menu_selection == "Recommendations & Dispatch":
     ]
     for rec in recommendations: report_lines += [f"[{rec['fim_ref']}] {rec['title']}", rec["body"], ""]
     
-    col_exp1, col_exp2 = st.columns(2)
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
     with col_exp1:
-        st.download_button("Download Technical Analysis Report (.txt)", data="\n".join(report_lines).encode("utf-8"), file_name=f"ECTM_Report_{selected_engine.split('|')[0].strip()}_{datetime.now().strftime('%Y%m%d')}.txt", mime="text/plain", use_container_width=True)
+        st.download_button("Download Analysis Report (.txt)", data="\n".join(report_lines).encode("utf-8"), file_name=f"ECTM_Report_{status['reg_prefix']}_{datetime.now().strftime('%Y%m%d')}.txt", mime="text/plain", use_container_width=True)
     with col_exp2:
         ewo_html_data = generate_ewo_html(selected_engine, overall_status_label, status, recommendations)
-        st.download_button("Download Print-Ready Work Order (.html / PDF)", data=ewo_html_data.encode("utf-8"), file_name=f"AIRFAST_EWO_{selected_engine.split('|')[0].strip()}_{datetime.now().strftime('%Y%m%d')}.html", mime="text/html", use_container_width=True, help="Open downloaded HTML in browser and press Ctrl+P (Print to PDF) for formal signed documentation.")
+        st.download_button("Download Print-Ready Order (.html)", data=ewo_html_data.encode("utf-8"), file_name=f"AIRFAST_EWO_{status['reg_prefix']}_{datetime.now().strftime('%Y%m%d')}.html", mime="text/html", use_container_width=True, help="Open downloaded HTML in browser and press Ctrl+P for formal signed documentation.")
+    with col_exp3:
+        if HAS_FPDF:
+            pdf_bytes = generate_ewo_pdf(selected_engine, overall_status_label, status, recommendations)
+            st.download_button("Download Formal EWO (.pdf)", data=pdf_bytes, file_name=f"AIRFAST_EWO_{status['reg_prefix']}_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True, help="Download native PDF formatted for immediate printing and LAE physical sign-off.")
+        else:
+            st.button("PDF Export Unavailable (Install fpdf2)", disabled=True, use_container_width=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Automated Emergency Dispatch Protocol</h3>", unsafe_allow_html=True)
