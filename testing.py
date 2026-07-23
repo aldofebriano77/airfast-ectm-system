@@ -559,7 +559,7 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
     )
     return fig
 # ======================================================================================
-# 10. AUTOMATED EMAIL DISPATCH PROTOCOL & EWO GENERATOR
+# 10. AUTOMATED EMAIL DISPATCH PROTOCOL & EWO GENERATOR (UPDATED WITH DYNAMIC TEXT)
 # ======================================================================================
 def send_engineering_notice(engine_id: str, status_label: str, report_body: str, recipients: list):
     try:
@@ -572,16 +572,42 @@ def send_engineering_notice(engine_id: str, status_label: str, report_body: str,
         live_mode = False
 
     if not live_mode:
-        st.info(f"**[SYSTEM SIMULATION MODE]** SMTP secrets not unconfigured in `.streamlit/secrets.toml`. "
+        st.info(f"**[SYSTEM SIMULATION MODE]** SMTP secrets not configured in `.streamlit/secrets.toml`. "
                 f"In production, notice for **{engine_id} ({status_label})** is dispatched to: `{', '.join(recipients)}`.")
         return True
+
+    # PERBAIKAN: Kalimat pengantar email dibuat dinamis sesuai status mesin
+    if "NORMAL" in status_label.upper():
+        intro_text = (f"Powerplant {engine_id} is operating normal within OEM thermodynamic tolerances.\n"
+                      "Please find the routine condition logging evaluation and trend summary below:")
+        subject_prefix = "[ROUTINE - NORMAL]"
+    elif "ADVISORY" in status_label.upper():
+        intro_text = (f"A statistical baseline deviation (Advisory Watch) has been detected on Powerplant {engine_id}.\n"
+                      "Please review the computed residuals and monitoring directives below:")
+        subject_prefix = "[ADVISORY - WATCH]"
+    else:
+        intro_text = (f"An abnormal thermodynamic parameter shift has been confirmed on Powerplant {engine_id}.\n"
+                      "Please immediately review the computed residuals and OEM-referenced maintenance directives below:")
+        subject_prefix = "[URGENT - CRITICAL]"
 
     msg = MIMEMultipart()
     msg['From'] = f"AIRFAST ECTM Automated System <{sender_email}>"
     msg['To'] = ", ".join(recipients)
-    msg['Subject'] = f"[URGENT - {status_label}] ECTM Alert: Powerplant {engine_id} Requires Intervention"
+    msg['Subject'] = f"{subject_prefix} ECTM Alert: Powerplant {engine_id} Status Report"
     
-    email_content = f"EXECUTIVE ENGINEERING NOTICE | PT. AIRFAST INDONESIA\n====================================================================\nPowerplant Serial / Position : {engine_id}\nSystem Status Classification : {status_label}\nDate Evaluated               : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n====================================================================\n\nAn abnormal thermodynamic parameter shift has been confirmed on Powerplant {engine_id}.\nPlease review the computed residuals and OEM-referenced maintenance directives below:\n\n{report_body}\n\n--------------------------------------------------------------------\nAutomated transmission from AIRFAST ECTM Technical Services System.\nDo not reply directly to this automated service address."
+    email_content = (
+        f"EXECUTIVE ENGINEERING NOTICE | PT. AIRFAST INDONESIA\n"
+        f"====================================================================\n"
+        f"Powerplant Serial / Position : {engine_id}\n"
+        f"System Status Classification : {status_label}\n"
+        f"Date Evaluated               : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"====================================================================\n\n"
+        f"{intro_text}\n\n"
+        f"{report_body}\n\n"
+        f"--------------------------------------------------------------------\n"
+        f"Automated transmission from AIRFAST ECTM Technical Services System.\n"
+        f"Do not reply directly to this automated service address."
+    )
     msg.attach(MIMEText(email_content, 'plain'))
     try:
         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
