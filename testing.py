@@ -1,6 +1,6 @@
 """
 ========================================================================================
- ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE)
+ ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v2)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
@@ -10,6 +10,7 @@
                 - Robust Regex Registration Matching for Defect Correlator
                 - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
                 - Native Print-Ready PDF Engineering Work Order (EWO) Generator
+                - [FIXED] Pure Python List Plotly Tracing to Prevent PyArrow Index Clash
 ========================================================================================
 """
 
@@ -26,7 +27,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-# Import FPDF secara aman untuk pembuatan EWO PDF native
 try:
     from fpdf import FPDF
     HAS_FPDF = True
@@ -51,10 +51,10 @@ SHIFT_T5_C = 5.0
 SHIFT_NG_PCT = 0.5      
 SHIFT_WF_PCT = 2.0      
 
-T5_WASH_C = 10.0                # +10.0 °C ITT shift -> Compressor Performance Wash
-T5_BORESCOPE_C = 15.0           # +15.0 °C ITT shift -> Mandatory Hot-Section Borescope
-NG_BORESCOPE_LOW_PCT = -1.0     # -1.0% Ng drop      -> Borescope Advisory Trigger
-NG_BORESCOPE_HIGH_PCT = -1.5    # -1.5% Ng drop      -> Mandatory Compressor Borescope
+T5_WASH_C = 10.0                
+T5_BORESCOPE_C = 15.0           
+NG_BORESCOPE_LOW_PCT = -1.0     
+NG_BORESCOPE_HIGH_PCT = -1.5    
 
 OIL_PRESS_DROP_PSI = 5.0
 OIL_TEMP_RISE_C = 5.0
@@ -175,13 +175,12 @@ st.markdown(
 )
 
 # ======================================================================================
-# 4. SESSION STATE MANAGEMENT (DECOUPLED PERSISTENT STORAGE)
+# 4. SESSION STATE MANAGEMENT
 # ======================================================================================
 if "active_menu" not in st.session_state:
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
 if "target_use_correction" not in st.session_state:
     st.session_state["target_use_correction"] = True
-# HARDENING FIX: Baseline default dinaikkan ke 6 siklus untuk menjamin OLS Regression aktif
 if "target_baseline_n" not in st.session_state:
     st.session_state["target_baseline_n"] = 6
 if "target_engine" not in st.session_state:
@@ -190,7 +189,7 @@ if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
 # ======================================================================================
-# 5. DATA INGESTION & SYNTHESIS MODULE (ADVANCED ENTERPRISE DATASET)
+# 5. DATA INGESTION & SYNTHESIS MODULE
 # ======================================================================================
 def init_all_datasets():
     rng = np.random.default_rng(101)
@@ -324,7 +323,7 @@ def validate_columns(df: pd.DataFrame):
     return missing_required, available_correction
 
 # ======================================================================================
-# 6. AUTOMATED DATA QUALITY AUDIT MODULE (NEW ENHANCEMENT)
+# 6. AUTOMATED DATA QUALITY AUDIT MODULE
 # ======================================================================================
 def run_data_quality_audit(df: pd.DataFrame) -> list:
     alerts = []
@@ -382,7 +381,6 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
     baseline_wf_mean = df_baseline["Wf"].mean()
     df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)
     
-    # HARDENING FIX: Adaptive Expanding Statistical Noise Banding (EWMA / Expanding Std)
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
     for t in ["T5", "Ng", "Wf"]:
         df_engine[f"Adaptive_Sigma_{t}"] = df_engine[f"Delta_{t}"].expanding(min_periods=n).std().fillna(noise[t])
@@ -462,7 +460,6 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     sustained_ng = sustained_flag(df_engine["Delta_Ng"], NG_BORESCOPE_LOW_PCT, SUSTAIN_WINDOW)
     isolated_ng = isolated_spike_flag(df_engine["Delta_Ng"], NG_BORESCOPE_LOW_PCT)
     
-    # HARDENING FIX: Adaptive Statistical Breach checking
     dyn_sig_t5 = latest.get("Adaptive_Sigma_T5", df_engine.attrs.get("noise", {}).get("T5", 1))
     dyn_sig_ng = latest.get("Adaptive_Sigma_Ng", df_engine.attrs.get("noise", {}).get("Ng", 1))
     dyn_sig_wf = latest.get("Adaptive_Sigma_Wf", df_engine.attrs.get("noise", {}).get("Wf", 1))
@@ -477,7 +474,6 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     rul_ng_borescope = calculate_rul(d_ng, slope_ng, NG_BORESCOPE_LOW_PCT, "DOWN")
     rul_cycles = min(rul_t5_borescope, rul_ng_borescope)
     
-    # HARDENING FIX: Regex extraction to prevent split format crash
     match_reg = re.search(r"(PK-[A-Z0-9]{3,4})", str(latest["Engine"]).upper())
     reg_prefix = match_reg.group(1) if match_reg else str(latest["Engine"]).split("|")[0].strip()
     
@@ -565,7 +561,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     return recs
 
 # ======================================================================================
-# 10. PLOTLY VISUALIZATION ENGINE (WITH ADAPTIVE NOISE BANDING & SPACED LAYOUT)
+# 10. PLOTLY VISUALIZATION ENGINE (FIXED PYARROW SERIALIZATION BUG)
 # ======================================================================================
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
@@ -581,13 +577,15 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
         ma = df_engine[col].rolling(3, min_periods=1).mean()
         fig.add_trace(go.Scatter(x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", line=dict(color=color, width=1, dash="dot"), opacity=0.4, showlegend=False, hoverinfo="skip"))
 
-    # HARDENING FIX: Dynamic Expanding Adaptive Statistical Control Band
+    # PERBAIKAN FATAL: Gunakan konversi .tolist() murni untuk mencegah ValueError bentrokan indeks di Streamlit Cloud
     if "Adaptive_Sigma_T5" in df_engine.columns:
-        upper_band = CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]
-        lower_band = -upper_band
+        upper_vals = (CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]).tolist()
+        lower_vals = (-CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]).tolist()
+        x_vals = df_engine["Date"].tolist()
+        
         fig.add_trace(go.Scatter(
-            x=pd.concat([df_engine["Date"], df_engine["Date"][::-1]]),
-            y=pd.concat([upper_band, lower_band[::-1]]),
+            x=x_vals + x_vals[::-1],
+            y=upper_vals + lower_vals[::-1],
             fill='toself', fillcolor='rgba(0, 59, 111, 0.05)',
             line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip", showlegend=True, name="2.5σ Adaptive Noise Band"
         ))
@@ -669,7 +667,6 @@ def send_engineering_notice(engine_id: str, status_label: str, report_body: str,
     )
     msg.attach(MIMEText(email_content, 'plain'))
     
-    # HARDENING FIX: Dual-Protocol SMTP Fallback (SSL 465 -> STARTTLS 587)
     try:
         with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
             server.login(sender_email, sender_password)
@@ -694,7 +691,6 @@ def generate_ewo_html(engine_id: str, status_label: str, status_dict: dict, recs
         rows_html += f'<div style="border: 1px solid #CBD5E1; padding: 12px; margin-bottom: 10px; border-radius: 4px;"><b style="color: #003B6F; font-size: 14px;">[{r["fim_ref"]}] {r["title"]}</b><p style="font-size: 12px; color: #334155; margin-top: 6px; white-space: pre-line;">{r["body"]}</p><div style="margin-top: 10px; font-size: 11px; color: #64748B;">[ &nbsp; ] Action Completed &nbsp;&nbsp;&nbsp;&nbsp; Mech Sign: __________________ &nbsp;&nbsp;&nbsp;&nbsp; Date: ______________</div></div>'
     return f'<!DOCTYPE html><html><head><title>Engineering Work Order - {engine_id}</title><style>body {{ font-family: Arial, sans-serif; color: #0F172A; margin: 40px; }} .header {{ border-bottom: 3px solid #003B6F; padding-bottom: 10px; margin-bottom: 20px; }} .title {{ font-size: 20px; font-weight: bold; color: #003B6F; }} .subtitle {{ font-size: 12px; color: #64748B; font-weight: bold; letter-spacing: 1px; }} .meta-table {{ width: 100%; margin-bottom: 20px; border-collapse: collapse; }} .meta-table td, .meta-table th {{ padding: 6px; border: 1px solid #E2E8F0; font-size: 12px; }} .meta-table th {{ background: #F8FAFC; text-align: left; color: #475569; }} .section-title {{ font-size: 14px; font-weight: bold; color: #003B6F; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; }} .footer {{ margin-top: 40px; border-top: 1px solid #CBD5E1; padding-top: 15px; font-size: 11px; color: #64748B; display: flex; justify-content: space-between; }} .sign-box {{ width: 200px; border-top: 1px solid #000; text-align: center; margin-top: 40px; font-size: 11px; padding-top: 5px; }}</style></head><body><div class="header"><div class="title">PT. AIRFAST INDONESIA</div><div class="subtitle">TECHNICAL SERVICES DIVISION | ENGINEERING WORK ORDER (EWO)</div></div><table class="meta-table"><tr><th>Powerplant Serial / Position</th><td><b>{engine_id}</b></td><th>Document Type</th><td>ECTM Directive Order</td></tr><tr><th>Evaluation Timestamp</th><td>{date_str}</td><th>Latest Logbook Date</th><td>{latest_date}</td></tr><tr><th>System Status Classification</th><td colspan="3"><b style="color: {"#B42318" if "ABNORMAL" in status_label else "#003B6F"};">{status_label}</b></td></tr><tr><th>Thermodynamic Residuals</th><td colspan="3">Δ T5: <b>{status_dict["d_t5"]:+.1f} °C</b> (Slope: {status_dict["slope_t5"]:+.2f}) | Δ Ng: <b>{status_dict["d_ng"]:+.2f} %</b> | Δ Wf: <b>{status_dict["d_wf"]:+.1f} PPH</b></td></tr></table><div class="section-title">OEM Maintenance Directives & Action Checklist</div>{rows_html}<div style="display: flex; justify-content: space-between; margin-top: 30px;"><div class="sign-box">Licensed Aircraft Engineer (LAE)</div><div class="sign-box">Chief Inspector / Quality Control</div></div><div class="footer"><div>PT. AIRFAST Indonesia | DHC-6 / PT6A-34 Fleet Maintenance Program</div><div>Generated by Enterprise ECTM System</div></div></body></html>'
 
-# NEW ENHANCEMENT: Native FPDF Print-Ready Document Generator
 def generate_ewo_pdf(engine_id: str, status_label: str, status_dict: dict, recs: list) -> bytes:
     if not HAS_FPDF: return b""
     pdf = FPDF()
@@ -890,14 +886,12 @@ elif menu_selection == "Data Collection & Setup":
             st.write("")
             st.download_button("Download CSV Template", data=csv_template(), file_name="AIRFAST_ECTM_Template.csv", mime="text/csv", use_container_width=True)
         
-        # HARDENING FIX: Pengecekan Kualitas Data Otomatis (Pre-Flight Audit)
         audit_alerts = run_data_quality_audit(st.session_state["df_data"])
         if audit_alerts:
             with st.expander("⚠️ Data Quality Audit Alerts Detected (Click to expand)", expanded=True):
                 for alert in audit_alerts:
                     st.warning(alert)
 
-        # HARDENING FIX: Menampung kembali return value st.data_editor agar perubahan tidak hilang!
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
     with tab_util:
@@ -957,7 +951,6 @@ elif menu_selection == "Trend Analysis & RUL":
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | Condition-Corrected Residual Shifts</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
-    # HARDENING FIX: Peringatan visual jika terjadi downgrade regresi karena baseline kurang
     if df_engine.attrs.get("regression_downgraded", False):
         st.warning("⚠️ **Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
 
@@ -1002,7 +995,6 @@ elif menu_selection == "Trend Analysis & RUL":
         if not (status["isolated_t5"] or status["isolated_ng"] or status["sustained_t5"] or status["alarm_wash"] or status["alarm_borescope_t5"] or status["alarm_borescope_ng"]):
             st.write("▪ No active anomalies detected")
             
-        # NEW ENHANCEMENT: Click-to-Correlate Shortcut Button
         st.markdown("---")
         if st.button("🔗 Cross-Check Logbook Defect Correlator", use_container_width=True):
             st.session_state["filter_reg_kw"] = status["reg_prefix"]
