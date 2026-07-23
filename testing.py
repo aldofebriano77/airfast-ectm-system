@@ -358,7 +358,7 @@ def init_all_datasets():
             ))
     df_ectm = pd.DataFrame(rows_ectm)
 
-    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utulization DHC6-400.xlsx"]
+    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utilization DHC6-400.xlsx"]
     df_util = pd.DataFrame()
     util_is_real = False
     for util_file in util_file_candidates:
@@ -925,7 +925,7 @@ menu_selection = st.sidebar.radio(
 
 st.sidebar.markdown("<br>" * 6, unsafe_allow_html=True)
 st.sidebar.markdown("---")
-st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Engineering & Maintenance Division</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
 
 # ======================================================================================
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
@@ -1061,7 +1061,7 @@ elif menu_selection == "Data Collection & Setup":
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
     with tab_util:
-        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utulization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
+        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utilization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
             df_u_new = pd.read_excel(up_util)
