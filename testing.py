@@ -1,6 +1,6 @@
 """
 ========================================================================================
- ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v2)
+ ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v3)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
@@ -10,7 +10,8 @@
                 - Robust Regex Registration Matching for Defect Correlator
                 - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
                 - Native Print-Ready PDF Engineering Work Order (EWO) Generator
-                - [FIXED] Pure Python List Plotly Tracing to Prevent PyArrow Index Clash
+                - [FIX v2] Pure Python List Plotly Tracing to Prevent PyArrow Index Clash
+                - [FIX v3] Streamlit on_click Callbacks for Safe Navigation & ATA Mapping
 ========================================================================================
 """
 
@@ -175,7 +176,7 @@ st.markdown(
 )
 
 # ======================================================================================
-# 4. SESSION STATE MANAGEMENT
+# 4. SESSION STATE MANAGEMENT & CALLBACK HELPERS
 # ======================================================================================
 if "active_menu" not in st.session_state:
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
@@ -188,9 +189,58 @@ if "target_engine" not in st.session_state:
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
+# PERBAIKAN v3: Callback resmi Streamlit agar perpindahan menu dari tombol tidak memicu StreamlitAPIException
+def navigate_to_menu(menu_name: str, reg_filter: str = None):
+    st.session_state["active_menu"] = menu_name
+    if reg_filter:
+        st.session_state["filter_reg_kw"] = reg_filter
+
 # ======================================================================================
-# 5. DATA INGESTION & SYNTHESIS MODULE
+# 5. DATA NORMALIZATION & INGESTION MODULE
 # ======================================================================================
+# PERBAIKAN v3: Fungsi pengaman otomatis untuk menjamin kolom ATA_Desc & Registration selalu ada
+def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
+    if df_rep.empty:
+        return pd.DataFrame(columns=['AML No', 'Date', 'Registration', 'ATA', 'ATA_Desc', 'Note / Report', 'Corrective Action', 'Position', 'P/N Off', 'P/N On'])
+    
+    df_rep = df_rep.copy()
+    if 'Date' in df_rep.columns:
+        df_rep['Date'] = pd.to_datetime(df_rep['Date'], errors='coerce')
+    if 'Note / Report' in df_rep.columns and 'Date' in df_rep.columns:
+        df_rep = df_rep.dropna(subset=['Note / Report', 'Date'])
+        
+    if 'Registration' not in df_rep.columns:
+        if 'AML No' in df_rep.columns:
+            def ext_reg(val):
+                if not isinstance(val, str): return "UNKNOWN"
+                match = re.search(r"(PK-[A-Z0-9]{3,4})", val.upper())
+                if match: return match.group(1)
+                p = val.split('-')[0].strip()
+                return f"PK-{p}" if p in ['OAM', 'OCH', 'OCI', 'OCG', 'OCF'] else p
+            df_rep['Registration'] = df_rep['AML No'].apply(ext_reg)
+        else:
+            df_rep['Registration'] = "PK-OAM"
+
+    if 'ATA_Desc' not in df_rep.columns:
+        ata_map = {
+            21: "21 - Air Conditioning", 22: "22 - Auto Flight", 23: "23 - Communications",
+            24: "24 - Electrical Power", 25: "25 - Equipment / Furnishings", 26: "26 - Fire Protection",
+            27: "27 - Flight Controls", 28: "28 - Fuel System", 29: "29 - Hydraulic Power",
+            30: "30 - Ice & Rain Protection", 31: "31 - Indicating / Recording Systems",
+            32: "32 - Landing Gear", 33: "33 - Lights", 34: "34 - Navigation",
+            45: "45 - Central Maintenance System (CAS)", 52: "52 - Doors", 53: "53 - Fuselage",
+            55: "55 - Stabilizers", 56: "56 - Windows", 57: "57 - Wings",
+            61: "61 - Propellers", 71: "71 - Powerplant General", 72: "72 - Engine",
+            73: "73 - Engine Fuel & Control", 74: "74 - Ignition", 77: "77 - Engine Indicating",
+            78: "78 - Exhaust", 79: "79 - Engine Oil", 80: "80 - Starting"
+        }
+        if 'ATA' in df_rep.columns:
+            df_rep['ATA_Desc'] = df_rep['ATA'].map(lambda x: ata_map.get(int(x) if pd.notnull(x) and str(x).isdigit() else x, f"ATA {x} - General"))
+        else:
+            df_rep['ATA_Desc'] = "71 - Powerplant General"
+            
+    return df_rep.sort_values('Date', ascending=False) if 'Date' in df_rep.columns else df_rep
+
 def init_all_datasets():
     rng = np.random.default_rng(101)
     rows_ectm = []
@@ -277,15 +327,6 @@ def init_all_datasets():
     if os.path.exists(rep_file):
         try:
             df_rep = pd.read_excel(rep_file)
-            df_rep['Date'] = pd.to_datetime(df_rep['Date'], errors='coerce')
-            df_rep = df_rep.dropna(subset=['Note / Report', 'Date']).sort_values('Date', ascending=False)
-            def ext_reg(val):
-                if not isinstance(val, str): return "UNKNOWN"
-                match = re.search(r"(PK-[A-Z0-9]{3,4})", val.upper())
-                if match: return match.group(1)
-                p = val.split('-')[0].strip()
-                return f"PK-{p}" if p in ['OAM', 'OCH', 'OCI', 'OCG', 'OCF'] else p
-            df_rep['Registration'] = df_rep['AML No'].apply(ext_reg)
         except Exception:
             df_rep = pd.DataFrame()
     else:
@@ -299,8 +340,8 @@ def init_all_datasets():
             {"AML No": "OCH-2026-004", "Date": "2026-06-05", "Registration": "PK-OCH", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "All engine parameters (Ng, ITT, Wf) reading slightly lower than baseline at cruise power.", "Corrective Action": "Inspected P3 pneumatic sensing line. Found minor air leak at FCU Bellows B-nut fitting. Re-sealed and leak tested SAT.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
             {"AML No": "OCG-2026-005", "Date": "2026-06-15", "Registration": "PK-OCG", "ATA": 79, "ATA_Desc": "79 - Engine Oil", "Note / Report": "Oil temperature slightly elevated by 3 deg C over the last 10 sectors.", "Corrective Action": "Inspected oil cooler matrix and cleaned external dust accumulation. Re-verified oil pressure relief valve setting.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
         ])
-        df_rep['Date'] = pd.to_datetime(df_rep['Date'])
 
+    df_rep = process_maintenance_reports(df_rep)
     return df_ectm, df_util, df_rep
 
 if "df_data" not in st.session_state or "df_util" not in st.session_state or "df_rep" not in st.session_state:
@@ -561,7 +602,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     return recs
 
 # ======================================================================================
-# 10. PLOTLY VISUALIZATION ENGINE (FIXED PYARROW SERIALIZATION BUG)
+# 10. PLOTLY VISUALIZATION ENGINE (PURE PYTHON LISTS TO PREVENT PYARROW INDEX CLASH)
 # ======================================================================================
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
@@ -577,7 +618,6 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
         ma = df_engine[col].rolling(3, min_periods=1).mean()
         fig.add_trace(go.Scatter(x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", line=dict(color=color, width=1, dash="dot"), opacity=0.4, showlegend=False, hoverinfo="skip"))
 
-    # PERBAIKAN FATAL: Gunakan konversi .tolist() murni untuk mencegah ValueError bentrokan indeks di Streamlit Cloud
     if "Adaptive_Sigma_T5" in df_engine.columns:
         upper_vals = (CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]).tolist()
         lower_vals = (-CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]).tolist()
@@ -910,9 +950,9 @@ elif menu_selection == "Data Collection & Setup":
         up_rep = st.file_uploader("Upload Maintenance Report File (.xlsx)", type=["xlsx"], key="up_rep_file")
         if up_rep is not None:
             df_r_new = pd.read_excel(up_rep)
-            df_r_new['Date'] = pd.to_datetime(df_r_new['Date'], errors='coerce')
-            st.session_state["df_rep"] = df_r_new.dropna(subset=['Note / Report', 'Date'])
-            st.success("Maintenance Reports synchronized!")
+            # PERBAIKAN v3: Langsung normalisasikan kolom ATA_Desc saat file Excel baru diunggah
+            st.session_state["df_rep"] = process_maintenance_reports(df_r_new)
+            st.success("Maintenance Reports synchronized & mapped!")
             st.rerun()
         st.dataframe(st.session_state["df_rep"].head(100), use_container_width=True)
 
@@ -941,7 +981,7 @@ elif menu_selection == "Data Collection & Setup":
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=lambda: st.session_state.update(active_menu="Trend Analysis & RUL"))
+        st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Trend Analysis & RUL",))
 
 # ======================================================================================
 # 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL
@@ -996,10 +1036,13 @@ elif menu_selection == "Trend Analysis & RUL":
             st.write("▪ No active anomalies detected")
             
         st.markdown("---")
-        if st.button("🔗 Cross-Check Logbook Defect Correlator", use_container_width=True):
-            st.session_state["filter_reg_kw"] = status["reg_prefix"]
-            st.session_state["active_menu"] = "Logbook & Defect Correlator"
-            st.rerun()
+        # PERBAIKAN v3: Penggunaan parameter on_click resmi Streamlit
+        st.button(
+            "🔗 Cross-Check Logbook Defect Correlator", 
+            use_container_width=True,
+            on_click=navigate_to_menu,
+            args=("Logbook & Defect Correlator", status["reg_prefix"])
+        )
 
     st.markdown("---")
     show_cols = [c for c in ["Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
@@ -1017,7 +1060,11 @@ elif menu_selection == "Logbook & Defect Correlator":
         st.warning("No Pilot & Maintenance Report dataset loaded. Please upload `Pilot & Maintenance Report DHC6-400.xlsx` in Data Collection.")
         st.stop()
 
-    target_reg = status["reg_prefix"]
+    # PERBAIKAN v3: Safeguard ganda agar kolom ATA_Desc pasti ada sebelum dropdown dirender
+    if 'ATA_Desc' not in df_rep_current.columns or 'Registration' not in df_rep_current.columns:
+        df_rep_current = process_maintenance_reports(df_rep_current)
+
+    target_reg = st.session_state.get("filter_reg_kw") or status["reg_prefix"]
     
     col_filt1, col_filt2, col_filt3 = st.columns([1, 1.5, 1.5])
     with col_filt1:
