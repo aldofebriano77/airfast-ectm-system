@@ -340,13 +340,13 @@ def init_all_datasets():
             ))
     df_ectm = pd.DataFrame(rows_ectm)
 
-    # [FIX] "Utulization" was a typo for "Utilization" - if the real file uses
+    # [FIX] "Utilization" was a typo for "Utilization" - if the real file uses
     # correct spelling, os.path.exists() on the old string always returned
     # False and the app silently fell back to fake data forever, with no
     # indication in the UI that this had happened. We now check both
     # spellings and explicitly track provenance (util_is_real) so the UI can
     # tell the user which one is actually in use.
-    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utulization DHC6-400.xlsx"]
+    util_file_candidates = ["Flight Utilization DHC6-400.xlsx", "Flight Utilization DHC6-400.xlsx"]
     df_util = pd.DataFrame()
     util_is_real = False
     for util_file in util_file_candidates:
@@ -1065,7 +1065,7 @@ elif menu_selection == "Data Collection & Setup":
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
     with tab_util:
-        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utulization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
+        st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utilization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
             df_u_new = pd.read_excel(up_util)
