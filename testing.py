@@ -922,14 +922,74 @@ else:
 
 st.sidebar.markdown("---")
 
+# --------------------------------------------------------------------------------------
+# [POIN 1 REVISI] RBAC USER PROFILE & ROLE SWITCHER
+# --------------------------------------------------------------------------------------
+st.sidebar.markdown("<p style='font-size:0.78rem; font-weight:700; color:#CBD5E1; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.05em;'>ACTIVE AUTHORIZATION ROLE</p>", unsafe_allow_html=True)
+
+# Selector peran pengguna (Untuk pengujian auditor/mentor)
+selected_role = st.sidebar.selectbox(
+    "Select User Role",
+    ["Chief Engineer / Admin", "Powerplant Engineer", "Data Entry Officer"],
+    index=["Chief Engineer / Admin", "Powerplant Engineer", "Data Entry Officer"].index(st.session_state["user_role"]),
+    key="rbac_role_selector",
+    label_visibility="collapsed"
+)
+
+# Simpan perubahan role ke session state
+if selected_role != st.session_state["user_role"]:
+    st.session_state["user_role"] = selected_role
+    st.rerun()
+
+# Desain Badge UI berdasarkan level otorisasi
+role_badge_style = {
+    "Chief Engineer / Admin": ("#F0FDF4", "#166534", "#BBF7D0", "Level 3: Full System & Dispatch Authority"),
+    "Powerplant Engineer": ("#FFFBEB", "#92400E", "#FDE68A", "Level 2: Analytics & Prognostics Access"),
+    "Data Entry Officer": ("#EFF6FF", "#1E40AF", "#BFDBFE", "Level 1: Telemetry Ingestion Only")
+}
+bg_c, txt_c, brd_c, role_desc = role_badge_style[st.session_state["user_role"]]
+
+st.sidebar.markdown(f"""
+<div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 8px 10px; border-radius: 4px; margin-bottom: 15px;">
+    <span style="color: {txt_c} !important; font-size: 0.72rem; font-weight: 700; display: block;">🔒 {role_desc}</span>
+</div>
+""", unsafe_allow_html=True)
+
+# --------------------------------------------------------------------------------------
+# DYNAMIC MENU FILTERING BASED ON RBAC PERMISSIONS
+# --------------------------------------------------------------------------------------
+all_menus = [
+    "Home (Fleet Matrix)", 
+    "Data Collection & Setup", 
+    "Trend Analysis & RUL", 
+    "Logbook & Defect Correlator", 
+    "Recommendations & Dispatch"
+]
+
+# Matriks izin navigasi menu
+if st.session_state["user_role"] == "Data Entry Officer":
+    allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup"]
+elif st.session_state["user_role"] == "Powerplant Engineer":
+    allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
+else:
+    allowed_menus = all_menus # Chief Engineer mendapat seluruh akses
+
+# Validasi jika user sedang berada di menu yang dilarang saat beralih role
+if st.session_state["active_menu"] not in allowed_menus:
+    st.session_state["active_menu"] = allowed_menus[0]
+
 menu_selection = st.sidebar.radio(
     "Navigation Menu",
-    ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator", "Recommendations & Dispatch"],
-    key="active_menu",
+    allowed_menus,
+    index=allowed_menus.index(st.session_state["active_menu"]) if st.session_state["active_menu"] in allowed_menus else 0,
+    key="active_menu_radio",
     label_visibility="collapsed",
 )
 
-st.sidebar.markdown("<br>" * 6, unsafe_allow_html=True)
+# Sinkronisasi radio button dengan fungsi navigasi internal
+st.session_state["active_menu"] = menu_selection
+
+st.sidebar.markdown("<br>" * 4, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
 
