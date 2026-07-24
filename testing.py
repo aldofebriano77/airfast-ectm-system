@@ -878,9 +878,9 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
     return fig
 
 # ======================================================================================
-# 11. AUTOMATED EMAIL DISPATCH PROTOCOL (SSOT INTEGRATED) & NATIVE PDF EWO GENERATOR
+# 11. AUTOMATED EMAIL TRANSMITTAL PROTOCOL & NATIVE PDF EWO GENERATOR
 # ======================================================================================
-def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list):
+def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False):
     try:
         sender_email = st.secrets["email"]["sender_address"]
         sender_password = st.secrets["email"]["app_password"]
@@ -892,24 +892,31 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
 
     health = status_dict["health_level"]
     status_label = status_dict["status_label"]
+    trigger_type = "[AUTOMATED WATCHDOG]" if is_automated else "[MANUAL TRANSMITTAL]"
 
+    # Mode Simulasi Formal
     if not live_mode:
-        st.info(f"**[SYSTEM SIMULATION MODE]** SMTP secrets not configured in `.streamlit/secrets.toml`. "
-                f"In production, notice for **{engine_id} ({status_label})** is dispatched to: `{', '.join(recipients)}`.")
+        if is_automated:
+            st.toast(f"AUTOMATED ALERT FIRED: Powerplant {engine_id} breached CRITICAL limit. Notice simulated to {', '.join(recipients)}.")
+            st.sidebar.error(f"AUTOMATED NOTICE TRANSMITTED\nTarget: {recipients[0]}\nEngine: {engine_id} ({status_label})")
+        else:
+            st.info(f"[SYSTEM SIMULATION MODE - {trigger_type}] SMTP secrets not configured. In production, notice for {engine_id} ({status_label}) is transmitted to: {', '.join(recipients)}.")
         return True
 
-    # [SSOT ANTI-CONTRADICTION] Evaluasi menggunakan status Enum absolut, bukan tebak-tebakan string
     if health == EngineHealth.CRITICAL:
-        intro_text = (f"An abnormal thermodynamic parameter shift has been confirmed on Powerplant {engine_id}.\n"
-                      "Please immediately review the computed residuals and OEM-referenced maintenance directives below:")
-        subject_prefix = "[URGENT - CRITICAL]"
+        intro_text = (f"URGENT AIRWORTHINESS ADVISORY: An abnormal thermodynamic parameter shift (CRITICAL BREACH) has been confirmed on Powerplant {engine_id}.\n"
+                      f"Trigger Source: {trigger_type}\n"
+                      "Please immediately review the powerplant condition and execute the OEM FIM directives below:")
+        subject_prefix = "[URGENT - CRITICAL BREACH]"
     elif health == EngineHealth.ADVISORY:
-        intro_text = (f"A statistical baseline deviation (Advisory Watch) has been detected on Powerplant {engine_id}.\n"
-                      "Please review the computed residuals and monitoring directives below:")
+        intro_text = (f"ADVISORY WATCH NOTICE: A statistical baseline deviation has been detected on Powerplant {engine_id}.\n"
+                      f"Trigger Source: {trigger_type}\n"
+                      "Please review the computed residuals and increase telemetry logging frequency:")
         subject_prefix = "[ADVISORY - WATCH]"
     else:
-        intro_text = (f"Powerplant {engine_id} is operating normal within OEM thermodynamic tolerances.\n"
-                      "Please find the routine condition logging evaluation and trend summary below:")
+        intro_text = (f"ROUTINE EVALUATION: Powerplant {engine_id} is operating within normal OEM thermodynamic tolerances.\n"
+                      f"Trigger Source: {trigger_type}\n"
+                      "Please find the routine condition logging evaluation below:")
         subject_prefix = "[ROUTINE - NORMAL]"
 
     msg = MIMEMultipart()
@@ -922,7 +929,8 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         f"====================================================================\n"
         f"Powerplant Serial / Position : {engine_id}\n"
         f"System Status Classification : {status_label}\n"
-        f"Date Evaluated               : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"Transmittal Trigger Type     : {trigger_type}\n"
+        f"Timestamp Evaluated          : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"====================================================================\n\n"
         f"{intro_text}\n\n"
         f"{report_body}\n\n"
@@ -936,6 +944,8 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
             server.login(sender_email, sender_password)
             server.send_message(msg)
+        if is_automated:
+            st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0]}.")
         return True
     except Exception as ssl_err:
         try:
@@ -943,77 +953,12 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                 server.starttls()
                 server.login(sender_email, sender_password)
                 server.send_message(msg)
+            if is_automated:
+                st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0]}.")
             return True
         except Exception as tls_err:
             st.error(f"SMTP Transmission Failure (SSL Error: {ssl_err} | TLS Error: {tls_err})")
             return False
-
-def generate_ewo_html(engine_id: str, status_label: str, status_dict: dict, recs: list) -> str:
-    date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    latest_date = status_dict['latest']['Date'].strftime('%Y-%m-%d')
-    rows_html = ""
-    for r in recs:
-        rows_html += f'<div style="border: 1px solid #CBD5E1; padding: 12px; margin-bottom: 10px; border-radius: 4px;"><b style="color: #003B6F; font-size: 14px;">[{r["fim_ref"]}] {r["title"]}</b><p style="font-size: 12px; color: #334155; margin-top: 6px; white-space: pre-line;">{r["body"]}</p><div style="margin-top: 10px; font-size: 11px; color: #64748B;">[ &nbsp; ] Action Completed &nbsp;&nbsp;&nbsp;&nbsp; Mech Sign: __________________ &nbsp;&nbsp;&nbsp;&nbsp; Date: ______________</div></div>'
-    return f'<!DOCTYPE html><html><head><title>Engineering Work Order - {engine_id}</title><style>body {{ font-family: Arial, sans-serif; color: #0F172A; margin: 40px; }} .header {{ border-bottom: 3px solid #003B6F; padding-bottom: 10px; margin-bottom: 20px; }} .title {{ font-size: 20px; font-weight: bold; color: #003B6F; }} .subtitle {{ font-size: 12px; color: #64748B; font-weight: bold; letter-spacing: 1px; }} .meta-table {{ width: 100%; margin-bottom: 20px; border-collapse: collapse; }} .meta-table td, .meta-table th {{ padding: 6px; border: 1px solid #E2E8F0; font-size: 12px; }} .meta-table th {{ background: #F8FAFC; text-align: left; color: #475569; }} .section-title {{ font-size: 14px; font-weight: bold; color: #003B6F; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase; }} .footer {{ margin-top: 40px; border-top: 1px solid #CBD5E1; padding-top: 15px; font-size: 11px; color: #64748B; display: flex; justify-content: space-between; }} .sign-box {{ width: 200px; border-top: 1px solid #000; text-align: center; margin-top: 40px; font-size: 11px; padding-top: 5px; }}</style></head><body><div class="header"><div class="title">PT. AIRFAST INDONESIA</div><div class="subtitle">TECHNICAL SERVICES DIVISION | ENGINEERING WORK ORDER (EWO)</div></div><table class="meta-table"><tr><th>Powerplant Serial / Position</th><td><b>{engine_id}</b></td><th>Document Type</th><td>ECTM Directive Order</td></tr><tr><th>Evaluation Timestamp</th><td>{date_str}</td><th>Latest Logbook Date</th><td>{latest_date}</td></tr><tr><th>System Status Classification</th><td colspan="3"><b style="color: {"#B42318" if "ABNORMAL" in status_label else "#003B6F"};">{status_label}</b></td></tr><tr><th>Thermodynamic Residuals</th><td colspan="3">Δ T5: <b>{status_dict["d_t5"]:+.1f} °C</b> (Slope: {status_dict["slope_t5"]:+.2f}) | Δ Ng: <b>{status_dict["d_ng"]:+.2f} %</b> | Δ Wf: <b>{status_dict["d_wf"]:+.1f} PPH</b></td></tr></table><div class="section-title">OEM Maintenance Directives & Action Checklist</div>{rows_html}<div style="display: flex; justify-content: space-between; margin-top: 30px;"><div class="sign-box">Licensed Aircraft Engineer (LAE)</div><div class="sign-box">Chief Inspector / Quality Control</div></div><div class="footer"><div>PT. AIRFAST Indonesia | DHC-6 / PT6A-34 Fleet Maintenance Program</div><div>Generated by Enterprise ECTM System</div></div></body></html>'
-
-def generate_ewo_pdf(engine_id: str, status_label: str, status_dict: dict, recs: list) -> bytes:
-    if not HAS_FPDF: return b""
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.set_text_color(0, 59, 111)
-    pdf.cell(0, 8, "PT. AIRFAST INDONESIA", ln=True, align="L")
-    pdf.set_font("Arial", "B", 9)
-    pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 5, "TECHNICAL SERVICES DIVISION | ENGINEERING WORK ORDER (EWO)", ln=True, align="L")
-    pdf.ln(4)
-    
-    pdf.set_font("Arial", "", 9)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(45, 7, "Powerplant Serial:", border=1)
-    pdf.set_font("Arial", "B", 9)
-    pdf.cell(145, 7, f"  {engine_id}", border=1, ln=True)
-    pdf.set_font("Arial", "", 9)
-    pdf.cell(45, 7, "Status Classification:", border=1)
-    if "ABNORMAL" in status_label: pdf.set_text_color(180, 35, 24)
-    else: pdf.set_text_color(0, 59, 111)
-    pdf.set_font("Arial", "B", 9)
-    pdf.cell(145, 7, f"  {status_label}", border=1, ln=True)
-    pdf.set_text_color(15, 23, 42)
-    pdf.set_font("Arial", "", 9)
-    pdf.cell(45, 7, "Thermodynamic Residuals:", border=1)
-    pdf.cell(145, 7, f"  Delta T5: {status_dict['d_t5']:+.1f} degC | Delta Ng: {status_dict['d_ng']:+.2f} % | Delta Wf: {status_dict['d_wf']:+.1f} PPH", border=1, ln=True)
-    pdf.ln(5)
-    
-    pdf.set_font("Arial", "B", 11)
-    pdf.set_text_color(0, 59, 111)
-    pdf.cell(0, 8, "OEM MAINTENANCE DIRECTIVES & ACTION CHECKLIST", ln=True)
-    
-    for r in recs:
-        pdf.set_font("Arial", "B", 9)
-        pdf.set_text_color(0, 59, 111)
-        pdf.cell(0, 6, f"[{r['fim_ref']}] {r['title']}", ln=True)
-        pdf.set_font("Arial", "", 8)
-        pdf.set_text_color(51, 65, 85)
-        clean_body = r['body'].replace("**", "").replace("\u2192", "->").replace("\u0394", "Delta ")
-        pdf.multi_cell(0, 4.5, clean_body)
-        pdf.ln(1)
-        pdf.set_font("Arial", "I", 8)
-        pdf.set_text_color(100, 116, 139)
-        pdf.cell(0, 5, "[   ] Action Completed    Mech Sign: __________________    Date: ______________", ln=True)
-        pdf.ln(3)
-        
-    pdf.ln(8)
-    pdf.set_font("Arial", "", 9)
-    pdf.set_text_color(15, 23, 42)
-    pdf.cell(95, 8, "Licensed Aircraft Engineer (LAE): ___________________", align="L")
-    pdf.cell(95, 8, "Quality Control / Inspector: ___________________", align="R", ln=True)
-    
-    try:
-        res = pdf.output()
-        return res.encode("latin-1", errors="replace") if isinstance(res, str) else bytes(res)
-    except Exception:
-        return pdf.output(dest="S").encode("latin-1", errors="replace")
 
 # ======================================================================================
 # 11.5. FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
@@ -1088,18 +1033,18 @@ else:
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# USER PROFILE CARD
+# USER PROFILE CARD (FORMAL - NO EMOJI)
 # --------------------------------------------------------------------------------------
 st.sidebar.markdown(f"""
 <div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 14px 16px; border-radius: 6px; margin-bottom: 12px;">
-    <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block; letter-spacing: 0.05em;">👤 LOGGED IN AS</span>
+    <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block; letter-spacing: 0.05em;">LOGGED IN AS</span>
     <span style="color: #FFFFFF !important; font-size: 1.05rem; font-weight: 700; display: block; margin-top: 4px;">{st.session_state['user_name']}</span>
     <span style="color: #94A3B8 !important; font-size: 0.78rem; display: block;">{st.session_state['user_email']}</span>
 </div>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------------------
-# TOMBOL LOGOUT MERAH (BULLETPROOF CSS OVERRIDE)
+# TOMBOL LOGOUT MERAH (FORMAL - NO EMOJI)
 # --------------------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -1131,7 +1076,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-if st.sidebar.button("🚪 Logout Portal", key="btn_logout_sidebar", use_container_width=True):
+if st.sidebar.button("Logout Portal", key="btn_logout_sidebar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.session_state["user_email"] = ""
     st.session_state["user_name"] = "Guest Viewer"
@@ -1149,20 +1094,10 @@ all_menus = [
     "Data Collection & Setup", 
     "Trend Analysis & RUL", 
     "Logbook & Defect Correlator", 
-    "Recommendations & Dispatch"
+    "Recommendations & Notice Transmittal"
 ]
 
-# [DEV MODE] Menggunakan komentar pagar (#) agar tidak bocor ke layar dasbor
-# if st.session_state["user_role"] == "Guest / Viewer":
-#     allowed_menus = ["Home (Fleet Matrix)"]
-# elif st.session_state["user_role"] == "Data Entry Officer":
-#     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup"]
-# elif st.session_state["user_role"] == "Powerplant Engineer":
-#     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
-# else:
-#     allowed_menus = all_menus
-
-# Memberikan akses penuh ke seluruh 5 menu untuk semua role / guest saat review mentor:
+# Memberikan akses penuh ke seluruh 5 menu untuk review mentor:
 allowed_menus = all_menus 
 
 if st.session_state["active_menu"] not in allowed_menus:
@@ -1228,6 +1163,46 @@ if len(df_engine) < 2:
 df_engine = compute_engine_trend(df_engine, int(baseline_n_input), use_correction)
 status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
+
+# ======================================================================================
+# [POIN 3 REVISI] AUTOMATED MCC CRITICAL ALERT WATCHDOG (BACKGROUND SERVICE)
+# ======================================================================================
+if "auto_alert_sent" not in st.session_state:
+    st.session_state["auto_alert_sent"] = set()
+
+for eng_check_id in engines_available:
+    df_check = df_raw[df_raw["Engine"] == eng_check_id].copy()
+    if len(df_check) >= 2:
+        df_check_proc = compute_engine_trend(df_check, int(baseline_n_input), use_correction)
+        st_check = build_status(df_check_proc, df_util_current)
+        
+        if st_check["health_level"] == EngineHealth.CRITICAL:
+            alert_key = f"{eng_check_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
+            
+            if alert_key not in st.session_state["auto_alert_sent"]:
+                recs_check = generate_recommendations(df_check_proc, st_check)
+                
+                auto_report_lines = [
+                    "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY AUTOMATED WATCHDOG",
+                    f"Latest Logbook Timestamp : {st_check['latest']['Date'].strftime('%Y-%m-%d')}",
+                    f"Computed Residual Vector  : ΔT5 = {st_check['d_t5']:+.1f} °C | ΔNg = {st_check['d_ng']:+.2f} % | ΔWf = {st_check['d_wf']:+.1f} PPH",
+                    f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
+                    f"RUL Linear Confidence     : {st_check['rul_confidence']}",
+                    "-------------------------------------------------------------------------",
+                    "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:"
+                ]
+                for rc in recs_check:
+                    auto_report_lines.extend([f"[{rc['fim_ref']}] {rc['title']}", rc['body'], ""])
+                
+                send_engineering_notice(
+                    engine_id=eng_check_id,
+                    status_dict=st_check,
+                    report_body="\n".join(auto_report_lines),
+                    recipients=["aldofebriano77@gmail.com"],
+                    is_automated=True
+                )
+                
+                st.session_state["auto_alert_sent"].add(alert_key)
 
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
