@@ -230,7 +230,7 @@ st.markdown(
 
     .fim-ref { display:inline-block; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1;
                border-radius: 4px; padding: 2px 8px; font-size:0.75rem; font-weight:600; margin-left:6px;}
-div[data-testid="stButton"] > button.red-logout-btn {
+    div[data-testid="stButton"] > button.red-logout-btn {
         background-color: #DC2626 !important;
         color: #FFFFFF !important;
         border: 1px solid #B91C1C !important;
