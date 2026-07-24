@@ -1074,7 +1074,7 @@ if menu_selection == "Home (Fleet Matrix)":
         # =========================================================================
         # ⬆️ BATAS KODE PENAMBAHAN POIN 4 ⬆️
         # =========================================================================
-        
+
 # ======================================================================================
 # 15. PAGE 2: DATA COLLECTION & CONFIGURATION
 # ======================================================================================
@@ -1085,7 +1085,45 @@ elif menu_selection == "Data Collection & Setup":
 
     tab_ectm, tab_util, tab_rep = st.tabs(["1. ECTM Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. Maintenance Reports (.xlsx)"])
     
+    # -------------------------------------------------------------------------
+    # TAB 1: ECTM LOGBOOK (PERFORMANCE TELEMETRY)
+    # -------------------------------------------------------------------------
     with tab_ectm:
+        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (ECTM PERFORMANCE)
+        with st.expander("✍️ Add Daily Engine Performance Record (Manual Entry)", expanded=False):
+            st.caption("Log daily engine telemetry directly from pilot flight logbook without uploading a CSV.")
+            with st.form("form_manual_ectm", clear_on_submit=True):
+                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+                with col_f1:
+                    m_date = st.date_input("Flight Date", value=datetime.now())
+                    m_eng = st.selectbox("Powerplant ID", engines_available)
+                    m_alt = st.number_input("Press Alt (Ft)", min_value=0, max_value=25000, value=10000, step=500)
+                with col_f2:
+                    m_ioat = st.number_input("IOAT (°C)", min_value=-40.0, max_value=55.0, value=15.0, step=0.5)
+                    m_ias = st.number_input("IAS (Knots)", min_value=0.0, max_value=200.0, value=135.0, step=1.0)
+                    m_tq = st.number_input("Torque (TQ %)", min_value=0.0, max_value=100.0, value=42.0, step=0.5)
+                with col_f3:
+                    m_np = st.number_input("Prop Speed (Np %)", min_value=0, max_value=100, value=75, step=1)
+                    m_t5 = st.number_input("T5 / ITT (°C)", min_value=300.0, max_value=850.0, value=624.0, step=0.5)
+                    m_ng = st.number_input("Gas Gen (Ng %)", min_value=50.0, max_value=105.0, value=91.50, step=0.1)
+                with col_f4:
+                    m_wf = st.number_input("Fuel Flow (Wf PPH)", min_value=100.0, max_value=500.0, value=288.0, step=1.0)
+                    m_otemp = st.number_input("Oil Temp (°C)", min_value=10.0, max_value=110.0, value=72.0, step=0.5)
+                    m_opress = st.number_input("Oil Press (PSI)", min_value=40.0, max_value=120.0, value=91.0, step=0.5)
+                
+                submitted_ectm = st.form_submit_button("💾 Save Daily ECTM Record", type="primary", use_container_width=True)
+                if submitted_ectm:
+                    new_row = pd.DataFrame([{
+                        "Date": pd.to_datetime(m_date), "Engine": m_eng, "Press_Alt": float(m_alt),
+                        "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
+                        "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
+                        "Oil_Temp": float(m_otemp), "Oil_Press": float(m_opress)
+                    }])
+                    st.session_state["df_data"] = pd.concat([st.session_state["df_data"], new_row], ignore_index=True)
+                    st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
+                    st.rerun()
+
+        # OPSI B: BULK UPLOAD (.CSV) & AUDIT EDITING
         col_up, col_dl = st.columns([3, 1])
         with col_up:
             up_ectm = st.file_uploader("Upload Engine Logbook File (.csv)", type=["csv"], key="up_ectm_file")
@@ -1109,7 +1147,39 @@ elif menu_selection == "Data Collection & Setup":
 
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
+    # -------------------------------------------------------------------------
+    # TAB 2: FLIGHT UTILIZATION (FH / FC TRACKING)
+    # -------------------------------------------------------------------------
     with tab_util:
+        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (FLIGHT UTILIZATION)
+        with st.expander("✍️ Add Daily Flight Utilization Record (Manual Entry)", expanded=False):
+            st.caption("Log daily airframe flight hours (FH) and flight cycles (FC) to update RUL calendar projections.")
+            with st.form("form_manual_util", clear_on_submit=True):
+                col_u1, col_u2, col_u3 = st.columns(3)
+                with col_u1:
+                    u_reg = st.selectbox("Aircraft Registration", ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"])
+                    u_date = st.date_input("Work Date", value=datetime.now())
+                with col_u2:
+                    u_fh = st.number_input("Flight Hours (FH)", min_value=0.0, max_value=24.0, value=2.5, step=0.1)
+                    u_fc = st.number_input("Flight Cycles (FC)", min_value=1, max_value=30, value=4, step=1)
+                with col_u3:
+                    u_bh = st.number_input("Block Hours (BH)", min_value=0.0, max_value=24.0, value=2.8, step=0.1)
+                    u_from = st.text_input("From Sector", value="WAY").upper()
+                    u_to = st.text_input("To Sector", value="TIM").upper()
+                
+                submitted_util = st.form_submit_button("💾 Save Utilization Record", type="primary", use_container_width=True)
+                if submitted_util:
+                    new_u_row = pd.DataFrame([{
+                        "Registration": u_reg, "Work (Date)": pd.to_datetime(u_date),
+                        "FH": float(u_fh), "FC": int(u_fc), "Block Hours": float(u_bh),
+                        "From": u_from, "To": u_to
+                    }])
+                    st.session_state["df_util"] = pd.concat([st.session_state["df_util"], new_u_row], ignore_index=True)
+                    st.session_state["util_is_real"] = True
+                    st.success(f"Successfully logged utilization for {u_reg} ({u_fh} FH / {u_fc} FC)!")
+                    st.rerun()
+
+        # OPSI B: BULK UPLOAD (.XLSX)
         st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utilization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
@@ -1124,7 +1194,50 @@ elif menu_selection == "Data Collection & Setup":
                        "**simulated** utilization dataset - upload the real file above for accurate dates.")
         st.dataframe(st.session_state["df_util"].head(100), use_container_width=True)
 
+    # -------------------------------------------------------------------------
+    # TAB 3: MAINTENANCE REPORTS (PIREP / MAREP DEFECTS)
+    # -------------------------------------------------------------------------
     with tab_rep:
+        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (DEFECT REPORTING)
+        with st.expander("✍️ Add Pilot / Maintenance Defect Report (Manual Entry)", expanded=False):
+            st.caption("Log pilot defect reports (PIREP) or maintenance actions (MAREP) to feed the Defect Correlator.")
+            with st.form("form_manual_rep", clear_on_submit=True):
+                col_r1, col_r2, col_r3 = st.columns([1, 1, 1])
+                with col_r1:
+                    r_aml = st.text_input("AML / Logbook No", placeholder="e.g., OAM-2026-015").upper()
+                    r_date = st.date_input("Report Date", value=datetime.now())
+                with col_r2:
+                    r_reg = st.selectbox("Registration", ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"], key="rep_reg")
+                    r_pos = st.selectbox("Engine Position", ["LH", "RH", "General"])
+                with col_r3:
+                    r_ata = st.number_input("ATA Chapter", min_value=0, max_value=99, value=71, step=1)
+                    r_pn_off = st.text_input("P/N Off (Optional)", placeholder="Part Number Removed")
+                
+                r_note = st.text_area("Note / Report (PIREP / MAREP Description)", placeholder="Describe pilot observation or defect symptom...")
+                r_action = st.text_area("Corrective Action Taken", placeholder="Describe rectification, borescope findings, or wash results...")
+                
+                col_sn1, col_sn2, col_sn3 = st.columns(3)
+                with col_sn1: r_sn_off = st.text_input("S/N Off", placeholder="Serial No Removed")
+                with col_sn2: r_pn_on = st.text_input("P/N On", placeholder="Part Number Installed")
+                with col_sn3: r_sn_on = st.text_input("S/N On", placeholder="Serial No Installed")
+
+                submitted_rep = st.form_submit_button("💾 Save Defect / Maintenance Report", type="primary", use_container_width=True)
+                if submitted_rep:
+                    new_r_row = pd.DataFrame([{
+                        "AML No": r_aml if r_aml else f"{r_reg}-MANUAL", "Date": pd.to_datetime(r_date),
+                        "Registration": r_reg, "ATA": int(r_ata),
+                        "Note / Report": r_note if r_note else "No description provided.",
+                        "Corrective Action": r_action if r_action else "Pending maintenance action.",
+                        "Position": r_pos, "P/N Off": r_pn_off, "S/N Off": r_sn_off,
+                        "P/N On": r_pn_on, "S/N On": r_sn_on
+                    }])
+                    st.session_state["df_rep"] = pd.concat([st.session_state["df_rep"], new_r_row], ignore_index=True)
+                    st.session_state["df_rep"] = process_maintenance_reports(st.session_state["df_rep"])
+                    st.session_state["rep_is_real"] = True
+                    st.success(f"Successfully logged maintenance report [{r_aml}] for {r_reg}!")
+                    st.rerun()
+
+        # OPSI B: BULK UPLOAD (.XLSX)
         st.caption("Upload Pilot & Maintenance Report Excel file (e.g., `Pilot & Maintenance Report DHC6-400.xlsx`) to power the Defect Correlator.")
         up_rep = st.file_uploader("Upload Maintenance Report File (.xlsx)", type=["xlsx"], key="up_rep_file")
         if up_rep is not None:
