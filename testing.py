@@ -293,6 +293,7 @@ if "user_role" not in st.session_state:
 
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
+    st.session_state["active_menu_radio"] = menu_name  # <-- TAMBAHKAN BARIS INI
     if reg_filter:
         st.session_state["filter_reg_kw"] = reg_filter
 
@@ -959,66 +960,33 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         except Exception as tls_err:
             st.error(f"SMTP Transmission Failure (SSL Error: {ssl_err} | TLS Error: {tls_err})")
             return False
+        
+def generate_ewo_html(engine_id, status_label, status, recommendations):
+    html = f"<html><head><title>EWO {engine_id}</title></head><body style='font-family:sans-serif; padding:20px;'>"
+    html += f"<h2>ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA</h2><hr>"
+    html += f"<p><b>Powerplant:</b> {engine_id} | <b>Status:</b> {status_label}</p>"
+    html += f"<p><b>Residuals:</b> ΔT5: {status['d_t5']:+.1f}°C | ΔNg: {status['d_ng']:+.2f}% | ΔWf: {status['d_wf']:+.1f} PPH</p><hr>"
+    html += "<h3>MAINTENANCE DIRECTIVES:</h3><ul>"
+    for r in recommendations: html += f"<li><b>[{r['fim_ref']}] {r['title']}</b><br>{r['body']}</li><br>"
+    html += "</ul><hr><p>Authorized Signature: ______________________</p></body></html>"
+    return html
 
-# ======================================================================================
-# 11.5. FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
-# ======================================================================================
-if not st.session_state.get("logged_in", False):
-    # Menyembunyikan sidebar bawaan streamlit saat berada di halaman login
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="collapsedControl"] { display: none !important; }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("<br>" * 2, unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-    
-    with col_l2:
-        with st.container(border=True):
-            st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>PT. AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#f0b73d; font-weight:700; font-size:0.8rem; letter-spacing:0.1em; margin-top:0px;'>TECHNICAL SERVICES DIVISION</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin: 10px 0px 20px 0px;'>", unsafe_allow_html=True)
-            
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Enterprise ECTM & Fleet Diagnostics Portal<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
-            st.write("")
-            
-            with st.form("fullscreen_login_form", clear_on_submit=False):
-                input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
-                input_password = st.text_input("Password", type="password", placeholder="••••••••")
-                
-                st.write("")
-                c_btn1, c_btn2 = st.columns(2)
-                with c_btn1:
-                    btn_login = st.form_submit_button("🔐 Login to Portal", type="primary", use_container_width=True)
-                with c_btn2:
-                    btn_guest = st.form_submit_button("👤 Continue as Guest", use_container_width=True)
-                    
-                if btn_login:
-                    if input_email in USER_DATABASE and USER_DATABASE[input_email]["password"] == input_password:
-                        user_info = USER_DATABASE[input_email]
-                        st.session_state["logged_in"] = True
-                        st.session_state["user_email"] = input_email
-                        st.session_state["user_name"] = user_info["name"]
-                        st.session_state["user_role"] = user_info["role"]
-                        st.success("Authorization successful! Redirecting to dashboard...")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid Email or Password. Access denied under CASR Part 135.")
-                        
-                if btn_guest:
-                    st.session_state["logged_in"] = True
-                    st.session_state["user_email"] = "guest.auditor@airfast.com"
-                    st.session_state["user_name"] = "External Auditor / Guest"
-                    st.session_state["user_role"] = "Guest / Viewer"
-                    st.rerun()
-            
-            st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
-            st.caption("🔒 **Security Advisory:** Authorized personnel only. System activity is continuously monitored and logged in compliance with Airfast Corporate Quality Management System (CQMS).")
-            
-    # ---> MAGISNYA DI SINI: Menghentikan eksekusi kode di bawahnya sampai login berhasil! <---
-    st.stop()
+def generate_ewo_pdf(engine_id, status_label, status, recommendations):
+    if not HAS_FPDF: return b""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA", ln=True, align="C")
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 8, f"Powerplant: {engine_id} | Status: {status_label}", ln=True)
+    pdf.cell(0, 8, f"Residuals: Delta T5: {status['d_t5']:+.1f} C | Delta Ng: {status['d_ng']:+.2f} %", ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 8, "MAINTENANCE DIRECTIVES:", ln=True)
+    pdf.set_font("Arial", "", 9)
+    for r in recommendations:
+        pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}\n{r['body']}\n")
+    return pdf.output(dest="S").encode("latin-1", errors="ignore")
 
 # ======================================================================================
 # 12. CLEAN EXECUTIVE SIDEBAR (AUTHORIZED USER & RBAC NAVIGATION)
@@ -1633,10 +1601,10 @@ elif menu_selection == "Logbook & Defect Correlator":
                     st.caption(f"🔧 Component Change Tracking -> P/N Off: `{pn_off}` (S/N: `{row.get('S/N Off', '-')}`) ➔ P/N On: `{pn_on}` (S/N: `{row.get('S/N On', '-')}`)")
 
 # ======================================================================================
-# 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & DISPATCH
+# 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & NOTICE TRANSMITTAL
 # ======================================================================================
-elif menu_selection == "Recommendations & Dispatch":
-    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Recommendations & Dispatch</h1>", unsafe_allow_html=True)
+elif menu_selection == "Recommendations & Notice Transmittal":
+    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Recommendations & Notice Transmittal</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | P&WC PT6A-34 FIM (Rev 75.0)</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
@@ -1682,18 +1650,26 @@ elif menu_selection == "Recommendations & Dispatch":
             st.button("PDF Export Unavailable (Install fpdf2)", disabled=True, use_container_width=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Automated Emergency Dispatch Protocol</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Auto-Trigger)</h3>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Transmit urgent engineering evaluations directly to responsible Fleet Managers and Maintenance Control Center (MCC).</p>", unsafe_allow_html=True)
+    
+    # Indikator Status Watchdog Otomatis Formal (Tanpa Emoji)
+    st.markdown("""
+    <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
+        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">AUTOMATED MCC WATCHDOG ACTIVE</b>
+        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Background telemetry monitoring is operational. Any powerplant reaching CRITICAL status automatically initiates an immediate engineering alert transmittal to <b>aldofebriano77@gmail.com</b>.</span>
+    </div>
+    """, unsafe_allow_html=True)
     
     with st.container(border=True):
         col_em1, col_em2 = st.columns([3, 1])
         with col_em1:
-            target_emails = st.text_input("Recipient Email Addresses (comma-separated)", value="chief.engineers@airfastindonesia.com, mcc.duty@airfastindonesia.com")
+            target_emails = st.text_input("Recipient Email Addresses (comma-separated)", value="aldofebriano77@gmail.com, mcc.duty@airfastindonesia.com")
         with col_em2:
             st.write("")
             st.write("")
-            if st.button("Dispatch Notice to MCC", type="primary", use_container_width=True):
+            if st.button("Transmit Engineering Notice", type="primary", use_container_width=True):
                 with st.spinner("Transmitting engineering notice via secure SMTP..."):
                     recipients_list = [e.strip() for e in target_emails.split(",") if e.strip()]
-                    success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list)
-                    if success: st.success("Engineering Notice dispatched successfully to target recipients.")
+                    success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False)
+                    if success: st.success("Manual Engineering Notice transmitted successfully to target recipients.")
