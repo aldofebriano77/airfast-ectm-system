@@ -239,6 +239,7 @@ st.markdown(
 # ======================================================================================
 # 4. SESSION STATE MANAGEMENT & CALLBACK HELPERS
 # ======================================================================================
+
 if "active_menu" not in st.session_state:
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
 if "target_use_correction" not in st.session_state:
@@ -249,6 +250,10 @@ if "target_engine" not in st.session_state:
     st.session_state["target_engine"] = None
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
+
+# [POIN 1 REVISI] Inisialisasi Role RBAC (Default: Chief Engineer untuk kemudahan audit mentor)
+if "user_role" not in st.session_state:
+    st.session_state["user_role"] = "Chief Engineer / Admin"
 
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
