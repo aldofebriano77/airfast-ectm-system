@@ -297,7 +297,7 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
         st.session_state["filter_reg_kw"] = reg_filter
 
 # --------------------------------------------------------------------------------------
-# FULL-SCREEN AUTHORIZATION GATE (DIPINDAHKAN KE ATAS UNTUK BLOKIR DASHBOARD TOTAL)
+# FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
 # --------------------------------------------------------------------------------------
 if not st.session_state.get("logged_in", False):
     # Menyembunyikan sidebar dan header saat berada di halaman login
@@ -314,9 +314,17 @@ if not st.session_state.get("logged_in", False):
     
     with col_l2:
         with st.container(border=True):
-            st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>PT. AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#f0b73d; font-weight:700; font-size:0.8rem; letter-spacing:0.1em; margin-top:0px;'>TECHNICAL SERVICES DIVISION</p>", unsafe_allow_html=True)
-            st.markdown("<hr style='margin: 10px 0px 20px 0px;'>", unsafe_allow_html=True)
+            # --- [REVISI LOGO] Menampilkan gambar logo di tengah & menghapus teks divisi ---
+            logo_path = "images.png"  
+            if os.path.exists(logo_path):
+                col_logo1, col_logo2, col_logo3 = st.columns([1, 1.8, 1])
+                with col_logo2:
+                    st.image(logo_path, use_container_width=True)
+            else:
+                st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+            
+            # Garis pembatas setelah logo
+            st.markdown("<hr style='margin: 15px 0px 20px 0px;'>", unsafe_allow_html=True)
             
             st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Enterprise ECTM & Fleet Diagnostics Portal<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
             st.write("")
