@@ -1142,7 +1142,7 @@ if st.sidebar.button("🚪 Logout Portal", key="btn_logout_sidebar", use_contain
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# DYNAMIC MENU FILTERING ([DEV MODE] FULL ACCESS UNTUK SEMUA ROLE / GUEST)
+# DYNAMIC MENU FILTERING ([DEV MODE] FULL ACCESS UNTUK REVIEW MENTOR)
 # --------------------------------------------------------------------------------------
 all_menus = [
     "Home (Fleet Matrix)", 
@@ -1152,21 +1152,17 @@ all_menus = [
     "Recommendations & Dispatch"
 ]
 
-# [DEV MODE NOTICE] Logika RBAC di bawah ini sengaja di-comment (nonaktif) 
-# agar semua pengguna (termasuk Guest) bisa mengakses 100% menu untuk review mentor.
-# Jika nanti ingin mengaktifkan pembatasan role saat rilis resmi, hapus tanda kutip tiga (""") di bawah ini:
-"""
-if st.session_state["user_role"] == "Guest / Viewer":
-    allowed_menus = ["Home (Fleet Matrix)"]
-elif st.session_state["user_role"] == "Data Entry Officer":
-    allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup"]
-elif st.session_state["user_role"] == "Powerplant Engineer":
-    allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
-else:
-    allowed_menus = all_menus
-"""
+# [DEV MODE] Menggunakan komentar pagar (#) agar tidak bocor ke layar dasbor
+# if st.session_state["user_role"] == "Guest / Viewer":
+#     allowed_menus = ["Home (Fleet Matrix)"]
+# elif st.session_state["user_role"] == "Data Entry Officer":
+#     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup"]
+# elif st.session_state["user_role"] == "Powerplant Engineer":
+#     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
+# else:
+#     allowed_menus = all_menus
 
-# Memberikan akses penuh ke seluruh menu untuk apapun role-nya saat ini:
+# Memberikan akses penuh ke seluruh 5 menu untuk semua role / guest saat review mentor:
 allowed_menus = all_menus 
 
 if st.session_state["active_menu"] not in allowed_menus:
