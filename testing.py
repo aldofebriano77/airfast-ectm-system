@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import plotly.express as px
 
 try:
     from fpdf import FPDF
@@ -1026,6 +1027,54 @@ if menu_selection == "Home (Fleet Matrix)":
         df_u_summary["Avg FC / Day"] = df_u_summary["Registration"].apply(lambda r: round(get_aircraft_utilization_rate(r, df_util_current), 1))
         st.dataframe(df_u_summary, use_container_width=True, hide_index=True)
 
+        # =========================================================================
+        # ⬇️ PENAMBAHAN KODE REVISI POIN 4 (GRAFIK UTILITAS ARMADA) ⬇️
+        # =========================================================================
+        st.write("") # Spasi vertikal tipis
+        
+        # Membuat grafik batang berdampingan dari dataframe df_u_summary yang sudah dihitung di atas
+        fig_util = px.bar(
+            df_u_summary,
+            x='Registration',
+            y=['FH', 'FC'],
+            barmode='group',
+            labels={
+                'value': 'Total Value',
+                'Registration': 'Aircraft Registration',
+                'variable': 'Metric Type'
+            },
+            color_discrete_map={
+                'FH': '#003B6F',  # Navy Airfast (Jam Terbang)
+                'FC': '#f0b73d'   # Gold Airfast (Siklus Terbang)
+            },
+            height=380
+        )
+
+        fig_util.update_layout(
+            title=dict(
+                text="<b>Fleet Utilization Balancing (Flight Hours vs. Flight Cycles)</b>",
+                font=dict(color="#003B6F", size=13)
+            ),
+            legend=dict(
+                title='Metric',
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            hovermode="x unified",
+            margin=dict(l=20, r=20, t=50, b=20),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)')
+
+        st.plotly_chart(fig_util, use_container_width=True)
+        # =========================================================================
+        # ⬆️ BATAS KODE PENAMBAHAN POIN 4 ⬆️
+        # =========================================================================
+        
 # ======================================================================================
 # 15. PAGE 2: DATA COLLECTION & CONFIGURATION
 # ======================================================================================
