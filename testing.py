@@ -230,6 +230,19 @@ st.markdown(
 
     .fim-ref { display:inline-block; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1;
                border-radius: 4px; padding: 2px 8px; font-size:0.75rem; font-weight:600; margin-left:6px;}
+div[data-testid="stButton"] > button.red-logout-btn {
+        background-color: #DC2626 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #B91C1C !important;
+        font-weight: 700 !important;
+        transition: all 0.2s ease !important;
+    }
+    div[data-testid="stButton"] > button.red-logout-btn:hover {
+        background-color: #991B1B !important;
+        border-color: #7F1D1D !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
+    }    
     hr { border-color: #E2E8F0 !important; }
 </style>
 """,
