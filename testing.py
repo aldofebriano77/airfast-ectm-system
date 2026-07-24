@@ -251,9 +251,33 @@ if "target_engine" not in st.session_state:
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
-# [POIN 1 REVISI] Inisialisasi Role RBAC (Default: Chief Engineer untuk kemudahan audit mentor)
+# [POIN 1 REVISI] Database Akun Resmi Airfast (Berdasarkan struktur jabatan CMM)
+USER_DATABASE = {
+    "admin@airfastindonesia.com": {
+        "password": "admin123",
+        "role": "Chief Engineer / Admin",
+        "name": "Wayan Adi (Chief Inspector)"
+    },
+    "engineer@airfastindonesia.com": {
+        "password": "eng123",
+        "role": "Powerplant Engineer",
+        "name": "Rochadin (TS Supervisor)"
+    },
+    "officer@airfastindonesia.com": {
+        "password": "entry123",
+        "role": "Data Entry Officer",
+        "name": "Line Maintenance Staff"
+    }
+}
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = ""
+if "user_name" not in st.session_state:
+    st.session_state["user_name"] = "Guest Viewer"
 if "user_role" not in st.session_state:
-    st.session_state["user_role"] = "Chief Engineer / Admin"
+    st.session_state["user_role"] = "Guest / Viewer"
 
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
@@ -911,7 +935,67 @@ def generate_ewo_pdf(engine_id: str, status_label: str, status_dict: dict, recs:
         return pdf.output(dest="S").encode("latin-1", errors="replace")
 
 # ======================================================================================
-# 12. CLEAN EXECUTIVE SIDEBAR
+# 11.5. FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
+# ======================================================================================
+if not st.session_state.get("logged_in", False):
+    # Menyembunyikan sidebar bawaan streamlit saat berada di halaman login
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>" * 2, unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    
+    with col_l2:
+        with st.container(border=True):
+            st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>PT. AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:#f0b73d; font-weight:700; font-size:0.8rem; letter-spacing:0.1em; margin-top:0px;'>TECHNICAL SERVICES DIVISION</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0px 20px 0px;'>", unsafe_allow_html=True)
+            
+            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Enterprise ECTM & Fleet Diagnostics Portal<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            st.write("")
+            
+            with st.form("fullscreen_login_form", clear_on_submit=False):
+                input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
+                input_password = st.text_input("Password", type="password", placeholder="••••••••")
+                
+                st.write("")
+                c_btn1, c_btn2 = st.columns(2)
+                with c_btn1:
+                    btn_login = st.form_submit_button("🔐 Login to Portal", type="primary", use_container_width=True)
+                with c_btn2:
+                    btn_guest = st.form_submit_button("👤 Continue as Guest", use_container_width=True)
+                    
+                if btn_login:
+                    if input_email in USER_DATABASE and USER_DATABASE[input_email]["password"] == input_password:
+                        user_info = USER_DATABASE[input_email]
+                        st.session_state["logged_in"] = True
+                        st.session_state["user_email"] = input_email
+                        st.session_state["user_name"] = user_info["name"]
+                        st.session_state["user_role"] = user_info["role"]
+                        st.success("Authorization successful! Redirecting to dashboard...")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid Email or Password. Access denied under CASR Part 135.")
+                        
+                if btn_guest:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_email"] = "guest.auditor@airfast.com"
+                    st.session_state["user_name"] = "External Auditor / Guest"
+                    st.session_state["user_role"] = "Guest / Viewer"
+                    st.rerun()
+            
+            st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
+            st.caption("🔒 **Security Advisory:** Authorized personnel only. System activity is continuously monitored and logged in compliance with Airfast Corporate Quality Management System (CQMS).")
+            
+    # ---> MAGISNYA DI SINI: Menghentikan eksekusi kode di bawahnya sampai login berhasil! <---
+    st.stop()
+
+# ======================================================================================
+# 12. CLEAN EXECUTIVE SIDEBAR (AUTHORIZED USER & RBAC NAVIGATION)
 # ======================================================================================
 logo_path = "images.png"  
 if os.path.exists(logo_path):
@@ -923,40 +1007,40 @@ else:
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# [POIN 1 REVISI] RBAC USER PROFILE & ROLE SWITCHER
+# USER PROFILE CARD & LOGOUT BUTTON
 # --------------------------------------------------------------------------------------
-st.sidebar.markdown("<p style='font-size:0.78rem; font-weight:700; color:#CBD5E1; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.05em;'>ACTIVE AUTHORIZATION ROLE</p>", unsafe_allow_html=True)
 
-# Selector peran pengguna (Untuk pengujian auditor/mentor)
-selected_role = st.sidebar.selectbox(
-    "Select User Role",
-    ["Chief Engineer / Admin", "Powerplant Engineer", "Data Entry Officer"],
-    index=["Chief Engineer / Admin", "Powerplant Engineer", "Data Entry Officer"].index(st.session_state["user_role"]),
-    key="rbac_role_selector",
-    label_visibility="collapsed"
-)
-
-# Simpan perubahan role ke session state
-if selected_role != st.session_state["user_role"]:
-    st.session_state["user_role"] = selected_role
-    st.rerun()
-
-# Desain Badge UI berdasarkan level otorisasi
 role_badge_style = {
-    "Chief Engineer / Admin": ("#F0FDF4", "#166534", "#BBF7D0", "Level 3: Full System & Dispatch Authority"),
-    "Powerplant Engineer": ("#FFFBEB", "#92400E", "#FDE68A", "Level 2: Analytics & Prognostics Access"),
-    "Data Entry Officer": ("#EFF6FF", "#1E40AF", "#BFDBFE", "Level 1: Telemetry Ingestion Only")
+    "Chief Engineer / Admin": ("#F0FDF4", "#166534", "#BBF7D0", "Level 3: Full System Authority"),
+    "Powerplant Engineer": ("#FFFBEB", "#92400E", "#FDE68A", "Level 2: Diagnostics & Analytics"),
+    "Data Entry Officer": ("#EFF6FF", "#1E40AF", "#BFDBFE", "Level 1: Telemetry Ingestion"),
+    "Guest / Viewer": ("#F1F5F9", "#334155", "#CBD5E1", "Level 0: Read-Only Overview")
 }
-bg_c, txt_c, brd_c, role_desc = role_badge_style[st.session_state["user_role"]]
+bg_c, txt_c, brd_c, role_desc = role_badge_style.get(st.session_state["user_role"], ("#F1F5F9", "#334155", "#CBD5E1", "Unknown Role"))
 
 st.sidebar.markdown(f"""
-<div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 8px 10px; border-radius: 4px; margin-bottom: 15px;">
-    <span style="color: {txt_c} !important; font-size: 0.72rem; font-weight: 700; display: block;">🔒 {role_desc}</span>
+<div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 12px 14px; border-radius: 6px; margin-bottom: 12px;">
+    <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block;">👤 LOGGED IN AS</span>
+    <span style="color: #FFFFFF !important; font-size: 0.95rem; font-weight: 700; display: block; margin-top: 2px;">{st.session_state['user_name']}</span>
+    <span style="color: #94A3B8 !important; font-size: 0.75rem; display: block; margin-bottom: 8px;">{st.session_state['user_email']}</span>
+    <div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 4px 8px; border-radius: 4px; display: inline-block; width: 100%; text-align: center;">
+        <span style="color: {txt_c} !important; font-size: 0.68rem; font-weight: 700;">🔒 {role_desc}</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
+if st.sidebar.button("🚪 Logout Portal", use_container_width=True):
+    st.session_state["logged_in"] = False
+    st.session_state["user_email"] = ""
+    st.session_state["user_name"] = "Guest Viewer"
+    st.session_state["user_role"] = "Guest / Viewer"
+    st.session_state["active_menu"] = "Home (Fleet Matrix)"
+    st.rerun()
+
+st.sidebar.markdown("---")
+
 # --------------------------------------------------------------------------------------
-# DYNAMIC MENU FILTERING BASED ON RBAC PERMISSIONS
+# DYNAMIC MENU FILTERING BERDASARKAN ROLE
 # --------------------------------------------------------------------------------------
 all_menus = [
     "Home (Fleet Matrix)", 
@@ -966,15 +1050,15 @@ all_menus = [
     "Recommendations & Dispatch"
 ]
 
-# Matriks izin navigasi menu
-if st.session_state["user_role"] == "Data Entry Officer":
+if st.session_state["user_role"] == "Guest / Viewer":
+    allowed_menus = ["Home (Fleet Matrix)"]
+elif st.session_state["user_role"] == "Data Entry Officer":
     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup"]
 elif st.session_state["user_role"] == "Powerplant Engineer":
     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
 else:
-    allowed_menus = all_menus # Chief Engineer mendapat seluruh akses
+    allowed_menus = all_menus
 
-# Validasi jika user sedang berada di menu yang dilarang saat beralih role
 if st.session_state["active_menu"] not in allowed_menus:
     st.session_state["active_menu"] = allowed_menus[0]
 
@@ -986,13 +1070,11 @@ menu_selection = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
-# Sinkronisasi radio button dengan fungsi navigasi internal
 st.session_state["active_menu"] = menu_selection
 
 st.sidebar.markdown("<br>" * 4, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
-
 # ======================================================================================
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
 # ======================================================================================
