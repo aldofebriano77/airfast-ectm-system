@@ -1080,7 +1080,7 @@ else:
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# USER PROFILE CARD (CLEAN DESIGN TANPA KOTAK AUTHORITY)
+# USER PROFILE CARD
 # --------------------------------------------------------------------------------------
 st.sidebar.markdown(f"""
 <div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 14px 16px; border-radius: 6px; margin-bottom: 12px;">
@@ -1090,36 +1090,52 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Tombol Logout dengan warna MERAH TEGAS
-st.sidebar.markdown('<div class="red-logout-wrapper">', unsafe_allow_html=True)
-if st.sidebar.button("🚪 Logout Portal", use_container_width=True):
+# --------------------------------------------------------------------------------------
+# TOMBOL LOGOUT MERAH (BULLETPROOF CSS OVERRIDE)
+# --------------------------------------------------------------------------------------
+# CSS spesifisitas tinggi untuk memaksa tombol di sidebar berlatar merah & berteks putih
+st.markdown("""
+<style>
+    /* Paksa kotak tombol di sidebar berlatar Merah Tegas */
+    [data-testid="stSidebar"] [data-testid="stButton"] > button,
+    [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="secondary"],
+    [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"] {
+        background-color: #DC2626 !important;
+        border: 1px solid #B91C1C !important;
+        border-radius: 6px !important;
+        padding: 10px 15px !important;
+        width: 100% !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+    }
+    
+    /* Paksa semua teks dan ikon di dalam tombol sidebar berwarna Putih Terang */
+    [data-testid="stSidebar"] [data-testid="stButton"] > button *,
+    [data-testid="stSidebar"] [data-testid="stButton"] > button p,
+    [data-testid="stSidebar"] [data-testid="stButton"] > button span {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        letter-spacing: 0.03em !important;
+    }
+
+    /* Efek hover saat kursor diarahkan ke tombol */
+    [data-testid="stSidebar"] [data-testid="stButton"] > button:hover,
+    [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="secondary"]:hover {
+        background-color: #991B1B !important;
+        border-color: #7F1D1D !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+if st.sidebar.button("🚪 Logout Portal", key="btn_logout_sidebar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.session_state["user_email"] = ""
     st.session_state["user_name"] = "Guest Viewer"
     st.session_state["user_role"] = "Guest / Viewer"
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
     st.rerun()
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
-
-# Memberikan class CSS ke tombol logout secara dinamis
-st.markdown("""
-<style>
-    div[data-testid="stSidebar"] div.stButton > button {
-        background-color: #DC2626 !important;
-        color: #FFFFFF !important;
-        border: 1px solid #B91C1C !important;
-        font-weight: 700 !important;
-        letter-spacing: 0.03em;
-        transition: all 0.2s ease !important;
-    }
-    div[data-testid="stSidebar"] div.stButton > button:hover {
-        background-color: #991B1B !important;
-        border-color: #7F1D1D !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
