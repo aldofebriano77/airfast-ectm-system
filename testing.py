@@ -986,7 +986,18 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     pdf.set_font("Arial", "", 9)
     for r in recommendations:
         pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}\n{r['body']}\n")
-    return pdf.output(dest="S").encode("latin-1", errors="ignore")
+    
+    # Kompatibel untuk fpdf versi lama maupun fpdf2 versi terbaru di Streamlit Cloud
+    try:
+        out = pdf.output(dest="S")
+    except TypeError:
+        out = pdf.output()
+        
+    if isinstance(out, str):
+        return out.encode("latin-1", errors="ignore")
+    elif isinstance(out, (bytes, bytearray)):
+        return bytes(out)
+    return b""
 
 # ======================================================================================
 # 12. CLEAN EXECUTIVE SIDEBAR (AUTHORIZED USER & RBAC NAVIGATION)
