@@ -326,7 +326,7 @@ if not st.session_state.get("logged_in", False):
             # Garis pembatas setelah logo
             st.markdown("<hr style='margin: 15px 0px 20px 0px;'>", unsafe_allow_html=True)
             
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Enterprise ECTM & Fleet Diagnostics Portal<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
             st.write("")
             
             with st.form("fullscreen_login_form", clear_on_submit=False):
