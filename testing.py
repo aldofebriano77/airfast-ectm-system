@@ -237,9 +237,8 @@ st.markdown(
 )
 
 # ======================================================================================
-# 4. SESSION STATE MANAGEMENT & CALLBACK HELPERS
+# 4. SESSION STATE MANAGEMENT & CALLBACK HELPERS (AUTHENTICATION INTEGRATED)
 # ======================================================================================
-
 if "active_menu" not in st.session_state:
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
 if "target_use_correction" not in st.session_state:
@@ -251,17 +250,17 @@ if "target_engine" not in st.session_state:
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
-# [POIN 1 REVISI] Database Akun Resmi Airfast (Berdasarkan struktur jabatan CMM)
+# [POIN 1 REVISI] Database Akun Simulasi (Tanpa embel-embel jabatan)
 USER_DATABASE = {
     "admin@airfastindonesia.com": {
         "password": "admin123",
         "role": "Chief Engineer / Admin",
-        "name": "Wayan Adi (Chief Inspector)"
+        "name": "Aldo Febriano Artha Chandra"
     },
     "engineer@airfastindonesia.com": {
         "password": "eng123",
         "role": "Powerplant Engineer",
-        "name": "Rochadin (TS Supervisor)"
+        "name": "Rochadin Bakdha Aji"
     },
     "officer@airfastindonesia.com": {
         "password": "entry123",
@@ -1007,24 +1006,24 @@ else:
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# USER PROFILE CARD & LOGOUT BUTTON
+# USER PROFILE CARD & LOGOUT BUTTON (HIGH CONTRAST TEXT FIX)
 # --------------------------------------------------------------------------------------
-
+# Format: (Background Color Gelap, Border Color, Teks Deskripsi)
 role_badge_style = {
-    "Chief Engineer / Admin": ("#F0FDF4", "#166534", "#BBF7D0", "Level 3: Full System Authority"),
-    "Powerplant Engineer": ("#FFFBEB", "#92400E", "#FDE68A", "Level 2: Diagnostics & Analytics"),
-    "Data Entry Officer": ("#EFF6FF", "#1E40AF", "#BFDBFE", "Level 1: Telemetry Ingestion"),
-    "Guest / Viewer": ("#F1F5F9", "#334155", "#CBD5E1", "Level 0: Read-Only Overview")
+    "Chief Engineer / Admin": ("#14532D", "#22C55E", "Level 3: Full System Authority"),     # Dark Green
+    "Powerplant Engineer": ("#78350F", "#F59E0B", "Level 2: Diagnostics & Analytics"),    # Dark Amber
+    "Data Entry Officer": ("#1E3A8A", "#3B82F6", "Level 1: Telemetry Ingestion"),          # Dark Blue
+    "Guest / Viewer": ("#1E293B", "#64748B", "Level 0: Read-Only Overview")                # Dark Slate
 }
-bg_c, txt_c, brd_c, role_desc = role_badge_style.get(st.session_state["user_role"], ("#F1F5F9", "#334155", "#CBD5E1", "Unknown Role"))
+bg_c, brd_c, role_desc = role_badge_style.get(st.session_state["user_role"], ("#1E293B", "#64748B", "Unknown Role"))
 
 st.sidebar.markdown(f"""
 <div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 12px 14px; border-radius: 6px; margin-bottom: 12px;">
     <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block;">👤 LOGGED IN AS</span>
     <span style="color: #FFFFFF !important; font-size: 0.95rem; font-weight: 700; display: block; margin-top: 2px;">{st.session_state['user_name']}</span>
-    <span style="color: #94A3B8 !important; font-size: 0.75rem; display: block; margin-bottom: 8px;">{st.session_state['user_email']}</span>
-    <div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 4px 8px; border-radius: 4px; display: inline-block; width: 100%; text-align: center;">
-        <span style="color: {txt_c} !important; font-size: 0.68rem; font-weight: 700;">🔒 {role_desc}</span>
+    <span style="color: #94A3B8 !important; font-size: 0.75rem; display: block; margin-bottom: 10px;">{st.session_state['user_email']}</span>
+    <div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 6px 8px; border-radius: 4px; display: block; width: 100%; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);">
+        <span style="color: #FFFFFF !important; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;">🔒 {role_desc}</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1075,6 +1074,7 @@ st.session_state["active_menu"] = menu_selection
 st.sidebar.markdown("<br>" * 4, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
+
 # ======================================================================================
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
 # ======================================================================================
