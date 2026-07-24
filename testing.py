@@ -19,6 +19,7 @@ import io
 import os
 import re
 import smtplib
+import hashlib
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -118,6 +119,10 @@ TREND_WINDOW = 10
 CONTROL_SIGMA = 2.5             
 
 REQUIRED_COLUMNS = ["Date", "Engine", "T5", "Ng", "Wf"]
+# [FIX] Was previously typed out separately in 3 different places (synthetic
+# data generator + 2 manual-entry forms) - a new airframe added to the fleet
+# only needed updating here now, instead of hunting down every occurrence.
+FLEET_REGISTRATIONS = ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]
 CORRECTION_CANDIDATES = ["IOAT", "Press_Alt", "TQ", "Np"]
 OPTIONAL_COLUMNS = CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press"]
 
@@ -263,20 +268,32 @@ if "target_engine" not in st.session_state:
 if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
+def _hash_pw(raw: str) -> str:
+    """SHA-256 password hash. NOTE: this is still not a production-grade
+    credential store (no per-user salt, no slow KDF like bcrypt/argon2, and
+    the hashes below are only as secret as this source file is). It exists
+    so plaintext passwords are at least not sitting directly in the code -
+    for an actual deployment, replace USER_DATABASE with a real identity
+    provider (SSO / company auth) or hashed credentials in st.secrets."""
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
 # [POIN 1 REVISI] Database Akun Simulasi (Tanpa embel-embel jabatan)
+# [FIX] Passwords are now stored as SHA-256 hashes, not plaintext strings,
+# so they are not directly readable from the source file. See _hash_pw()
+# docstring above for the honest limits of this approach.
 USER_DATABASE = {
     "admin@airfastindonesia.com": {
-        "password": "admin123",
+        "password_hash": _hash_pw("admin123"),
         "role": "Chief Engineer / Admin",
         "name": "Aldo Febriano Artha Chandra"
     },
     "engineer@airfastindonesia.com": {
-        "password": "eng123",
+        "password_hash": _hash_pw("eng123"),
         "role": "Powerplant Engineer",
         "name": "Rochadin Bakdha Aji"
     },
     "officer@airfastindonesia.com": {
-        "password": "entry123",
+        "password_hash": _hash_pw("entry123"),
         "role": "Data Entry Officer",
         "name": "Line Maintenance Staff"
     }
@@ -293,7 +310,12 @@ if "user_role" not in st.session_state:
 
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
-    st.session_state["active_menu_radio"] = menu_name  # <-- TAMBAHKAN BARIS INI
+    # [FIX] Previously also set st.session_state["active_menu_radio"] here.
+    # The radio widget below is keyed "active_menu_radio" AND was given an
+    # explicit index= - Streamlit forbids setting a widget's session_state
+    # key AND passing index= in the same run (StreamlitAPIException). We now
+    # use a single canonical key ("active_menu") for both the state and the
+    # widget itself, so this callback only needs to touch one value.
     if reg_filter:
         st.session_state["filter_reg_kw"] = reg_filter
 
@@ -342,7 +364,7 @@ if not st.session_state.get("logged_in", False):
                     btn_guest = st.form_submit_button("👤 Continue as Guest", use_container_width=True)
                     
                 if btn_login:
-                    if input_email in USER_DATABASE and USER_DATABASE[input_email]["password"] == input_password:
+                    if input_email in USER_DATABASE and USER_DATABASE[input_email]["password_hash"] == _hash_pw(input_password):
                         user_info = USER_DATABASE[input_email]
                         st.session_state["logged_in"] = True
                         st.session_state["user_email"] = input_email
@@ -351,7 +373,7 @@ if not st.session_state.get("logged_in", False):
                         st.success("Authorization successful! Redirecting to dashboard...")
                         st.rerun()
                     else:
-                        st.error("❌ Invalid Email or Password. Access denied under CASR Part 135.")
+                        st.error("❌ Invalid email or password.")
                         
                 if btn_guest:
                     st.session_state["logged_in"] = True
@@ -361,7 +383,8 @@ if not st.session_state.get("logged_in", False):
                     st.rerun()
             
             st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
-            st.caption("🔒 **Security Advisory:** Authorized personnel only. System activity is continuously monitored and logged in compliance with Airfast Corporate Quality Management System (CQMS).")
+            st.caption("🔒 **Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
+                       "for a production authentication/audit system. Do not reuse real corporate credentials here.")
             
     # ---> MENGHENTIKAN SKRIP TOTAL DISINI JIKA BELUM LOGIN <---
     st.stop()
@@ -486,7 +509,7 @@ def init_all_datasets():
 
     if df_util.empty:
         util_rows = []
-        for reg in ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]:
+        for reg in FLEET_REGISTRATIONS:
             for d in range(60):
                 fc = int(rng.choice([2, 4, 6, 8], p=[0.2, 0.4, 0.3, 0.1]))
                 fh = round(fc * rng.uniform(0.6, 0.9), 1)
@@ -596,17 +619,21 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
         if models[target].get("downgraded", False) and use_correction and len(predictors) > 0:
             is_downgraded = True
         df_engine[f"{target}_pred"] = apply_correction_model(models[target], df_engine)
-        # [UI FIX] Pembulatan 2 desimal langsung di level dataframe untuk mencegah tooltip overflow
-        df_engine[f"Delta_{target}"] = (df_engine[target] - df_engine[f"{target}_pred"]).round(2)
+        # [FIX] Was rounded to 2 decimals here, but this column also feeds
+        # sustained-trend detection, RUL slope regression, and the control
+        # band - all of which should work off full precision. Display-side
+        # rounding is already handled by the ":+.2f" format in the
+        # hovertemplate, so nothing is lost visually.
+        df_engine[f"Delta_{target}"] = df_engine[target] - df_engine[f"{target}_pred"]
         
     df_engine["Delta_Ng_pct"] = df_engine["Delta_Ng"]
     baseline_wf_mean = df_baseline["Wf"].mean()
-    df_engine["Delta_Wf_pct"] = (100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)).round(2)
+    df_engine["Delta_Wf_pct"] = 100 * df_engine["Delta_Wf"] / (baseline_wf_mean if baseline_wf_mean != 0 else 1.0)
     
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
     for t in ["T5", "Ng", "Wf"]:
         rolling_std = df_engine[f"Delta_{t}"].rolling(window=TREND_WINDOW, min_periods=n).std()
-        df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3).round(2)
+        df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3)
 
     df_engine.attrs["models"] = models
     df_engine.attrs["noise"] = noise
@@ -1082,17 +1109,35 @@ allowed_menus = all_menus
 if st.session_state["active_menu"] not in allowed_menus:
     st.session_state["active_menu"] = allowed_menus[0]
 
+# [FIX] Dropped the index= argument - the widget is now driven purely by
+# st.session_state["active_menu"] via its key, which is also what
+# navigate_to_menu() writes to. Passing both index= and a pre-set key for
+# the same widget raises a StreamlitAPIException on every rerun triggered
+# by a navigate_to_menu button (e.g. "Execute ECTM Analysis & View Trends").
 menu_selection = st.sidebar.radio(
     "Navigation Menu",
     allowed_menus,
-    index=allowed_menus.index(st.session_state["active_menu"]) if st.session_state["active_menu"] in allowed_menus else 0,
-    key="active_menu_radio",
+    key="active_menu",
     label_visibility="collapsed",
 )
 
-st.session_state["active_menu"] = menu_selection
+st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
+st.sidebar.markdown("---")
+st.sidebar.markdown("<p style='font-weight:700; color:#f0b73d; font-size:0.85rem; margin-bottom:2px;'>FLEET WATCHDOG</p>", unsafe_allow_html=True)
+st.sidebar.caption(
+    "Manual trigger only - runs a one-time scan across the fleet and dispatches "
+    "alerts for engines currently at CRITICAL. Deduplication only lasts for this "
+    "browser session (not persisted), so re-running after a page refresh may "
+    "re-send an alert for the same finding."
+)
+watchdog_recipient_input = st.sidebar.text_input(
+    "Alert recipient email(s)", value=st.session_state.get("watchdog_recipient", ""),
+    placeholder="engineering@airfastindonesia.com", key="watchdog_recipient",
+    help="Comma-separate multiple addresses. Nothing is sent until you click the button below.",
+)
+run_watchdog_now = st.sidebar.button("Run Fleet Health Scan Now", key="btn_run_watchdog", use_container_width=True)
 
-st.sidebar.markdown("<br>" * 4, unsafe_allow_html=True)
+st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
 
@@ -1144,44 +1189,62 @@ status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
 
 # ======================================================================================
-# [POIN 3 REVISI] AUTOMATED MCC CRITICAL ALERT WATCHDOG (BACKGROUND SERVICE)
+# FLEET WATCHDOG - MANUAL SCAN (runs only on explicit button click, see sidebar)
 # ======================================================================================
+# [FIX] This used to run unconditionally on every single Streamlit rerun -
+# i.e. every click anywhere in the app re-scanned every engine and could fire
+# real SMTP emails to a hardcoded personal address, with a dedup key that
+# only survives one browser session. It's now opt-in: nothing runs, and
+# nothing is sent, unless the user explicitly clicks "Run Fleet Health Scan
+# Now" in the sidebar and has provided a recipient.
 if "auto_alert_sent" not in st.session_state:
     st.session_state["auto_alert_sent"] = set()
 
-for eng_check_id in engines_available:
-    df_check = df_raw[df_raw["Engine"] == eng_check_id].copy()
-    if len(df_check) >= 2:
-        df_check_proc = compute_engine_trend(df_check, int(baseline_n_input), use_correction)
-        st_check = build_status(df_check_proc, df_util_current)
-        
-        if st_check["health_level"] == EngineHealth.CRITICAL:
-            alert_key = f"{eng_check_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
-            
-            if alert_key not in st.session_state["auto_alert_sent"]:
-                recs_check = generate_recommendations(df_check_proc, st_check)
-                
-                auto_report_lines = [
-                    "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY AUTOMATED WATCHDOG",
-                    f"Latest Logbook Timestamp : {st_check['latest']['Date'].strftime('%Y-%m-%d')}",
-                    f"Computed Residual Vector  : ΔT5 = {st_check['d_t5']:+.1f} °C | ΔNg = {st_check['d_ng']:+.2f} % | ΔWf = {st_check['d_wf']:+.1f} PPH",
-                    f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
-                    f"RUL Linear Confidence     : {st_check['rul_confidence']}",
-                    "-------------------------------------------------------------------------",
-                    "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:"
-                ]
-                for rc in recs_check:
-                    auto_report_lines.extend([f"[{rc['fim_ref']}] {rc['title']}", rc['body'], ""])
-                
-                send_engineering_notice(
-                    engine_id=eng_check_id,
-                    status_dict=st_check,
-                    report_body="\n".join(auto_report_lines),
-                    recipients=["aldofebriano77@gmail.com"],
-                    is_automated=True
-                )
-                
-                st.session_state["auto_alert_sent"].add(alert_key)
+if run_watchdog_now:
+    watchdog_recipients = [r.strip() for r in watchdog_recipient_input.split(",") if r.strip()]
+    if not watchdog_recipients:
+        st.sidebar.error("Enter at least one recipient email before running the scan.")
+    else:
+        n_critical_found = 0
+        for eng_check_id in engines_available:
+            df_check = df_raw[df_raw["Engine"] == eng_check_id].copy()
+            if len(df_check) >= 2:
+                df_check_proc = compute_engine_trend(df_check, int(baseline_n_input), use_correction)
+                st_check = build_status(df_check_proc, df_util_current)
+
+                if st_check["health_level"] == EngineHealth.CRITICAL:
+                    n_critical_found += 1
+                    alert_key = f"{eng_check_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
+
+                    if alert_key not in st.session_state["auto_alert_sent"]:
+                        recs_check = generate_recommendations(df_check_proc, st_check)
+
+                        auto_report_lines = [
+                            "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG SCAN",
+                            f"Latest Logbook Timestamp : {st_check['latest']['Date'].strftime('%Y-%m-%d')}",
+                            f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
+                            f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
+                            f"RUL Linear Confidence     : {st_check['rul_confidence']}",
+                            "-------------------------------------------------------------------------",
+                            "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:",
+                        ]
+                        for rc in recs_check:
+                            auto_report_lines.extend([f"[{rc['fim_ref']}] {rc['title']}", rc['body'], ""])
+
+                        send_engineering_notice(
+                            engine_id=eng_check_id,
+                            status_dict=st_check,
+                            report_body="\n".join(auto_report_lines),
+                            recipients=watchdog_recipients,
+                            is_automated=True,
+                        )
+                        st.session_state["auto_alert_sent"].add(alert_key)
+        if n_critical_found == 0:
+            st.sidebar.success("Fleet scan complete - no engines currently at CRITICAL.")
+        else:
+            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed.")
+
+
 
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
@@ -1365,7 +1428,7 @@ elif menu_selection == "Data Collection & Setup":
             with st.form("form_manual_util", clear_on_submit=True):
                 col_u1, col_u2, col_u3 = st.columns(3)
                 with col_u1:
-                    u_reg = st.selectbox("Aircraft Registration", ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"])
+                    u_reg = st.selectbox("Aircraft Registration", FLEET_REGISTRATIONS)
                     u_date = st.date_input("Work Date", value=datetime.now())
                 with col_u2:
                     u_fh = st.number_input("Flight Hours (FH)", min_value=0.0, max_value=24.0, value=2.5, step=0.1)
@@ -1415,7 +1478,7 @@ elif menu_selection == "Data Collection & Setup":
                     r_aml = st.text_input("AML / Logbook No", placeholder="e.g., OAM-2026-015").upper()
                     r_date = st.date_input("Report Date", value=datetime.now())
                 with col_r2:
-                    r_reg = st.selectbox("Registration", ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"], key="rep_reg")
+                    r_reg = st.selectbox("Registration", FLEET_REGISTRATIONS, key="rep_reg")
                     r_pos = st.selectbox("Engine Position", ["LH", "RH", "General"])
                 with col_r3:
                     r_ata = st.number_input("ATA Chapter", min_value=0, max_value=99, value=71, step=1)
@@ -1661,26 +1724,43 @@ elif menu_selection == "Recommendations & Notice Transmittal":
             st.button("PDF Export Unavailable (Install fpdf2)", disabled=True, use_container_width=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Auto-Trigger)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Fleet-Scan Trigger)</h3>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Transmit urgent engineering evaluations directly to responsible Fleet Managers and Maintenance Control Center (MCC).</p>", unsafe_allow_html=True)
-    
-    # Indikator Status Watchdog Otomatis Formal (Tanpa Emoji)
+
+    # [FIX] The watchdog no longer runs automatically in the background on
+    # every rerun (see the Fleet Watchdog panel in the sidebar) - this
+    # banner previously claimed an always-on background service and a
+    # hardcoded personal recipient, which was no longer accurate.
     st.markdown("""
     <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
-        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">AUTOMATED MCC WATCHDOG ACTIVE</b>
-        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Background telemetry monitoring is operational. Any powerplant reaching CRITICAL status automatically initiates an immediate engineering alert transmittal to <b>aldofebriano77@gmail.com</b>.</span>
+        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">FLEET WATCHDOG - MANUAL TRIGGER</b>
+        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Fleet-wide CRITICAL scanning is <b>not automatic</b> - use the "Run Fleet Health Scan Now" control in the sidebar (with your own recipient address) to check all engines at once.</span>
     </div>
     """, unsafe_allow_html=True)
-    
+
+    can_dispatch = st.session_state.get("user_role") not in ("Guest / Viewer",)
+
     with st.container(border=True):
         col_em1, col_em2 = st.columns([3, 1])
         with col_em1:
-            target_emails = st.text_input("Recipient Email Addresses (comma-separated)", value="aldofebriano77@gmail.com, mcc.duty@airfastindonesia.com")
+            target_emails = st.text_input(
+                "Recipient Email Addresses (comma-separated)", value="",
+                placeholder="mcc.duty@airfastindonesia.com, chief.engineer@airfastindonesia.com",
+                disabled=not can_dispatch,
+            )
         with col_em2:
             st.write("")
             st.write("")
-            if st.button("Transmit Engineering Notice", type="primary", use_container_width=True):
-                with st.spinner("Transmitting engineering notice via secure SMTP..."):
-                    recipients_list = [e.strip() for e in target_emails.split(",") if e.strip()]
-                    success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False)
-                    if success: st.success("Manual Engineering Notice transmitted successfully to target recipients.")
+            if not can_dispatch:
+                st.button("Transmit Engineering Notice", disabled=True, use_container_width=True,
+                           help="Guest accounts cannot dispatch official engineering notices. Log in with an authorized account.")
+            elif st.button("Transmit Engineering Notice", type="primary", use_container_width=True):
+                recipients_list = [e.strip() for e in target_emails.split(",") if e.strip()]
+                if not recipients_list:
+                    st.error("Enter at least one recipient email address.")
+                else:
+                    with st.spinner("Transmitting engineering notice via secure SMTP..."):
+                        success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False)
+                        if success: st.success("Manual Engineering Notice transmitted successfully to target recipients.")
+    if not can_dispatch:
+        st.caption("Signed in as Guest / Viewer - dispatching official notices is restricted to authorized engineering/maintenance accounts.")
