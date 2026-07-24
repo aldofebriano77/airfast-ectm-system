@@ -1019,28 +1019,18 @@ else:
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# USER PROFILE CARD & LOGOUT BUTTON (HIGH CONTRAST TEXT FIX)
+# USER PROFILE CARD (CLEAN DESIGN TANPA KOTAK AUTHORITY)
 # --------------------------------------------------------------------------------------
-# Format: (Background Color Gelap, Border Color, Teks Deskripsi)
-role_badge_style = {
-    "Chief Engineer / Admin": ("#14532D", "#22C55E", "Level 3: Full System Authority"),     # Dark Green
-    "Powerplant Engineer": ("#78350F", "#F59E0B", "Level 2: Diagnostics & Analytics"),    # Dark Amber
-    "Data Entry Officer": ("#1E3A8A", "#3B82F6", "Level 1: Telemetry Ingestion"),          # Dark Blue
-    "Guest / Viewer": ("#1E293B", "#64748B", "Level 0: Read-Only Overview")                # Dark Slate
-}
-bg_c, brd_c, role_desc = role_badge_style.get(st.session_state["user_role"], ("#1E293B", "#64748B", "Unknown Role"))
-
 st.sidebar.markdown(f"""
-<div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 12px 14px; border-radius: 6px; margin-bottom: 12px;">
-    <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block;">👤 LOGGED IN AS</span>
-    <span style="color: #FFFFFF !important; font-size: 0.95rem; font-weight: 700; display: block; margin-top: 2px;">{st.session_state['user_name']}</span>
-    <span style="color: #94A3B8 !important; font-size: 0.75rem; display: block; margin-bottom: 10px;">{st.session_state['user_email']}</span>
-    <div style="background-color: {bg_c}; border: 1px solid {brd_c}; padding: 6px 8px; border-radius: 4px; display: block; width: 100%; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);">
-        <span style="color: #FFFFFF !important; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;">🔒 {role_desc}</span>
-    </div>
+<div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 14px 16px; border-radius: 6px; margin-bottom: 12px;">
+    <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block; letter-spacing: 0.05em;">👤 LOGGED IN AS</span>
+    <span style="color: #FFFFFF !important; font-size: 1.05rem; font-weight: 700; display: block; margin-top: 4px;">{st.session_state['user_name']}</span>
+    <span style="color: #94A3B8 !important; font-size: 0.78rem; display: block;">{st.session_state['user_email']}</span>
 </div>
 """, unsafe_allow_html=True)
 
+# Tombol Logout dengan warna MERAH TEGAS
+st.sidebar.markdown('<div class="red-logout-wrapper">', unsafe_allow_html=True)
 if st.sidebar.button("🚪 Logout Portal", use_container_width=True):
     st.session_state["logged_in"] = False
     st.session_state["user_email"] = ""
@@ -1048,6 +1038,27 @@ if st.sidebar.button("🚪 Logout Portal", use_container_width=True):
     st.session_state["user_role"] = "Guest / Viewer"
     st.session_state["active_menu"] = "Home (Fleet Matrix)"
     st.rerun()
+st.sidebar.markdown('</div>', unsafe_allow_html=True)
+
+# Memberikan class CSS ke tombol logout secara dinamis
+st.markdown("""
+<style>
+    div[data-testid="stSidebar"] div.stButton > button {
+        background-color: #DC2626 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #B91C1C !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.03em;
+        transition: all 0.2s ease !important;
+    }
+    div[data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #991B1B !important;
+        border-color: #7F1D1D !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
