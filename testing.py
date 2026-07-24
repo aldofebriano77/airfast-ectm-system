@@ -1101,10 +1101,8 @@ st.sidebar.markdown(f"""
 # --------------------------------------------------------------------------------------
 # TOMBOL LOGOUT MERAH (BULLETPROOF CSS OVERRIDE)
 # --------------------------------------------------------------------------------------
-# CSS spesifisitas tinggi untuk memaksa tombol di sidebar berlatar merah & berteks putih
 st.markdown("""
 <style>
-    /* Paksa kotak tombol di sidebar berlatar Merah Tegas */
     [data-testid="stSidebar"] [data-testid="stButton"] > button,
     [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="secondary"],
     [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"] {
@@ -1116,8 +1114,6 @@ st.markdown("""
         transition: all 0.2s ease !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }
-    
-    /* Paksa semua teks dan ikon di dalam tombol sidebar berwarna Putih Terang */
     [data-testid="stSidebar"] [data-testid="stButton"] > button *,
     [data-testid="stSidebar"] [data-testid="stButton"] > button p,
     [data-testid="stSidebar"] [data-testid="stButton"] > button span {
@@ -1126,8 +1122,6 @@ st.markdown("""
         font-size: 0.95rem !important;
         letter-spacing: 0.03em !important;
     }
-
-    /* Efek hover saat kursor diarahkan ke tombol */
     [data-testid="stSidebar"] [data-testid="stButton"] > button:hover,
     [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="secondary"]:hover {
         background-color: #991B1B !important;
@@ -1148,7 +1142,7 @@ if st.sidebar.button("🚪 Logout Portal", key="btn_logout_sidebar", use_contain
 st.sidebar.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# DYNAMIC MENU FILTERING BERDASARKAN ROLE
+# DYNAMIC MENU FILTERING ([DEV MODE] FULL ACCESS UNTUK SEMUA ROLE / GUEST)
 # --------------------------------------------------------------------------------------
 all_menus = [
     "Home (Fleet Matrix)", 
@@ -1158,6 +1152,10 @@ all_menus = [
     "Recommendations & Dispatch"
 ]
 
+# [DEV MODE NOTICE] Logika RBAC di bawah ini sengaja di-comment (nonaktif) 
+# agar semua pengguna (termasuk Guest) bisa mengakses 100% menu untuk review mentor.
+# Jika nanti ingin mengaktifkan pembatasan role saat rilis resmi, hapus tanda kutip tiga (""") di bawah ini:
+"""
 if st.session_state["user_role"] == "Guest / Viewer":
     allowed_menus = ["Home (Fleet Matrix)"]
 elif st.session_state["user_role"] == "Data Entry Officer":
@@ -1166,6 +1164,10 @@ elif st.session_state["user_role"] == "Powerplant Engineer":
     allowed_menus = ["Home (Fleet Matrix)", "Data Collection & Setup", "Trend Analysis & RUL", "Logbook & Defect Correlator"]
 else:
     allowed_menus = all_menus
+"""
+
+# Memberikan akses penuh ke seluruh menu untuk apapun role-nya saat ini:
+allowed_menus = all_menus 
 
 if st.session_state["active_menu"] not in allowed_menus:
     st.session_state["active_menu"] = allowed_menus[0]
