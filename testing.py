@@ -296,6 +296,67 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
     if reg_filter:
         st.session_state["filter_reg_kw"] = reg_filter
 
+# --------------------------------------------------------------------------------------
+# FULL-SCREEN AUTHORIZATION GATE (DIPINDAHKAN KE ATAS UNTUK BLOKIR DASHBOARD TOTAL)
+# --------------------------------------------------------------------------------------
+if not st.session_state.get("logged_in", False):
+    # Menyembunyikan sidebar dan header saat berada di halaman login
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+            [data-testid="stHeader"] { display: none !important; }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>" * 2, unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    
+    with col_l2:
+        with st.container(border=True):
+            st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>PT. AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:#f0b73d; font-weight:700; font-size:0.8rem; letter-spacing:0.1em; margin-top:0px;'>TECHNICAL SERVICES DIVISION</p>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0px 20px 0px;'>", unsafe_allow_html=True)
+            
+            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Enterprise ECTM & Fleet Diagnostics Portal<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            st.write("")
+            
+            with st.form("fullscreen_login_form", clear_on_submit=False):
+                input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
+                input_password = st.text_input("Password", type="password", placeholder="••••••••")
+                
+                st.write("")
+                c_btn1, c_btn2 = st.columns(2)
+                with c_btn1:
+                    btn_login = st.form_submit_button("🔐 Login to Portal", type="primary", use_container_width=True)
+                with c_btn2:
+                    btn_guest = st.form_submit_button("👤 Continue as Guest", use_container_width=True)
+                    
+                if btn_login:
+                    if input_email in USER_DATABASE and USER_DATABASE[input_email]["password"] == input_password:
+                        user_info = USER_DATABASE[input_email]
+                        st.session_state["logged_in"] = True
+                        st.session_state["user_email"] = input_email
+                        st.session_state["user_name"] = user_info["name"]
+                        st.session_state["user_role"] = user_info["role"]
+                        st.success("Authorization successful! Redirecting to dashboard...")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid Email or Password. Access denied under CASR Part 135.")
+                        
+                if btn_guest:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_email"] = "guest.auditor@airfast.com"
+                    st.session_state["user_name"] = "External Auditor / Guest"
+                    st.session_state["user_role"] = "Guest / Viewer"
+                    st.rerun()
+            
+            st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
+            st.caption("🔒 **Security Advisory:** Authorized personnel only. System activity is continuously monitored and logged in compliance with Airfast Corporate Quality Management System (CQMS).")
+            
+    # ---> MENGHENTIKAN SKRIP TOTAL DISINI JIKA BELUM LOGIN <---
+    st.stop()
+
 # ======================================================================================
 # 5. DATA NORMALIZATION & INGESTION MODULE
 # ======================================================================================
