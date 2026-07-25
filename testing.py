@@ -50,48 +50,46 @@ st.set_page_config(
 )
 
 # ======================================================================================
-# EXECUTIVE DASHBOARD HEADER (TOP-RIGHT LOGO)
+# EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 
-# Membagi area atas menjadi 2 kolom: Kiri untuk Judul Dasbor (lebar), Kanan untuk Logo (ringkas)
+# Menggunakan div sticky agar header tetap di atas saat di-scroll
+st.markdown('<div class="sticky-header-container">', unsafe_allow_html=True)
+
 header_col1, header_col2 = st.columns([4, 1.2])
 
 with header_col1:
-    st.title("ECTM Fleet Diagnostics Matrix")
-    st.markdown("**PT. AIRFAST Indonesia** | DHC-6 / P&WC PT6A-34 Engine Telemetry")
+    # Memperkecil margin judul agar hemat ruang vertikal
+    st.markdown(
+        "<h1 style='margin-top:0px; margin-bottom:0px; padding-top:0px; font-size:1.6rem !important;'>ECTM Fleet Diagnostics Matrix</h1>", 
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p style='color:#475569; font-size:0.85rem; font-weight:600; margin-top:2px; margin-bottom:0px;'>PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>", 
+        unsafe_allow_html=True
+    )
 
 with header_col2:
-    # Logo SVG kompak warna Navy & Gold, diatur rata kanan (float right / text-align right)
+    # Logo SVG dikompakkan posisi dan ukurannya
     top_right_logo_svg = """
-    <div style="text-align: right; padding-top: 15px;">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 50" width="100%" height="100%" style="max-width: 220px;">
+    <div style="text-align: right; padding-top: 2px;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="100%" height="100%" style="max-width: 200px;">
           <!-- Ikon Monogram 'A' / Emblem Sayap Kompak -->
-          <g transform="translate(0, 3)">
+          <g transform="translate(0, 2)">
             <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
             <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
           </g>
           <!-- Teks Brand Rapi dan Proporsional -->
-          <g transform="translate(52, 32)">
-            <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="24" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
-            <text x="70" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="24" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
+          <g transform="translate(52, 28)">
+            <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
+            <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
           </g>
         </svg>
     </div>
     """
     st.markdown(top_right_logo_svg, unsafe_allow_html=True)
 
-# Garis pembatas elegan sebelum masuk ke metrik dasbor
-st.markdown("<hr style='margin-top: -5px; margin-bottom: 20px; border: 0; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
-st.markdown(
-    """
-    <style>
-    .stAlert { color: #1f2937 !important; }
-    div[data-baseweb="notification"], div.element-container stMarkdown { color: inherit; }
-    .st-emotion-cache-1wivap2, div[data-testid="stNotification"] { color: #1f2937 !important; }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ======================================================================================
 # 2. OEM CONSTANTS, FIM THRESHOLDS & ABSOLUTE HEALTH STATE
@@ -249,6 +247,23 @@ st.markdown(
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
     }    
     hr { border-color: #E2E8F0 !important; }
+    /* [REVISI HEADER] Menghilangkan padding atas bawaan Streamlit yang memakan tempat */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    /* CSS Sticky Header Container */
+    .sticky-header-container {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background-color: #FFFFFF !important;
+        padding-top: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #E2E8F0;
+        margin-bottom: 15px;
+    }
 </style>
 """,
     unsafe_allow_html=True,
