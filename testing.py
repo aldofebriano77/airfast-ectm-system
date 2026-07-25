@@ -239,12 +239,13 @@ st.markdown(
     hr { border-color: #E2E8F0 !important; }
     /* [REVISI HEADER] Menghilangkan padding atas bawaan Streamlit yang memakan tempat */
 /* Menghilangkan padding atas blok kontainer utama Streamlit agar hemat ruang */
+/* Menghilangkan padding atas blok kontainer utama Streamlit agar hemat ruang */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
     }
 
-    /* [SOLUSI STICKY STREAMLIT] Memaksa kontainer pembungkus Streamlit agar freeze di top 0 */
+    /* [REVISI GAP] Memaksa kontainer pembungkus Streamlit agar freeze di top 0 tanpa margin bawah */
     div[data-testid="stElementContainer"]:has(.sticky-header-box),
     div.element-container:has(.sticky-header-box) {
         position: sticky !important;
@@ -253,9 +254,21 @@ st.markdown(
         background-color: #FFFFFF !important;
         border-bottom: 1px solid #E2E8F0 !important;
         padding-top: 15px !important;
-        padding-bottom: 12px !important;
-        margin-bottom: 20px !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 0px !important; /* <-- Diubah dari 20px jadi 0px */
     }
+
+    /* [REVISI GAP] Nol-kan margin atas pada semua judul H1, H2, H3 agar langsung naik rapat ke atas */
+    h1, h2, h3, h4 { 
+        color: #003B6F !important; 
+        font-weight: 700 !important; 
+        letter-spacing: -0.02em;
+        margin-top: 0rem !important; /* <-- Tambahan baru: memangkas gap 30px bawaan browser */
+        padding-top: 0rem !important; 
+    }
+    h1 { font-size: 1.85rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    h3 { font-size: 1.15rem !important; }
 </style>
 """,
     unsafe_allow_html=True,
