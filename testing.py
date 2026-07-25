@@ -53,43 +53,33 @@ st.set_page_config(
 # EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 
-# Menggunakan div sticky agar header tetap di atas saat di-scroll
-st.markdown('<div class="sticky-header-container">', unsafe_allow_html=True)
-
-header_col1, header_col2 = st.columns([4, 1.2])
-
-with header_col1:
-    # Memperkecil margin judul agar hemat ruang vertikal
-    st.markdown(
-        "<h1 style='margin-top:0px; margin-bottom:0px; padding-top:0px; font-size:1.6rem !important;'>ECTM Fleet Diagnostics Matrix</h1>", 
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        "<p style='color:#475569; font-size:0.85rem; font-weight:600; margin-top:2px; margin-bottom:0px;'>PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>", 
-        unsafe_allow_html=True
-    )
-
-with header_col2:
-    # Logo SVG dikompakkan posisi dan ukurannya
-    top_right_logo_svg = """
-    <div style="text-align: right; padding-top: 2px;">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="100%" height="100%" style="max-width: 200px;">
-          <!-- Ikon Monogram 'A' / Emblem Sayap Kompak -->
-          <g transform="translate(0, 2)">
-            <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
-            <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
-          </g>
-          <!-- Teks Brand Rapi dan Proporsional -->
-          <g transform="translate(52, 28)">
-            <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
-            <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
-          </g>
-        </svg>
+# Menggabungkan Judul, Subjudul, dan Logo SVG ke dalam 1 blok HTML Flexbox
+# agar tidak terpecah oleh isolasi kontainer Streamlit.
+sticky_header_html = """
+<div class="sticky-header-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">ECTM Fleet Diagnostics Matrix</h1>
+            <p style="margin: 2px 0 0 0; padding: 0; font-size: 0.85rem; font-weight: 600; color: #475569;">PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>
+        </div>
+        <div style="text-align: right;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="180" height="40">
+              <!-- Ikon Monogram 'A' / Emblem Sayap Kompak -->
+              <g transform="translate(0, 2)">
+                <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
+                <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
+              </g>
+              <!-- Teks Brand Rapi dan Proporsional -->
+              <g transform="translate(52, 28)">
+                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
+                <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
+              </g>
+            </svg>
+        </div>
     </div>
-    """
-    st.markdown(top_right_logo_svg, unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
+</div>
+"""
+st.markdown(sticky_header_html, unsafe_allow_html=True)
 
 # ======================================================================================
 # 2. OEM CONSTANTS, FIM THRESHOLDS & ABSOLUTE HEALTH STATE
@@ -248,21 +238,23 @@ st.markdown(
     }    
     hr { border-color: #E2E8F0 !important; }
     /* [REVISI HEADER] Menghilangkan padding atas bawaan Streamlit yang memakan tempat */
+/* Menghilangkan padding atas blok kontainer utama Streamlit agar hemat ruang */
     .block-container {
-        padding-top: 1.5rem !important;
+        padding-top: 1rem !important;
         padding-bottom: 2rem !important;
     }
 
-    /* CSS Sticky Header Container */
-    .sticky-header-container {
-        position: sticky;
-        top: 0;
-        z-index: 999;
+    /* [SOLUSI STICKY STREAMLIT] Memaksa kontainer pembungkus Streamlit agar freeze di top 0 */
+    div[data-testid="stElementContainer"]:has(.sticky-header-box),
+    div.element-container:has(.sticky-header-box) {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 9999 !important;
         background-color: #FFFFFF !important;
-        padding-top: 10px;
-        padding-bottom: 5px;
-        border-bottom: 1px solid #E2E8F0;
-        margin-bottom: 15px;
+        border-bottom: 1px solid #E2E8F0 !important;
+        padding-top: 15px !important;
+        padding-bottom: 12px !important;
+        margin-bottom: 20px !important;
     }
 </style>
 """,
