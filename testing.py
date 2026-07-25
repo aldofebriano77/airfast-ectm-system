@@ -1,6 +1,6 @@
 """
 ========================================================================================
- ENTERPRISE ECTM & FLEET MAINTENANCE CONTROL SYSTEM (FINAL PRODUCTION RELEASE v4)
+ ENTERPRISE ENGINE CONDITION & FLEET MAINTENANCE CONTROL SYSTEM (FINAL RELEASE v4)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
@@ -12,6 +12,7 @@
                 - Robust Regex Registration Matching for Defect Correlator
                 - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
                 - Native Print-Ready PDF Engineering Work Order (EWO) Generator
+                - [v4.1] Zero-Gap Sticky Header & Standardized Aviation Terminology
 ========================================================================================
 """
 
@@ -53,8 +54,6 @@ st.set_page_config(
 # EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 
-# Menggabungkan Judul, Subjudul, dan Logo SVG ke dalam 1 blok HTML Flexbox
-# agar tidak terpecah oleh isolasi kontainer Streamlit.
 sticky_header_html = """
 <div class="sticky-header-box">
     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -107,9 +106,6 @@ TREND_WINDOW = 10
 CONTROL_SIGMA = 2.5             
 
 REQUIRED_COLUMNS = ["Date", "Engine", "T5", "Ng", "Wf"]
-# [FIX] Was previously typed out separately in 3 different places (synthetic
-# data generator + 2 manual-entry forms) - a new airframe added to the fleet
-# only needed updating here now, instead of hunting down every occurrence.
 FLEET_REGISTRATIONS = ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]
 CORRECTION_CANDIDATES = ["IOAT", "Press_Alt", "TQ", "Np"]
 OPTIONAL_COLUMNS = CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press"]
@@ -133,7 +129,13 @@ st.markdown(
     }
     [data-testid="stHeader"] { background-color: transparent !important; }
     
-    h1, h2, h3, h4 { color: #003B6F !important; font-weight: 700 !important; letter-spacing: -0.02em; }
+    h1, h2, h3, h4 { 
+        color: #003B6F !important; 
+        font-weight: 700 !important; 
+        letter-spacing: -0.02em;
+        margin-top: 0rem !important;
+        padding-top: 0rem !important; 
+    }
     h1 { font-size: 1.85rem !important; }
     h2 { font-size: 1.35rem !important; }
     h3 { font-size: 1.15rem !important; }
@@ -237,15 +239,12 @@ st.markdown(
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
     }    
     hr { border-color: #E2E8F0 !important; }
-    /* [REVISI HEADER] Menghilangkan padding atas bawaan Streamlit yang memakan tempat */
-/* Menghilangkan padding atas blok kontainer utama Streamlit agar hemat ruang */
-/* Menghilangkan padding atas blok kontainer utama Streamlit agar hemat ruang */
+    
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
     }
 
-    /* [REVISI GAP] Memaksa kontainer pembungkus Streamlit agar freeze di top 0 tanpa margin bawah */
     div[data-testid="stElementContainer"]:has(.sticky-header-box),
     div.element-container:has(.sticky-header-box) {
         position: sticky !important;
@@ -255,20 +254,8 @@ st.markdown(
         border-bottom: 1px solid #E2E8F0 !important;
         padding-top: 15px !important;
         padding-bottom: 10px !important;
-        margin-bottom: 0px !important; /* <-- Diubah dari 20px jadi 0px */
+        margin-bottom: 0px !important;
     }
-
-    /* [REVISI GAP] Nol-kan margin atas pada semua judul H1, H2, H3 agar langsung naik rapat ke atas */
-    h1, h2, h3, h4 { 
-        color: #003B6F !important; 
-        font-weight: 700 !important; 
-        letter-spacing: -0.02em;
-        margin-top: 0rem !important; /* <-- Tambahan baru: memangkas gap 30px bawaan browser */
-        padding-top: 0rem !important; 
-    }
-    h1 { font-size: 1.85rem !important; }
-    h2 { font-size: 1.35rem !important; }
-    h3 { font-size: 1.15rem !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -289,18 +276,8 @@ if "filter_reg_kw" not in st.session_state:
     st.session_state["filter_reg_kw"] = None
 
 def _hash_pw(raw: str) -> str:
-    """SHA-256 password hash. NOTE: this is still not a production-grade
-    credential store (no per-user salt, no slow KDF like bcrypt/argon2, and
-    the hashes below are only as secret as this source file is). It exists
-    so plaintext passwords are at least not sitting directly in the code -
-    for an actual deployment, replace USER_DATABASE with a real identity
-    provider (SSO / company auth) or hashed credentials in st.secrets."""
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-# [POIN 1 REVISI] Database Akun Simulasi (Tanpa embel-embel jabatan)
-# [FIX] Passwords are now stored as SHA-256 hashes, not plaintext strings,
-# so they are not directly readable from the source file. See _hash_pw()
-# docstring above for the honest limits of this approach.
 USER_DATABASE = {
     "admin@airfastindonesia.com": {
         "password_hash": _hash_pw("admin123"),
@@ -330,12 +307,6 @@ if "user_role" not in st.session_state:
 
 def navigate_to_menu(menu_name: str, reg_filter: str = None):
     st.session_state["active_menu"] = menu_name
-    # [FIX] Previously also set st.session_state["active_menu_radio"] here.
-    # The radio widget below is keyed "active_menu_radio" AND was given an
-    # explicit index= - Streamlit forbids setting a widget's session_state
-    # key AND passing index= in the same run (StreamlitAPIException). We now
-    # use a single canonical key ("active_menu") for both the state and the
-    # widget itself, so this callback only needs to touch one value.
     if reg_filter:
         st.session_state["filter_reg_kw"] = reg_filter
 
@@ -343,7 +314,6 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
 # FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
 # --------------------------------------------------------------------------------------
 if not st.session_state.get("logged_in", False):
-    # Menyembunyikan sidebar dan header saat berada di halaman login
     st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
@@ -357,7 +327,6 @@ if not st.session_state.get("logged_in", False):
     
     with col_l2:
         with st.container(border=True):
-            # --- [REVISI LOGO] Menampilkan gambar logo di tengah & menghapus teks divisi ---
             logo_path = "images.png"  
             if os.path.exists(logo_path):
                 col_logo1, col_logo2, col_logo3 = st.columns([1, 1.8, 1])
@@ -366,9 +335,7 @@ if not st.session_state.get("logged_in", False):
             else:
                 st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-            # Garis pembatas setelah logo
             st.markdown("<hr style='margin: 15px 0px 20px 0px;'>", unsafe_allow_html=True)
-            
             st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
             st.write("")
             
@@ -379,9 +346,9 @@ if not st.session_state.get("logged_in", False):
                 st.write("")
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
-                    btn_login = st.form_submit_button("🔐 Login to Portal", type="primary", use_container_width=True)
+                    btn_login = st.form_submit_button("Login to Portal", type="primary", use_container_width=True)
                 with c_btn2:
-                    btn_guest = st.form_submit_button("👤 Continue as Guest", use_container_width=True)
+                    btn_guest = st.form_submit_button("Continue as Guest", use_container_width=True)
                     
                 if btn_login:
                     if input_email in USER_DATABASE and USER_DATABASE[input_email]["password_hash"] == _hash_pw(input_password):
@@ -393,7 +360,7 @@ if not st.session_state.get("logged_in", False):
                         st.success("Authorization successful! Redirecting to dashboard...")
                         st.rerun()
                     else:
-                        st.error("❌ Invalid email or password.")
+                        st.error("Invalid email or password.")
                         
                 if btn_guest:
                     st.session_state["logged_in"] = True
@@ -403,10 +370,9 @@ if not st.session_state.get("logged_in", False):
                     st.rerun()
             
             st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
-            st.caption("🔒 **Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
+            st.caption("**Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
                        "for a production authentication/audit system. Do not reuse real corporate credentials here.")
             
-    # ---> MENGHENTIKAN SKRIP TOTAL DISINI JIKA BELUM LOGIN <---
     st.stop()
 
 # ======================================================================================
@@ -593,15 +559,15 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
     if not df.empty:
         if "IOAT" in df.columns:
             if (df["IOAT"] > 55.0).any() or (df["IOAT"] < -40.0).any():
-                alerts.append("⚠️ Physical Outlier: IOAT exceeds standard operational atmospheric envelope (-40°C to +55°C).")
+                alerts.append("[PHYSICAL OUTLIER] IOAT exceeds standard operational atmospheric envelope (-40°C to +55°C).")
         if "T5" in df.columns and (df["T5"] <= 0).any():
-            alerts.append("⚠️ Sensor Error: T5 recorded at or below 0°C during engine operation.")
+            alerts.append("[SENSOR ERROR] T5 recorded at or below 0°C during engine operation.")
         
         for col in ["T5", "Ng", "Wf"]:
             if col in df.columns and len(df) >= 3:
                 stuck_mask = (df[col].diff() == 0) & (df[col].diff().shift(-1) == 0)
                 if stuck_mask.any():
-                    alerts.append(f"🔒 Sensor Freeze Suspected: Column '{col}' contains identical consecutive static values for 3+ cycles.")
+                    alerts.append(f"[SENSOR FREEZE SUSPECTED] Column '{col}' contains identical consecutive static values for 3+ cycles.")
     return alerts
 
 # ======================================================================================
@@ -639,11 +605,6 @@ def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correctio
         if models[target].get("downgraded", False) and use_correction and len(predictors) > 0:
             is_downgraded = True
         df_engine[f"{target}_pred"] = apply_correction_model(models[target], df_engine)
-        # [FIX] Was rounded to 2 decimals here, but this column also feeds
-        # sustained-trend detection, RUL slope regression, and the control
-        # band - all of which should work off full precision. Display-side
-        # rounding is already handled by the ":+.2f" format in the
-        # hovertemplate, so nothing is lost visually.
         df_engine[f"Delta_{target}"] = df_engine[target] - df_engine[f"{target}_pred"]
         
     df_engine["Delta_Ng_pct"] = df_engine["Delta_Ng"]
@@ -751,7 +712,6 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     is_abnormal = alarm_borescope_t5 or alarm_borescope_ng
     control_breach = stat_band_breach or alarm_wash or sustained_t5 or sustained_ng
     
-    # [SSOT CORE] Penentuan keparahan absolut di satu tempat agar UI, PDF, dan Email tidak bertentangan
     if is_abnormal:
         health_level = EngineHealth.CRITICAL
     elif control_breach:
@@ -866,7 +826,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                 title="Optimal Powerplant Condition | No Maintenance Action Required", 
                 fim_ref="Normal Operations",
                 body=("All monitored thermodynamic parameters remain within acceptable OEM operating tolerances. Condition-corrected residuals are stable.\n\n"
-                      "**Line Engineering Directives:** Continue routine ECTM logbook recording and periodic trend evaluations.")
+                      "**Line Engineering Directives:** Continue routine Engine Performance Logbook recording and periodic trend evaluations.")
             ))
     return recs
 
@@ -876,7 +836,6 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
     fig = go.Figure()
     
-    # [UI FIX] Menghapus duplikasi info cuaca di hover agar tooltip tidak panjang menutupi grafik
     specs = [("Delta_T5", "\u0394 T5 (ITT) [\u00b0C]", "#B42318"), ("Delta_Ng", "\u0394 Ng [%]", "#003B6F"), ("Delta_Wf", "\u0394 Wf [PPH]", "#B54708")]
     for col, label, color in specs:
         fig.add_trace(go.Scatter(
@@ -942,7 +901,6 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
     status_label = status_dict["status_label"]
     trigger_type = "[AUTOMATED WATCHDOG]" if is_automated else "[MANUAL TRANSMITTAL]"
 
-    # Mode Simulasi Formal
     if not live_mode:
         if is_automated:
             st.toast(f"AUTOMATED ALERT FIRED: Powerplant {engine_id} breached CRITICAL limit. Notice simulated to {', '.join(recipients)}.")
@@ -1034,7 +992,6 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     for r in recommendations:
         pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}\n{r['body']}\n")
     
-    # Kompatibel untuk fpdf versi lama maupun fpdf2 versi terbaru di Streamlit Cloud
     try:
         out = pdf.output(dest="S")
     except TypeError:
@@ -1123,17 +1080,11 @@ all_menus = [
     "Recommendations & Notice Transmittal"
 ]
 
-# Memberikan akses penuh ke seluruh 5 menu untuk review mentor:
 allowed_menus = all_menus 
 
 if st.session_state["active_menu"] not in allowed_menus:
     st.session_state["active_menu"] = allowed_menus[0]
 
-# [FIX] Dropped the index= argument - the widget is now driven purely by
-# st.session_state["active_menu"] via its key, which is also what
-# navigate_to_menu() writes to. Passing both index= and a pre-set key for
-# the same widget raises a StreamlitAPIException on every rerun triggered
-# by a navigate_to_menu button (e.g. "Execute ECTM Analysis & View Trends").
 menu_selection = st.sidebar.radio(
     "Navigation Menu",
     allowed_menus,
@@ -1183,7 +1134,7 @@ df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
 _rows_dropped = _rows_before_clean - len(df_raw)
 if _rows_dropped > 0:
     st.sidebar.warning(
-        f"⚠️ {_rows_dropped} logbook row(s) ignored - invalid or missing "
+        f"{_rows_dropped} logbook row(s) ignored - invalid or missing "
         f"Date/{'/'.join(REQUIRED_COLUMNS[2:])} values. Check Data Collection & Setup."
     )
 
@@ -1211,12 +1162,6 @@ recommendations = generate_recommendations(df_engine, status)
 # ======================================================================================
 # FLEET WATCHDOG - MANUAL SCAN (runs only on explicit button click, see sidebar)
 # ======================================================================================
-# [FIX] This used to run unconditionally on every single Streamlit rerun -
-# i.e. every click anywhere in the app re-scanned every engine and could fire
-# real SMTP emails to a hardcoded personal address, with a dedup key that
-# only survives one browser session. It's now opt-in: nothing runs, and
-# nothing is sent, unless the user explicitly clicks "Run Fleet Health Scan
-# Now" in the sidebar and has provided a recipient.
 if "auto_alert_sent" not in st.session_state:
     st.session_state["auto_alert_sent"] = set()
 
@@ -1264,8 +1209,6 @@ if run_watchdog_now:
         else:
             st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed.")
 
-
-
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
 # ======================================================================================
@@ -1275,9 +1218,9 @@ if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if not st.session_state.get("util_is_real", False):
-        st.info("ℹ️ RUL calendar dates below use a **simulated** flight-utilization dataset (no real "
+        st.info("RUL calendar dates below use a **simulated** flight-utilization dataset (no real "
                 "'Flight Utilization DHC6-400.xlsx' found). Upload the real file in Data Collection & Setup "
-                "for accurate projections.", icon="ℹ️")
+                "for accurate projections.")
 
     fleet_summary_data = []
     for eng in engines_available:
@@ -1287,7 +1230,7 @@ if menu_selection == "Home (Fleet Matrix)":
             st_sub = build_status(df_sub_proc, df_util_current)
             stat_lbl = "CRITICAL" if st_sub["health_level"] == EngineHealth.CRITICAL else ("ADVISORY" if st_sub["health_level"] == EngineHealth.ADVISORY else "NORMAL")
             rul_val = st_sub["rul_cycles"]
-            accel_marker = " ⚠ accelerating" if st_sub["rul_is_linear_caution"] else ""
+            accel_marker = " [ACCELERATING]" if st_sub["rul_is_linear_caution"] else ""
             rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}"
             
             fleet_summary_data.append({
@@ -1306,7 +1249,7 @@ if menu_selection == "Home (Fleet Matrix)":
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Active Fleet Engines", len(engines_available))
     c2.metric("Logbook Utilization Rows", len(df_util_current) if not df_util_current.empty else "0 (Sim)")
-    c3.metric("Defect Reports (PIREP/MAREP)", len(df_rep_current) if not df_rep_current.empty else "0 (Sim)")
+    c3.metric("Defect Reports (PIREP / MAREP)", len(df_rep_current) if not df_rep_current.empty else "0 (Sim)")
     critical_count = sum(1 for item in fleet_summary_data if item["Status"] == "CRITICAL")
     c4.metric("Fleet Alert Status", f"{critical_count} CRITICAL" if critical_count > 0 else "NORMAL")
     
@@ -1318,12 +1261,8 @@ if menu_selection == "Home (Fleet Matrix)":
         df_u_summary["Avg FC / Day"] = df_u_summary["Registration"].apply(lambda r: round(get_aircraft_utilization_rate(r, df_util_current), 1))
         st.dataframe(df_u_summary, use_container_width=True, hide_index=True)
 
-        # =========================================================================
-        # ⬇️ PENAMBAHAN KODE REVISI POIN 4 (GRAFIK UTILITAS ARMADA) ⬇️
-        # =========================================================================
-        st.write("") # Spasi vertikal tipis
+        st.write("") 
         
-        # Membuat grafik batang berdampingan dari dataframe df_u_summary yang sudah dihitung di atas
         fig_util = px.bar(
             df_u_summary,
             x='Registration',
@@ -1335,8 +1274,8 @@ if menu_selection == "Home (Fleet Matrix)":
                 'variable': 'Metric Type'
             },
             color_discrete_map={
-                'FH': '#003B6F',  # Navy Airfast (Jam Terbang)
-                'FC': '#f0b73d'   # Gold Airfast (Siklus Terbang)
+                'FH': '#003B6F',  
+                'FC': '#f0b73d'   
             },
             height=380
         )
@@ -1362,26 +1301,22 @@ if menu_selection == "Home (Fleet Matrix)":
         fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)')
 
         st.plotly_chart(fig_util, use_container_width=True)
-        # =========================================================================
-        # ⬆️ BATAS KODE PENAMBAHAN POIN 4 ⬆️
-        # =========================================================================
 
 # ======================================================================================
 # 15. PAGE 2: DATA COLLECTION & CONFIGURATION
 # ======================================================================================
 elif menu_selection == "Data Collection & Setup":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Data Ingestion & System Setup</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Manage ECTM logbooks, airframe utilization files, and pilot/maintenance defect reports.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Manage engine performance logbooks, airframe utilization files, and PIREP / MAREP defect reports.</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
-    tab_ectm, tab_util, tab_rep = st.tabs(["1. ECTM Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. Maintenance Reports (.xlsx)"])
+    tab_ectm, tab_util, tab_rep = st.tabs(["1. Engine Performance Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. PIREP / MAREP (.xlsx)"])
     
     # -------------------------------------------------------------------------
-    # TAB 1: ECTM LOGBOOK (PERFORMANCE TELEMETRY)
+    # TAB 1: ENGINE PERFORMANCE LOGBOOK (TELEMETRY)
     # -------------------------------------------------------------------------
     with tab_ectm:
-        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (ECTM PERFORMANCE)
-        with st.expander("✍️ Add Daily Engine Performance Record (Manual Entry)", expanded=False):
+        with st.expander("Add Daily Engine Performance Record (Manual Entry)", expanded=False):
             st.caption("Log daily engine telemetry directly from pilot flight logbook without uploading a CSV.")
             with st.form("form_manual_ectm", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -1402,7 +1337,7 @@ elif menu_selection == "Data Collection & Setup":
                     m_otemp = st.number_input("Oil Temp (°C)", min_value=10.0, max_value=110.0, value=72.0, step=0.5)
                     m_opress = st.number_input("Oil Press (PSI)", min_value=40.0, max_value=120.0, value=91.0, step=0.5)
                 
-                submitted_ectm = st.form_submit_button("💾 Save Daily ECTM Record", type="primary", use_container_width=True)
+                submitted_ectm = st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True)
                 if submitted_ectm:
                     new_row = pd.DataFrame([{
                         "Date": pd.to_datetime(m_date), "Engine": m_eng, "Press_Alt": float(m_alt),
@@ -1414,16 +1349,15 @@ elif menu_selection == "Data Collection & Setup":
                     st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
                     st.rerun()
 
-        # OPSI B: BULK UPLOAD (.CSV) & AUDIT EDITING
         col_up, col_dl = st.columns([3, 1])
         with col_up:
-            up_ectm = st.file_uploader("Upload Engine Logbook File (.csv)", type=["csv"], key="up_ectm_file")
+            up_ectm = st.file_uploader("Upload Engine Performance Logbook (.csv)", type=["csv"], key="up_ectm_file")
             if up_ectm is not None:
                 new_df = pd.read_csv(up_ectm)
                 missing, _ = validate_columns(new_df)
                 if not missing:
                     st.session_state["df_data"] = new_df
-                    st.success("ECTM Logbook ingested successfully.")
+                    st.success("Engine Performance Logbook ingested successfully.")
                     st.rerun()
         with col_dl:
             st.write("")
@@ -1432,7 +1366,7 @@ elif menu_selection == "Data Collection & Setup":
         
         audit_alerts = run_data_quality_audit(st.session_state["df_data"])
         if audit_alerts:
-            with st.expander("⚠️ Data Quality Audit Alerts Detected (Click to expand)", expanded=True):
+            with st.expander("Data Quality Audit Alerts Detected (Click to expand)", expanded=True):
                 for alert in audit_alerts:
                     st.warning(alert)
 
@@ -1442,8 +1376,7 @@ elif menu_selection == "Data Collection & Setup":
     # TAB 2: FLIGHT UTILIZATION (FH / FC TRACKING)
     # -------------------------------------------------------------------------
     with tab_util:
-        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (FLIGHT UTILIZATION)
-        with st.expander("✍️ Add Daily Flight Utilization Record (Manual Entry)", expanded=False):
+        with st.expander("Add Daily Flight Utilization Record (Manual Entry)", expanded=False):
             st.caption("Log daily airframe flight hours (FH) and flight cycles (FC) to update RUL calendar projections.")
             with st.form("form_manual_util", clear_on_submit=True):
                 col_u1, col_u2, col_u3 = st.columns(3)
@@ -1458,7 +1391,7 @@ elif menu_selection == "Data Collection & Setup":
                     u_from = st.text_input("From Sector", value="WAY").upper()
                     u_to = st.text_input("To Sector", value="TIM").upper()
                 
-                submitted_util = st.form_submit_button("💾 Save Utilization Record", type="primary", use_container_width=True)
+                submitted_util = st.form_submit_button("Save Utilization Record", type="primary", use_container_width=True)
                 if submitted_util:
                     new_u_row = pd.DataFrame([{
                         "Registration": u_reg, "Work (Date)": pd.to_datetime(u_date),
@@ -1470,7 +1403,6 @@ elif menu_selection == "Data Collection & Setup":
                     st.success(f"Successfully logged utilization for {u_reg} ({u_fh} FH / {u_fc} FC)!")
                     st.rerun()
 
-        # OPSI B: BULK UPLOAD (.XLSX)
         st.caption("Upload Flight Utilization Excel file (e.g., `Flight Utilization DHC6-400.xlsx`) to synchronize RUL calendar projections.")
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
@@ -1481,16 +1413,15 @@ elif menu_selection == "Data Collection & Setup":
             st.success("Flight Utilization dataset synchronized!")
             st.rerun()
         if not st.session_state.get("util_is_real", False):
-            st.warning("⚠️ No real utilization file found on disk. RUL calendar projections are currently using a "
-                       "**simulated** utilization dataset - upload the real file above for accurate dates.")
+            st.warning("No real utilization file found on disk. RUL calendar projections are currently using a "
+                       "simulated utilization dataset - upload the real file above for accurate dates.")
         st.dataframe(st.session_state["df_util"].head(100), use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 3: MAINTENANCE REPORTS (PIREP / MAREP DEFECTS)
+    # TAB 3: PIREP / MAREP DEFECT REPORTS
     # -------------------------------------------------------------------------
     with tab_rep:
-        # [POIN 5 REVISI] OPSI A: DAILY MANUAL ENTRY FORM (DEFECT REPORTING)
-        with st.expander("✍️ Add Pilot / Maintenance Defect Report (Manual Entry)", expanded=False):
+        with st.expander("Add PIREP / MAREP Defect Report (Manual Entry)", expanded=False):
             st.caption("Log pilot defect reports (PIREP) or maintenance actions (MAREP) to feed the Defect Correlator.")
             with st.form("form_manual_rep", clear_on_submit=True):
                 col_r1, col_r2, col_r3 = st.columns([1, 1, 1])
@@ -1512,7 +1443,7 @@ elif menu_selection == "Data Collection & Setup":
                 with col_sn2: r_pn_on = st.text_input("P/N On", placeholder="Part Number Installed")
                 with col_sn3: r_sn_on = st.text_input("S/N On", placeholder="Serial No Installed")
 
-                submitted_rep = st.form_submit_button("💾 Save Defect / Maintenance Report", type="primary", use_container_width=True)
+                submitted_rep = st.form_submit_button("Save PIREP / MAREP Report", type="primary", use_container_width=True)
                 if submitted_rep:
                     new_r_row = pd.DataFrame([{
                         "AML No": r_aml if r_aml else f"{r_reg}-MANUAL", "Date": pd.to_datetime(r_date),
@@ -1525,21 +1456,20 @@ elif menu_selection == "Data Collection & Setup":
                     st.session_state["df_rep"] = pd.concat([st.session_state["df_rep"], new_r_row], ignore_index=True)
                     st.session_state["df_rep"] = process_maintenance_reports(st.session_state["df_rep"])
                     st.session_state["rep_is_real"] = True
-                    st.success(f"Successfully logged maintenance report [{r_aml}] for {r_reg}!")
+                    st.success(f"Successfully logged PIREP / MAREP report [{r_aml}] for {r_reg}!")
                     st.rerun()
 
-        # OPSI B: BULK UPLOAD (.XLSX)
-        st.caption("Upload Pilot & Maintenance Report Excel file (e.g., `Pilot & Maintenance Report DHC6-400.xlsx`) to power the Defect Correlator.")
-        up_rep = st.file_uploader("Upload Maintenance Report File (.xlsx)", type=["xlsx"], key="up_rep_file")
+        st.caption("Upload PIREP & MAREP Excel file (e.g., `Pilot & Maintenance Report DHC6-400.xlsx`) to power the Defect Correlator.")
+        up_rep = st.file_uploader("Upload PIREP / MAREP File (.xlsx)", type=["xlsx"], key="up_rep_file")
         if up_rep is not None:
             df_r_new = pd.read_excel(up_rep)
             st.session_state["df_rep"] = process_maintenance_reports(df_r_new)
             st.session_state["rep_is_real"] = not st.session_state["df_rep"].empty
-            st.success("Maintenance Reports synchronized & mapped!")
+            st.success("PIREP / MAREP reports synchronized & mapped!")
             st.rerun()
         if not st.session_state.get("rep_is_real", False):
-            st.warning("⚠️ No real maintenance report file found on disk. The Defect Correlator is currently "
-                       "showing **simulated** PIREP/MAREP entries - upload the real file above.")
+            st.warning("No real PIREP / MAREP file found on disk. The Defect Correlator is currently "
+                       "showing simulated PIREP/MAREP entries - upload the real file above.")
         st.dataframe(st.session_state["df_rep"].head(100), use_container_width=True)
 
     st.markdown("---")
@@ -1578,7 +1508,7 @@ elif menu_selection == "Trend Analysis & RUL":
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if df_engine.attrs.get("regression_downgraded", False):
-        st.warning("⚠️ **Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
+        st.warning("**Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
 
     col_chart, col_status = st.columns([3, 1])
     with col_chart:
@@ -1613,7 +1543,7 @@ elif menu_selection == "Trend Analysis & RUL":
             <div class="rul-title">Predictive RUL (Borescope Limit)</div>
             <div class="rul-val">{rul_display}</div>
             <div class="rul-sub">{date_display}</div>
-            <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">⚠ {status['rul_confidence']}</div>
+            <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">[NOTE] {status['rul_confidence']}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1628,7 +1558,7 @@ elif menu_selection == "Trend Analysis & RUL":
             
         st.markdown("---")
         st.button(
-            "🔗 Cross-Check Logbook Defect Correlator", 
+            "Cross-Check Logbook Defect Correlator", 
             use_container_width=True,
             on_click=navigate_to_menu,
             args=("Logbook & Defect Correlator", status["reg_prefix"])
@@ -1643,11 +1573,11 @@ elif menu_selection == "Trend Analysis & RUL":
 # ======================================================================================
 elif menu_selection == "Logbook & Defect Correlator":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Logbook & Defect Correlator</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Cross-reference PIREP / MAREP defect notes and component replacement history against ECTM trends.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Cross-reference PIREP / MAREP defect notes and component replacement history against engine performance trends.</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if df_rep_current.empty:
-        st.warning("No Pilot & Maintenance Report dataset loaded. Please upload `Pilot & Maintenance Report DHC6-400.xlsx` in Data Collection.")
+        st.warning("No PIREP / MAREP dataset loaded. Please upload the defect report file in Data Collection & Setup.")
         st.stop()
 
     if 'ATA_Desc' not in df_rep_current.columns or 'Registration' not in df_rep_current.columns:
@@ -1678,7 +1608,7 @@ elif menu_selection == "Logbook & Defect Correlator":
     st.markdown(f"**Found {len(df_filtered)} logged defect report(s) matching criteria for {sel_reg}:**")
     
     if df_filtered.empty:
-        st.info("No maintenance reports found matching the selected filter criteria.")
+        st.info("No PIREP / MAREP reports found matching the selected filter criteria.")
     else:
         for idx, row in df_filtered.head(15).iterrows():
             with st.container(border=True):
@@ -1692,7 +1622,7 @@ elif menu_selection == "Logbook & Defect Correlator":
                 
                 pn_off, pn_on = row.get('P/N Off'), row.get('P/N On')
                 if pd.notnull(pn_off) or pd.notnull(pn_on):
-                    st.caption(f"🔧 Component Change Tracking -> P/N Off: `{pn_off}` (S/N: `{row.get('S/N Off', '-')}`) ➔ P/N On: `{pn_on}` (S/N: `{row.get('S/N On', '-')}`)")
+                    st.caption(f"Component Change Tracking -> P/N Off: `{pn_off}` (S/N: `{row.get('S/N Off', '-')}`) ➔ P/N On: `{pn_on}` (S/N: `{row.get('S/N On', '-')}`)")
 
 # ======================================================================================
 # 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & NOTICE TRANSMITTAL
@@ -1747,10 +1677,6 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Fleet-Scan Trigger)</h3>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Transmit urgent engineering evaluations directly to responsible Fleet Managers and Maintenance Control Center (MCC).</p>", unsafe_allow_html=True)
 
-    # [FIX] The watchdog no longer runs automatically in the background on
-    # every rerun (see the Fleet Watchdog panel in the sidebar) - this
-    # banner previously claimed an always-on background service and a
-    # hardcoded personal recipient, which was no longer accurate.
     st.markdown("""
     <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
         <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">FLEET WATCHDOG - MANUAL TRIGGER</b>
