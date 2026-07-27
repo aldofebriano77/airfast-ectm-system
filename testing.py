@@ -379,17 +379,22 @@ if not st.session_state.get("logged_in", False):
         with st.container(border=True):
             logo_path = "images.png"  
             if os.path.exists(logo_path):
-                col_logo1, col_logo2, col_logo3 = st.columns([1, 1.8, 1])
-                with col_logo2:
-                    st.image(logo_path, use_container_width=True)
+                import base64
+                with open(logo_path, "rb") as f_img:
+                    b64_logo = base64.b64encode(f_img.read()).decode()
+                # [PRESISI MUTLAK] Bypass st.columns & st.image agar jarak atas dan bawah simetris sempurna
+                st.markdown(f"""
+                <div style="text-align: center; padding-top: 6px; padding-bottom: 14px;">
+                    <img src="data:image/png;base64,{b64_logo}" style="width: 50%; max-width: 200px; height: auto; display: inline-block;">
+                </div>
+                """, unsafe_allow_html=True)
             else:
-                st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+                st.markdown("<h2 style='text-align:center; color:#003B6F; padding-top:6px; padding-bottom:14px; margin:0;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-            # [PERBAIKAN SPACING] Margin ditarik naik (-15px) agar jarak bawah logo seimbang dengan jarak atasnya
-            st.markdown("<hr style='margin: -15px 0px 16px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-5px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            # Garis pembatas bawah duduk presisi tepat di bawah padding logo
+            st.markdown("<hr style='margin: 0px 0px 16px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-2px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
 
-            # [border=False] Menghilangkan kotak ganda agar form menyatu rapi dengan kontainer luar
             with st.form("fullscreen_login_form", clear_on_submit=False, border=False):
                 input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
                 input_password = st.text_input("Password", type="password", placeholder="••••••••")
