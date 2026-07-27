@@ -1071,7 +1071,12 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     pdf.cell(0, 8, "MAINTENANCE DIRECTIVES:", ln=True)
     pdf.set_font("Arial", "", 9)
     for r in recommendations:
-        pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}\n{r['body']}\n")
+        pdf.set_font("Arial", "B", 10)
+        pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}")
+        pdf.set_font("Arial", "I", 9)
+        pdf.multi_cell(0, 5, f"Priority: {r.get('priority', 'ROUTINE')} | Downtime: {r.get('downtime', 'N/A')}\nSignature: {r.get('signature', 'N/A')}")
+        pdf.set_font("Arial", "", 9)
+        pdf.multi_cell(0, 5, f"{r['body']}\n\n")
     
     try:
         out = pdf.output(dest="S")
@@ -1197,9 +1202,12 @@ if missing_required:
     st.stop()
 
 for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns]:
+    if df_raw[col].dtype == object:
+        df_raw[col] = df_raw[col].astype(str).str.replace(",", ".", regex=False)
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
-df_raw["Date"] = pd.to_datetime(df_raw["Date"], errors="coerce")
+# [REVISI ROBUSTNESS] Konversi tanggal fleksibel dengan mode dayfirst auto-detect
+df_raw["Date"] = pd.to_datetime(df_raw["Date"], format="mixed", dayfirst=True, errors="coerce")
 
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
@@ -1266,7 +1274,13 @@ if run_watchdog_now:
                             "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:",
                         ]
                         for rc in recs_check:
-                            auto_report_lines.extend([f"[{rc['fim_ref']}] {rc['title']}", rc['body'], ""])
+                            auto_report_lines.extend([
+                                f"[{rc['fim_ref']}] {rc['title']}",
+                                f">> Priority: {rc.get('priority', 'ROUTINE')} | Est. Downtime: {rc.get('downtime', 'N/A')}",
+                                f">> Thermodynamic Signature: {rc.get('signature', 'N/A')}",
+                                rc['body'], 
+                                ""
+                        ])
 
                         send_engineering_notice(
                             engine_id=eng_check_id,
@@ -1774,7 +1788,14 @@ elif menu_selection == "Recommendations & Notice Transmittal":
         "-------------------------------------------------------------------------",
         "MAINTENANCE DIRECTIVES & RECOMMENDATIONS:",
     ]
-    for rec in recommendations: report_lines += [f"[{rec['fim_ref']}] {rec['title']}", rec["body"], ""]
+    for rec in recommendations: 
+        report_lines += [
+            f"[{rec['fim_ref']}] {rec['title']}",
+            f">> Priority: {rec.get('priority', 'ROUTINE')} | Est. Downtime: {rec.get('downtime', 'N/A')}",
+            f">> Thermodynamic Signature: {rec.get('signature', 'N/A')}",
+            rec["body"], 
+            ""
+        ]
     
     col_exp1, col_exp2, col_exp3 = st.columns(3)
     with col_exp1:
