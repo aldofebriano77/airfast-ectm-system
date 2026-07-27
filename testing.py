@@ -1459,16 +1459,16 @@ if menu_selection == "Home (Fleet Matrix)":
     c4.metric("Fleet Alert Status", f"{critical_count} CRITICAL" if critical_count > 0 else "NORMAL")
     
     st.markdown("---")
-if not df_util_current.empty:
-    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
-    min_u_date = df_util_current['Work (Date)'].min().strftime('%d %b %Y')
-    max_u_date = df_util_current['Work (Date)'].max().strftime('%d %b %Y')
-    days_span = max(1, (df_util_current['Work (Date)'].max() - df_util_current['Work (Date)'].min()).days + 1)
+    if not df_util_current.empty:
+        st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
+        min_u_date = df_util_current['Work (Date)'].min().strftime('%d %b %Y')
+        max_u_date = df_util_current['Work (Date)'].max().strftime('%d %b %Y')
+        days_span = max(1, (df_util_current['Work (Date)'].max() - df_util_current['Work (Date)'].min()).days + 1)
 
-    st.caption(f"Real-world accumulation rate from Flight Utilization dataset used to project calendar maintenance dates.<br>"
-               f"<span style='color:#003B6F; font-weight:600;'>Data Sampling Period:</span> {min_u_date} — {max_u_date} ({days_span} Days Recorded)", unsafe_allow_html=True)
+        st.caption(f"Real-world accumulation rate from Flight Utilization dataset used to project calendar maintenance dates.<br>"
+                   f"<span style='color:#003B6F; font-weight:600;'>Data Sampling Period:</span> {min_u_date} — {max_u_date} ({days_span} Days Recorded)", unsafe_allow_html=True)
 
-    df_u_summary = df_util_current.groupby("Registration")[["FH", "FC"]].sum().reset_index()
+        df_u_summary = df_util_current.groupby("Registration")[["FH", "FC"]].sum().reset_index()
         df_u_summary["Avg FC / Day"] = df_u_summary["Registration"].apply(lambda r: round(get_aircraft_utilization_rate(r, df_util_current), 1))
         st.dataframe(df_u_summary, use_container_width=True, hide_index=True)
 
@@ -1712,34 +1712,34 @@ elif menu_selection == "Trend Analysis & RUL":
     if df_engine.attrs.get("regression_downgraded", False):
         st.warning("**Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
 
-col_chart, col_status = st.columns([3, 1])
-with col_chart:
-    # Pass status to plot to enable Visual RUL Horizon extrapolation line
-    st.plotly_chart(make_trend_figure(df_engine, selected_engine, status=status), use_container_width=True)
+    col_chart, col_status = st.columns([3, 1])
+    with col_chart:
+        # Pass status to plot to enable Visual RUL Horizon extrapolation line
+        st.plotly_chart(make_trend_figure(df_engine, selected_engine, status=status), use_container_width=True)
 
-    # [PATCH #8] Menampilkan profil Altitude (Press_Alt) di grafik terpisah yang rapi
-    with st.expander("View Operational Flight Profile (Pressure Altitude Level)", expanded=False):
-        fig_alt = go.Figure()
-        fig_alt.add_trace(go.Scatter(
-            x=df_engine["Date"], y=df_engine["Press_Alt"], mode="lines+markers",
-            name="Press Alt [Ft]", line=dict(color="#475569", width=1.8), marker=dict(size=4, color="#003B6F"),
-            hovertemplate="<b>%{y:,.0f} Ft</b><extra></extra>"
-        ))
-        fig_alt.update_layout(
-            title=dict(text=f"<b>Flight Pressure Altitude Profile | Powerplant {selected_engine}</b>", font=dict(color=NAVY, size=12)),
-            xaxis_title="Flight Date / Cycle", yaxis_title="Altitude [Feet]", hovermode="x unified",
-            template="plotly_white", height=260, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)",
-            margin=dict(l=40, r=20, t=40, b=40),
-            xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)),
-            yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
-        )
-        st.plotly_chart(fig_alt, use_container_width=True)
+        # [PATCH #8] Menampilkan profil Altitude (Press_Alt) di grafik terpisah yang rapi
+        with st.expander("View Operational Flight Profile (Pressure Altitude Level)", expanded=False):
+            fig_alt = go.Figure()
+            fig_alt.add_trace(go.Scatter(
+                x=df_engine["Date"], y=df_engine["Press_Alt"], mode="lines+markers",
+                name="Press Alt [Ft]", line=dict(color="#475569", width=1.8), marker=dict(size=4, color="#003B6F"),
+                hovertemplate="<b>%{y:,.0f} Ft</b><extra></extra>"
+            ))
+            fig_alt.update_layout(
+                title=dict(text=f"<b>Flight Pressure Altitude Profile | Powerplant {selected_engine}</b>", font=dict(color=NAVY, size=12)),
+                xaxis_title="Flight Date / Cycle", yaxis_title="Altitude [Feet]", hovermode="x unified",
+                template="plotly_white", height=260, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)",
+                margin=dict(l=40, r=20, t=40, b=40),
+                xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)),
+                yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
+            )
+            st.plotly_chart(fig_alt, use_container_width=True)
 
-    with st.expander("View Raw Observations vs. Predicted Condition Baseline"):
-        cc1, cc2, cc3 = st.columns(3)
-        with cc1: st.plotly_chart(make_raw_vs_predicted(df_engine, "T5", "\u00b0C", "#B42318"), use_container_width=True)
-        with cc2: st.plotly_chart(make_raw_vs_predicted(df_engine, "Ng", "%", "#003B6F"), use_container_width=True)
-        with cc3: st.plotly_chart(make_raw_vs_predicted(df_engine, "Wf", "PPH", "#B54708"), use_container_width=True)
+        with st.expander("View Raw Observations vs. Predicted Condition Baseline"):
+            cc1, cc2, cc3 = st.columns(3)
+            with cc1: st.plotly_chart(make_raw_vs_predicted(df_engine, "T5", "\u00b0C", "#B42318"), use_container_width=True)
+            with cc2: st.plotly_chart(make_raw_vs_predicted(df_engine, "Ng", "%", "#003B6F"), use_container_width=True)
+            with cc3: st.plotly_chart(make_raw_vs_predicted(df_engine, "Wf", "PPH", "#B54708"), use_container_width=True)
 
     with col_status:
         st.markdown("<h3 style='margin-bottom:8px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
@@ -1760,11 +1760,11 @@ with col_chart:
         date_display = f"Est. Date: {status['proj_date']} ({status['fc_per_day']:.1f} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
         rul_caution_color = "#B42318" if status["rul_is_linear_caution"] else "#64748B"
 
-# [PATCH #10] Penjabaran kepanjangan RUL agar jelas dan tidak ambigu
-    st.markdown(f"""
-    <div class="rul-box">
-        <div class="rul-title">Remaining Useful Life (RUL) — Estimasi Sisa Umur Pakai</div>
-        <div class="rul-val">{rul_display}</div>
+        # [PATCH #10] Penjabaran kepanjangan RUL agar jelas dan tidak ambigu
+        st.markdown(f"""
+        <div class="rul-box">
+            <div class="rul-title">Remaining Useful Life (RUL) — Estimasi Sisa Umur Pakai</div>
+            <div class="rul-val">{rul_display}</div>
             <div class="rul-sub">{date_display}</div>
             <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">[NOTE] {status['rul_confidence']}</div>
         </div>
@@ -1823,8 +1823,9 @@ elif menu_selection == "Logbook & Defect Correlator":
     df_filtered = df_rep_current[df_rep_current['Registration'] == sel_reg]
     if sel_ata != "ALL ATA CHAPTERS":
         df_filtered = df_filtered[df_filtered['ATA_Desc'] == sel_ata]
-# [PATCH #12] Specific Exact Word Search menggunakan Regex Word Boundary (\b)
-# Contoh: Mencari kata "wash" tidak akan lagi menarik kata "washer" atau "washed"
+
+    # [PATCH #12] Specific Exact Word Search menggunakan Regex Word Boundary (\b)
+    # Contoh: Mencari kata "wash" tidak akan lagi menarik kata "washer" atau "washed"
     if search_kw:
         kw_clean = re.escape(search_kw.strip())
         kw_regex = r'\b' + kw_clean + r'\b'
