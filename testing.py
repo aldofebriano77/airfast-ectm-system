@@ -1118,27 +1118,41 @@ def generate_ewo_html(engine_id, status_label, status, recommendations):
 
 def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     if not HAS_FPDF: return b""
+    
+    # [UNIVERSAL UNICODE SANITIZER] Pengaman mutlak agar FPDF tidak pernah crash kena simbol aneh
+    def clean_text(txt):
+        if not isinstance(txt, str): return str(txt)
+        # 1. Ganti simbol aviasi/matematika yang umum menjadi teks ASCII standar
+        txt = txt.replace("Δ", "Delta ").replace("°C", "deg C").replace("°", "deg ").replace("**", "").replace("▪", "- ")
+        # 2. Paksa konversi ke latin-1 (standar FPDF Arial) & ganti karakter asing lain dengan "?" agar tidak pernah error lagi
+        return txt.encode("latin-1", errors="replace").decode("latin-1")
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, "ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA", ln=True, align="C")
+    pdf.cell(0, 10, clean_text("ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA"), ln=True, align="C")
     pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 8, f"Powerplant: {engine_id} | Status: {status_label}", ln=True)
-    pdf.cell(0, 8, f"Residuals: Delta T5: {status['d_t5']:+.1f} C | Delta Ng: {status['d_ng']:+.2f} %", ln=True)
+    pdf.cell(0, 8, clean_text(f"Powerplant: {engine_id} | Status: {status_label}"), ln=True)
+    pdf.cell(0, 8, clean_text(f"Residuals: Delta T5: {status['d_t5']:+.1f} C | Delta Ng: {status['d_ng']:+.2f} %"), ln=True)
     pdf.ln(5)
     pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, "MAINTENANCE DIRECTIVES:", ln=True)
+    pdf.cell(0, 8, clean_text("MAINTENANCE DIRECTIVES:"), ln=True)
     pdf.set_font("Arial", "", 9)
+    
     for r in recommendations:
         pdf.set_font("Arial", "B", 10)
-        pdf.multi_cell(0, 6, f"[{r['fim_ref']}] {r['title']}")
+        pdf.multi_cell(0, 6, clean_text(f"[{r['fim_ref']}] {r['title']}"))
         pdf.set_font("Arial", "I", 9)
-        pdf.multi_cell(0, 5, f"Priority: {r.get('priority', 'ROUTINE')} | Downtime: {r.get('downtime', 'N/A')}\nSignature: {r.get('signature', 'N/A')}")
+        
+        # [PATCH ANTI-CRASH] Semua variabel dinamik kini dilapisi fungsi clean_text()
+        sig_clean = clean_text(str(r.get('signature', 'N/A')))
+        prio_clean = clean_text(str(r.get('priority', 'ROUTINE')))
+        down_clean = clean_text(str(r.get('downtime', 'N/A')))
+        pdf.multi_cell(0, 5, f"Priority: {prio_clean} | Downtime: {down_clean}\nSignature: {sig_clean}")
+        
         pdf.set_font("Arial", "", 9)
-
-      # [PATCH HOLE 3] Membersihkan simbol ** Markdown dan mengamankan karakter derajat
-        clean_body = r['body'].replace("**", "").replace("°C", "deg C")
-        pdf.multi_cell(0, 5, f"{clean_body}\n\n")
+        body_clean = clean_text(str(r.get('body', '')))
+        pdf.multi_cell(0, 5, f"{body_clean}\n\n")
     
     try:
         out = pdf.output(dest="S")
