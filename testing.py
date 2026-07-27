@@ -1330,10 +1330,29 @@ for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.co
 df_raw["Date"] = safe_parse_dates(df_raw["Date"])
 
 # [PATCH #7] Pengaman otomatis jika file CSV lama tidak memiliki kolom 'AML No'
+# [BUG FIX] The original fallback was f"AML-{date}" - date only, with no
+# aircraft identity. Since the SSOT correlator (Logbook & Defect Correlator
+# page) does an EXACT match on "AML No" across all 3 datasets, two different
+# aircraft/engines with telemetry logged on the same calendar date would get
+# an IDENTICAL fallback key - causing PK-OAM's row to silently pull in
+# PK-OCH's utilization/defect data (or vice versa) whenever this fallback
+# path is used. This is not a rare edge case: it fires for any legacy CSV
+# without the new "AML No" column, and for any manual-entry row where the
+# AML field is left blank (both very likely in normal daily use). Fix:
+# include the registration/engine identity in the fallback key so it stays
+# unique per aircraft, not just per date.
 if "AML No" not in df_raw.columns:
-    df_raw["AML No"] = df_raw["Date"].dt.strftime("%Y%m%d").apply(lambda x: f"AML-{x}" if pd.notnull(x) else "AML-UNKN")
+    _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
+    df_raw["AML No"] = (
+        "AML-" + _fallback_reg.fillna("UNKN") + "-" +
+        df_raw["Date"].dt.strftime("%Y%m%d").fillna("UNKN")
+    )
 if "AML No" not in df_util_current.columns and not df_util_current.empty:
-    df_util_current["AML No"] = df_util_current["Work (Date)"].dt.strftime("%Y%m%d").apply(lambda x: f"AML-{x}" if pd.notnull(x) else "AML-UNKN")
+    _fallback_reg_u = df_util_current["Registration"].astype(str) if "Registration" in df_util_current.columns else "UNKN"
+    df_util_current["AML No"] = (
+        "AML-" + _fallback_reg_u + "-" +
+        df_util_current["Work (Date)"].dt.strftime("%Y%m%d").fillna("UNKN")
+    )
 
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
@@ -1601,8 +1620,14 @@ elif menu_selection == "Data Collection & Setup":
                 
                 submitted_ectm = st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True)
                 if submitted_ectm:
+                    # [BUG FIX] Fallback key now includes the registration
+                    # (parsed from m_eng) instead of date alone, to avoid
+                    # colliding with another aircraft logged the same day -
+                    # see the AML No fallback comment above for why this
+                    # matters for the SSOT correlator.
+                    _m_reg_fallback = str(m_eng).split("|")[0].strip()
                     new_row = pd.DataFrame([{
-                        "AML No": m_aml if m_aml else f"AML-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
+                        "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
                         "Date": pd.to_datetime(m_date), "Engine": m_eng, "Press_Alt": float(m_alt),
                         "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
                         "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
@@ -1655,7 +1680,7 @@ elif menu_selection == "Data Collection & Setup":
                 submitted_util = st.form_submit_button("Save Utilization Record", type="primary", use_container_width=True)
                 if submitted_util:
                     new_u_row = pd.DataFrame([{
-                        "AML No": u_aml if u_aml else f"AML-{pd.to_datetime(u_date).strftime('%Y%m%d')}",
+                        "AML No": u_aml if u_aml else f"AML-{u_reg}-{pd.to_datetime(u_date).strftime('%Y%m%d')}",
                         "Registration": u_reg, "Work (Date)": pd.to_datetime(u_date),
                         "FH": float(u_fh), "FC": int(u_fc), "Block Hours": float(u_bh),
                         "From": u_from, "To": u_to
@@ -1908,11 +1933,21 @@ elif menu_selection == "Logbook & Defect Correlator":
                 rh_t5 = f"{rh_row['Delta_T5'].values[0]:+.1f}°C" if not rh_row.empty and "Delta_T5" in rh_row.columns else "N/A"
                 
                 # Tarik data jam terbang dari file Utilization
-                u_match = df_util_current[df_util_current["AML No"] == aml_val] if "AML No" in df_util_current.columns else pd.DataFrame()
+                # [BUG FIX] Added a Registration filter alongside AML No -
+                # defense in depth in case two aircraft ever share the same
+                # AML No in real uploaded data (not just the fallback path
+                # fixed above), so the correlator can't cross-link them.
+                u_match = df_util_current[
+                    (df_util_current["AML No"] == aml_val) &
+                    (df_util_current.get("Registration", sel_reg) == sel_reg)
+                ] if "AML No" in df_util_current.columns else pd.DataFrame()
                 fh_val = f"{u_match['FH'].values[0]} FH / {u_match['FC'].values[0]} FC" if not u_match.empty else "N/A"
                 
                 # Tarik laporan kerusakan dari file PIREP/MAREP
-                r_match = df_rep_current[df_rep_current["AML No"] == aml_val]
+                r_match = df_rep_current[
+                    (df_rep_current["AML No"] == aml_val) &
+                    (df_rep_current.get("Registration", sel_reg) == sel_reg)
+                ]
                 rep_val = f"[{r_match['ATA_Desc'].values[0]}] {r_match['Corrective Action'].values[0][:45]}..." if not r_match.empty else "Normal Operations (No Defect Logged)"
                 
                 sync_rows.append({
