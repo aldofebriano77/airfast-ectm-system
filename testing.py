@@ -1855,7 +1855,7 @@ elif menu_selection == "Trend Analysis & RUL":
 
         st.markdown(f"""
         <div class="rul-box">
-            <div class="rul-title">Remaining Useful Life (RUL) — Sisa Umur Pakai</div>
+            <div class="rul-title">Remaining Useful Life (RUL)</div>
             <div class="rul-val">{rul_display}</div>
             <div class="rul-sub">{date_display}</div>
             <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">[NOTE] {status['rul_confidence']}</div>
