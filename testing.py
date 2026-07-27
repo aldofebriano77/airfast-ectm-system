@@ -110,7 +110,7 @@ SLATE_DARK = "#0F172A"
 SLATE_MUTED = "#64748B"
 
 # ======================================================================================
-# 3. ULTRA-MODERN AVIATION SAAS STYLING (TIER 1 UI/UX OVERHAUL)
+# 3. ULTRA-MODERN AVIATION SAAS STYLING (TIER 1 UI/UX OVERHAUL & ZERO-WASTE SPACE)
 # ======================================================================================
 st.markdown(
     """
@@ -118,192 +118,183 @@ st.markdown(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
 
-    /* Latar Belakang Utama - Canvas Bersih dengan Nada Abu-Abu Sangat Lembut */
+    /* [PEMANGKASAN RUANG KOSONG] Memaksimalkan lebar layar dan memangkas padding atas/bawah */
+    .block-container {
+        padding-top: 1.2rem !important;
+        padding-bottom: 1.5rem !important;
+        padding-left: 2.2rem !important;
+        padding-right: 2.2rem !important;
+        max-width: 98% !important;
+    }
+    
     [data-testid="stAppViewContainer"], [data-testid="stApp"], .main {
         background-color: #F8FAFC !important; color: #0F172A !important;
     }
     [data-testid="stHeader"] { background-color: transparent !important; }
     
-    /* Hierarki Tipografi Modern & Bersih */
-    h1, h2, h3, h4 { 
-        color: #00284D !important; 
-        font-weight: 800 !important; 
-        letter-spacing: -0.03em !important;
-        margin-top: 0rem !important;
-    }
-    h1 { font-size: 2.0rem !important; }
-    h2 { font-size: 1.4rem !important; }
-    h3 { font-size: 1.15rem !important; font-weight: 700 !important; }
+    /* Tipografi yang Lebih Padat & Bersih */
+    h1, h2, h3, h4 { color: #00284D !important; font-weight: 800 !important; letter-spacing: -0.03em !important; margin-top: 0rem !important; }
+    h1 { font-size: 1.85rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    h3 { font-size: 1.1rem !important; font-weight: 700 !important; }
 
     /* ==========================================================================
-       1. METRIC CARDS - ELEVATED WIDGETS WITH HOVER LIFT
+       1. MODERN SEGMENTED TABS (MENGGANTIKAN TAB KAKU STREAMLIT)
+       ========================================================================== */
+    div[data-testid="stTabs"] button[role="tab"] {
+        background-color: transparent !important; border: none !important;
+        border-radius: 8px 8px 0 0 !important; font-weight: 700 !important;
+        padding: 8px 18px !important; color: #64748B !important;
+        font-size: 0.9rem !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"]:hover {
+        color: #003B6F !important; background-color: rgba(0, 59, 111, 0.03) !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        color: #003B6F !important; border-bottom: 3px solid #f0b73d !important;
+        background-color: rgba(0, 59, 111, 0.05) !important;
+    }
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: transparent !important; }
+
+    /* ==========================================================================
+       2. COMPACT METRIC CARDS WITH HOVER LIFT
        ========================================================================== */
     div[data-testid="stMetric"] {
-        background: #FFFFFF !important; 
-        border: none !important;
-        border-radius: 14px !important; 
-        padding: 18px 22px !important;
-        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.05), 0 0 3px 1px rgba(0, 40, 77, 0.03) !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        position: relative;
-        overflow: hidden;
+        background: #FFFFFF !important; border: none !important;
+        border-radius: 12px !important; padding: 14px 18px !important;
+        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.04), 0 0 2px 1px rgba(0, 40, 77, 0.02) !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; position: relative; overflow: hidden;
     }
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 25px -4px rgba(0, 40, 77, 0.1), 0 0 4px 1px rgba(0, 40, 77, 0.04) !important;
+        transform: translateY(-2px); box-shadow: 0 8px 20px -4px rgba(0, 40, 77, 0.08) !important;
     }
     div[data-testid="stMetric"]::before {
-        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
         background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%);
     }
     div[data-testid="stMetricLabel"] > label > p {
-        color: #64748B !important; font-weight: 700 !important; font-size: 0.78rem !important;
-        text-transform: uppercase; letter-spacing: 0.08em;
+        color: #64748B !important; font-weight: 700 !important; font-size: 0.74rem !important;
+        text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0px !important;
     }
     div[data-testid="stMetricValue"] > div { 
-        color: #0F172A !important; font-weight: 800 !important; font-size: 1.65rem !important; 
-        letter-spacing: -0.02em; margin-top: 4px;
+        color: #0F172A !important; font-weight: 800 !important; font-size: 1.5rem !important; 
+        letter-spacing: -0.02em; margin-top: 2px;
     }
 
     /* ==========================================================================
-       2. SIDEBAR - DEEP NAVY AEROSPACE THEME WITH PILL NAVIGATION
+       3. INTERACTIVE EXPANDER & CONTAINER CARDS
+       ========================================================================== */
+    div[data-testid="stExpander"] {
+        border: 1px solid #E2E8F0 !important; border-radius: 10px !important;
+        background: #FFFFFF !important; box-shadow: 0 2px 6px rgba(0,0,0,0.02) !important;
+        overflow: hidden !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stExpander"]:hover { border-color: #CBD5E1 !important; }
+    div[data-testid="stExpander"] summary { font-weight: 700 !important; color: #003B6F !important; padding: 10px 14px !important; }
+
+    /* ==========================================================================
+       4. SIDEBAR & BUTTONS (COMPACT PILL NAV)
        ========================================================================== */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #00284D 0%, #00172D 100%) !important; 
-        border-right: none !important;
-        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.15);
+        border-right: none !important; box-shadow: 4px 0 20px rgba(0, 0, 0, 0.12);
     }
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] div, [data-testid="stSidebar"] b {
-        color: #F1F5F9 !important;
-    }
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] div, [data-testid="stSidebar"] b { color: #F1F5F9 !important; }
     
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
-        padding: 12px 18px !important; margin-bottom: 6px !important;
+        padding: 10px 16px !important; margin-bottom: 4px !important;
         background: transparent !important; border: none !important;
-        cursor: pointer; transition: all 0.2s ease; width: 100%; 
-        border-radius: 10px !important;
+        cursor: pointer; transition: all 0.2s ease; width: 100%; border-radius: 8px !important;
     }
     [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
-        background-color: rgba(255, 255, 255, 0.06) !important;
-        transform: translateX(4px);
+        background-color: rgba(255, 255, 255, 0.06) !important; transform: translateX(3px);
     }
     [data-testid="stSidebar"] div[role="radiogroup"] p {
-        font-size: 0.92rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
+        font-size: 0.88rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
     }
-    
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
         background: linear-gradient(90deg, rgba(240, 183, 61, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
         box-shadow: inset 3px 0 0 #f0b73d !important;
     }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p {
-        color: #FFFFFF !important; font-weight: 800 !important;
-    }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800 !important; }
     [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] { display: none !important; }
 
-    /* ==========================================================================
-       3. BUTTONS - SMOOTH GRADIENTS & MICRO-INTERACTIONS
-       ========================================================================== */
     div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #003B6F 0%, #00284D 100%) !important; 
-        color: #FFFFFF !important; font-weight: 700 !important; font-size: 0.92rem !important;
-        border-radius: 10px !important; padding: 12px 24px !important; border: none !important; 
-        box-shadow: 0 4px 12px rgba(0, 59, 111, 0.25) !important; transition: all 0.2s ease !important;
+        color: #FFFFFF !important; font-weight: 700 !important; font-size: 0.88rem !important;
+        border-radius: 8px !important; padding: 10px 20px !important; border: none !important; 
+        box-shadow: 0 4px 10px rgba(0, 59, 111, 0.2) !important; transition: all 0.2s ease !important;
     }
     div[data-testid="stButton"] > button[kind="primary"]:hover {
-        transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 59, 111, 0.35) !important;
+        transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0, 59, 111, 0.3) !important;
         background: linear-gradient(135deg, #00488A 0%, #00305C 100%) !important; color: #f0b73d !important;
     }
 
     div[data-testid="stDownloadButton"] > button, div[data-testid="stButton"] > button[kind="secondary"] {
-        background: #FFFFFF !important; color: #003B6F !important;
-        font-weight: 700 !important; font-size: 0.88rem !important; border-radius: 10px !important; 
-        border: 1px solid #E2E8F0 !important; box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important;
-        transition: all 0.2s ease !important;
+        background: #FFFFFF !important; color: #003B6F !important; font-weight: 700 !important; 
+        font-size: 0.85rem !important; border-radius: 8px !important; border: 1px solid #E2E8F0 !important; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important; transition: all 0.2s ease !important;
     }
     div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stButton"] > button[kind="secondary"]:hover {
-        background: #F8FAFC !important; border-color: #003B6F !important; 
-        transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 59, 111, 0.1) !important;
+        background: #F8FAFC !important; border-color: #003B6F !important; transform: translateY(-1px);
     }
 
     div[data-testid="stButton"] > button.red-logout-btn {
-        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%) !important;
-        color: #FFFFFF !important; border: none !important; font-weight: 700 !important;
-        border-radius: 10px !important; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25) !important;
+        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%) !important; color: #FFFFFF !important; 
+        border: none !important; font-weight: 700 !important; border-radius: 8px !important;
     }
     div[data-testid="stButton"] > button.red-logout-btn:hover {
-        background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%) !important;
-        transform: translateY(-2px); box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35) !important;
+        background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%) !important; transform: translateY(-1px);
     }
 
     /* ==========================================================================
-       4. MODERN TINTED PILL BADGES (ANTI-HEAVY SATURATION)
+       5. BADGES & HEATMAP CARDS (TIGHTER PROFILE)
        ========================================================================== */
-    .badge-red { background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
-    .badge-amber { background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
-    .badge-green { background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
+    .badge-red { background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-amber { background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-green { background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
     
-    /* ==========================================================================
-       5. HEATMAP & RECOMMENDATION CARDS (FRAMELESS & SOFT SHADOWS)
-       ========================================================================== */
     .heatmap-card {
-        background: #FFFFFF; border: none; border-radius: 16px; padding: 16px; margin-bottom: 16px;
-        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.06), 0 0 3px 1px rgba(0, 40, 77, 0.03);
-        transition: all 0.25s ease;
+        background: #FFFFFF; border: none; border-radius: 12px; padding: 14px; margin-bottom: 12px;
+        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.05), 0 0 2px 1px rgba(0, 40, 77, 0.02);
+        transition: all 0.2s ease;
     }
-    .heatmap-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 30px -4px rgba(0, 40, 77, 0.12), 0 0 4px 1px rgba(0, 40, 77, 0.04);
-    }
-    .heatmap-reg { font-size: 1.2rem; font-weight: 800; color: #00284D; letter-spacing: -0.02em; }
-    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; margin-top: 6px; font-size: 0.82rem; font-weight: 700; }
+    .heatmap-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px -4px rgba(0, 40, 77, 0.1); }
+    .heatmap-reg { font-size: 1.15rem; font-weight: 800; color: #00284D; letter-spacing: -0.02em; }
+    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; margin-top: 5px; font-size: 0.8rem; font-weight: 700; }
     
     .hm-green { background: rgba(22, 163, 74, 0.06); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
     .hm-amber { background: rgba(217, 119, 6, 0.06); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
     .hm-red { background: rgba(220, 38, 38, 0.06); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
     
-    .rec-card-box {
-        background: #FFFFFF; border: none; border-radius: 14px; padding: 20px; margin-bottom: 18px;
-        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.05);
-    }
-    .rec-card-red { border-left: 6px solid #DC2626; }
-    .rec-card-amber { border-left: 6px solid #D97706; }
-    .rec-card-green { border-left: 6px solid #16A34A; }
-    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F1F5F9; padding-bottom: 12px; margin-bottom: 14px; }
-    .rec-title { font-size: 1.15rem; font-weight: 800; color: #00284D; letter-spacing: -0.01em; }
+    .rec-card-box { background: #FFFFFF; border: none; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.04); }
+    .rec-card-red { border-left: 5px solid #DC2626; }
+    .rec-card-amber { border-left: 5px solid #D97706; }
+    .rec-card-green { border-left: 5px solid #16A34A; }
+    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F1F5F9; padding-bottom: 10px; margin-bottom: 12px; }
+    .rec-title { font-size: 1.08rem; font-weight: 800; color: #00284D; }
 
     .rul-box { 
-        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); 
-        border: none; border-left: 5px solid #f0b73d;
-        padding: 16px 20px; border-radius: 12px; margin-top: 12px; margin-bottom: 12px;
-        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.05);
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); border: none; border-left: 4px solid #f0b73d;
+        padding: 14px 16px; border-radius: 10px; margin-top: 8px; margin-bottom: 8px; box-shadow: 0 4px 12px -2px rgba(0, 40, 77, 0.04);
     }
-    .rul-title { font-size: 0.78rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.08em; }
-    .rul-val { font-size: 1.35rem; font-weight: 800; color: #00284D; margin-top: 4px; }
-    .rul-sub { font-size: 0.82rem; font-weight: 600; color: #64748B; margin-top: 4px; }
+    .rul-title { font-size: 0.74rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; }
+    .rul-val { font-size: 1.25rem; font-weight: 800; color: #00284D; margin-top: 2px; }
+    .rul-sub { font-size: 0.78rem; font-weight: 600; color: #64748B; margin-top: 2px; }
 
-    .fim-ref { display: inline-block; background: #F1F5F9; color: #334155; border-radius: 6px; padding: 3px 10px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
+    .fim-ref { display: inline-block; background: #F1F5F9; color: #334155; border-radius: 4px; padding: 2px 8px; font-size: 0.72rem; font-weight: 700; margin-left: 6px; }
     
-    /* ==========================================================================
-       6. FROSTED GLASS STICKY HEADER (APPLE/STRIPE STYLE)
-       ========================================================================== */
-    div[data-testid="stElementContainer"]:has(.sticky-header-box),
-    div.element-container:has(.sticky-header-box) {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 9999 !important;
-        background: rgba(248, 250, 252, 0.85) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
-        padding-top: 15px !important; padding-bottom: 12px !important;
-        margin-bottom: 10px !important;
+    div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) {
+        position: sticky !important; top: 0 !important; z-index: 9999 !important;
+        background: rgba(248, 250, 252, 0.85) !important; backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important; border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+        padding-top: 10px !important; padding-bottom: 8px !important; margin-bottom: 6px !important;
     }
     
-    hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 24px 0 !important; }
-    .gold-bar { height: 4px; width: 48px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -6px; margin-bottom: 24px; }
+    hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 16px 0 !important; }
+    .gold-bar { height: 3px; width: 40px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -4px; margin-bottom: 16px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -1415,7 +1406,7 @@ if run_watchdog_now:
 # ======================================================================================
 if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Fleet Matrix</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color:#475569; font-size:1.05rem; font-weight:500; margin-top:0px;'>DHC-6-400 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#475569; font-size:1.0rem; font-weight:500; margin-top:0px;'>Technical Services & Fleet Maintenance | DHC-6 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if not st.session_state.get("util_is_real", False):
@@ -1450,9 +1441,18 @@ if menu_selection == "Home (Fleet Matrix)":
             if reg_id not in aircraft_map: aircraft_map[reg_id] = {}
             aircraft_map[reg_id][pos] = stat_lbl
 
+    # [UI/UX UPGRADE] Kartu Metrik dipindahkan ke atas agar eksekutif langsung melihat kesimpulan angka
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Active Fleet Engines", len(engines_available))
+    c2.metric("Logbook Utilization Rows", len(df_util_current) if not df_util_current.empty else "0 (Sim)")
+    c3.metric("Defect Reports (PIREP / MAREP)", len(df_rep_current) if not df_rep_current.empty else "0 (Sim)")
+    critical_count = sum(1 for item in fleet_summary_data if item["Status"] == "CRITICAL")
+    c4.metric("Fleet Alert Status", f"{critical_count} CRITICAL" if critical_count > 0 else "NORMAL")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
     
-    dhc6_svg_blueprint = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="110" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 4px; margin-bottom: 10px;">
+    dhc6_svg_blueprint = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="110" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 4px; margin-bottom: 8px;">
 <g stroke="#E2E8F0" stroke-width="0.6"><line x1="0" y1="20" x2="320" y2="20"/><line x1="0" y1="40" x2="320" y2="40"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="80" y1="0" x2="80" y2="80"/><line x1="160" y1="0" x2="160" y2="80"/><line x1="240" y1="0" x2="240" y2="80"/></g>
 <g fill="#003B6F"><path d="M 40 45 L 60 42 C 80 40, 120 40, 180 40 L 250 38 L 285 22 L 295 22 L 285 42 C 295 44, 298 47, 290 51 L 250 51 L 180 50 L 80 50 C 60 50, 45 49, 40 45 Z"/><path d="M 110 37 L 140 37 L 155 48 L 105 48 Z" fill="#00284D"/><ellipse cx="98" cy="43" rx="3" ry="12" fill="#f0b73d" opacity="0.9"/><line x1="98" y1="28" x2="98" y2="58" stroke="#f0b73d" stroke-width="1.5" stroke-dasharray="2,2"/><path d="M 255 38 L 280 12 L 292 12 L 285 38 Z" fill="#00284D"/></g>
 <text x="12" y="18" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" font-weight="800" fill="#003B6F" letter-spacing="1.5">DHC-6 TWIN OTTER</text>
@@ -1490,16 +1490,14 @@ if menu_selection == "Home (Fleet Matrix)":
                     b64_str = base64.b64encode(f_img.read()).decode()
                 ext = found_img_path.split(".")[-1].lower()
                 mime_type = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
-                # [PERBAIKAN CSS GAMBAR] width: 100%, height: 110px, object-fit: cover agar pas memenuhi kotak tanpa peyang
-                visual_html = f'<div style="margin-bottom:10px; border:1px solid #CBD5E1; border-radius:6px; overflow:hidden; width:100%; height:110px; background:#F8FAFC;"><img src="data:{mime_type};base64,{b64_str}" style="width:100%; height:100%; object-fit:cover; object-position:center; display:block;"></div>'
+                visual_html = f'<div style="margin-bottom:8px; border:1px solid #CBD5E1; border-radius:6px; overflow:hidden; width:100%; height:105px; background:#F8FAFC;"><img src="data:{mime_type};base64,{b64_str}" style="width:100%; height:100%; object-fit:cover; object-position:center; display:block;"></div>'
             else:
                 visual_html = dhc6_svg_blueprint
                 
-            # [EMOTIKON DIHAPUS] Kata "#1 LH Powerplant" dan "#2 RH Powerplant" kini bersih dari ikon non-formal
-            card_html = f"""<div class="heatmap-card" style="box-shadow: 0 2px 4px rgba(0,0,0,0.03); transition: all 0.2s ease;">
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-<span class="heatmap-reg" style="margin-bottom:0px; font-size:1.15rem;">{reg}</span>
-<span style="background:#EFF4FA; color:#003B6F; font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
+            card_html = f"""<div class="heatmap-card">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+<span class="heatmap-reg" style="margin-bottom:0px; font-size:1.1rem;">{reg}</span>
+<span style="background:#EFF4FA; color:#003B6F; font-size:0.7rem; font-weight:700; padding:2px 6px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
 </div>
 {visual_html}
 <div class="heatmap-row {get_hm_class(lh_stat)}">
@@ -1512,21 +1510,12 @@ if menu_selection == "Home (Fleet Matrix)":
             st.markdown(card_html, unsafe_allow_html=True)
         col_idx += 1
 
-    st.markdown("<br>", unsafe_allow_html=True)
     df_fleet_matrix = pd.DataFrame(fleet_summary_data)
     st.dataframe(df_fleet_matrix, use_container_width=True, hide_index=True)
     
-    st.markdown("<br>", unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Active Fleet Engines", len(engines_available))
-    c2.metric("Logbook Utilization Rows", len(df_util_current) if not df_util_current.empty else "0 (Sim)")
-    c3.metric("Defect Reports (PIREP / MAREP)", len(df_rep_current) if not df_rep_current.empty else "0 (Sim)")
-    critical_count = sum(1 for item in fleet_summary_data if item["Status"] == "CRITICAL")
-    c4.metric("Fleet Alert Status", f"{critical_count} CRITICAL" if critical_count > 0 else "NORMAL")
-    
     st.markdown("---")
     if not df_util_current.empty:
-        st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:#003B6F; margin-bottom:2px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
         min_u_date = df_util_current['Work (Date)'].min().strftime('%d %b %Y')
         max_u_date = df_util_current['Work (Date)'].max().strftime('%d %b %Y')
         days_span = max(1, (df_util_current['Work (Date)'].max() - df_util_current['Work (Date)'].min()).days + 1)
@@ -1536,50 +1525,25 @@ if menu_selection == "Home (Fleet Matrix)":
 
         df_u_summary = df_util_current.groupby("Registration")[["FH", "FC"]].sum().reset_index()
         df_u_summary["Avg FC / Day"] = df_u_summary["Registration"].apply(lambda r: round(get_aircraft_utilization_rate(r, df_util_current), 1))
-        st.dataframe(df_u_summary, use_container_width=True, hide_index=True)
-
-        st.write("") 
         
-        fig_util = px.bar(
-            df_u_summary,
-            x='Registration',
-            y=['FH', 'FC'],
-            barmode='group',
-            labels={
-                'value': 'Total Value',
-                'Registration': 'Aircraft Registration',
-                'variable': 'Metric Type'
-            },
-            color_discrete_map={
-                'FH': '#003B6F',  
-                'FC': '#f0b73d'   
-            },
-            height=380
-        )
-
-        fig_util.update_layout(
-            title=dict(
-                text="<b>Fleet Utilization Balancing (Flight Hours vs. Flight Cycles)</b>",
-                font=dict(color="#003B6F", size=13)
-            ),
-            legend=dict(
-                title='Metric',
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
-            hovermode="x unified",
-            margin=dict(l=20, r=20, t=50, b=20),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            dragmode=False
-        )
-        fig_util.update_xaxes(fixedrange=True)
-        fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)', fixedrange=True)
-
-        st.plotly_chart(fig_util, use_container_width=True)
+        # [UI/UX UPGRADE] Gabungkan tabel dan grafik bar berdampingan (col 1 vs col 2) agar hemat ruang vertikal!
+        col_u_tbl, col_u_chart = st.columns([1, 1.8])
+        with col_u_tbl:
+            st.dataframe(df_u_summary, use_container_width=True, hide_index=True, height=300)
+        with col_u_chart:
+            fig_util = px.bar(
+                df_u_summary, x='Registration', y=['FH', 'FC'], barmode='group',
+                labels={'value': 'Total Value', 'Registration': 'Aircraft Registration', 'variable': 'Metric Type'},
+                color_discrete_map={'FH': '#003B6F', 'FC': '#f0b73d'}, height=310
+            )
+            fig_util.update_layout(
+                title=dict(text="<b>Fleet Utilization Balancing (Flight Hours vs. Cycles)</b>", font=dict(color="#003B6F", size=12)),
+                legend=dict(title='Metric', orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+                hovermode="x unified", margin=dict(l=20, r=20, t=40, b=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', dragmode=False
+            )
+            fig_util.update_xaxes(fixedrange=True)
+            fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)', fixedrange=True)
+            st.plotly_chart(fig_util, use_container_width=True)
 
 # ======================================================================================
 # 15. PAGE 2: DATA COLLECTION & CONFIGURATION
@@ -1774,7 +1738,7 @@ elif menu_selection == "Data Collection & Setup":
         st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Trend Analysis & RUL",))
 
 # ======================================================================================
-# 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH TIER 1 VISUAL HORIZON)
+# 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH DYNAMIC TIME SLICER)
 # ======================================================================================
 elif menu_selection == "Trend Analysis & RUL":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Thermodynamic Trend Analysis</h1>", unsafe_allow_html=True)
@@ -1784,9 +1748,22 @@ elif menu_selection == "Trend Analysis & RUL":
     if df_engine.attrs.get("regression_downgraded", False):
         st.warning("**Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
 
-    col_chart, col_status = st.columns([3, 1])
+    col_chart, col_status = st.columns([2.8, 1.2])
     with col_chart:
-        st.plotly_chart(make_trend_figure(df_engine, selected_engine, status=status), use_container_width=True)
+        # [FITUR INTERAKTIF BARU] Time-Horizon Slicer untuk memotong rentang siklus secara dinamis
+        ctrl_c1, ctrl_c2 = st.columns([1, 1.5])
+        with ctrl_c1:
+            st.markdown("<span style='font-size:0.85rem; font-weight:700; color:#475569;'>Visual Display Horizon:</span>", unsafe_allow_html=True)
+        with ctrl_c2:
+            time_slice = st.radio("Time Horizon", ["All Cycles", "Last 30 Cycles", "Last 15 Cycles"], horizontal=True, label_visibility="collapsed")
+        
+        df_chart_display = df_engine.copy()
+        if time_slice == "Last 30 Cycles" and len(df_chart_display) > 30:
+            df_chart_display = df_chart_display.iloc[-30:]
+        elif time_slice == "Last 15 Cycles" and len(df_chart_display) > 15:
+            df_chart_display = df_chart_display.iloc[-15:]
+
+        st.plotly_chart(make_trend_figure(df_chart_display, selected_engine, status=status), use_container_width=True)
 
         with st.expander("View Operational Flight Profile (Pressure Altitude Level)", expanded=False):
             fig_alt = go.Figure()
@@ -1798,9 +1775,8 @@ elif menu_selection == "Trend Analysis & RUL":
             fig_alt.update_layout(
                 title=dict(text=f"<b>Flight Pressure Altitude Profile | Powerplant {selected_engine}</b>", font=dict(color=NAVY, size=12)),
                 xaxis_title="Flight Date / Cycle", yaxis_title="Altitude [Feet]", hovermode="x unified",
-                template="plotly_white", height=260, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)",
-                margin=dict(l=40, r=20, t=40, b=40),
-                dragmode=False,
+                template="plotly_white", height=240, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)",
+                margin=dict(l=40, r=20, t=35, b=35), dragmode=False,
                 xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True),
                 yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True)
             )
@@ -1813,7 +1789,7 @@ elif menu_selection == "Trend Analysis & RUL":
             with cc3: st.plotly_chart(make_raw_vs_predicted(df_engine, "Wf", "PPH", "#B54708"), use_container_width=True)
 
     with col_status:
-        st.markdown("<h3 style='margin-bottom:8px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-bottom:6px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
         if status["health_level"] == EngineHealth.CRITICAL:
             st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
         elif status["health_level"] == EngineHealth.ADVISORY:
@@ -1833,7 +1809,7 @@ elif menu_selection == "Trend Analysis & RUL":
 
         st.markdown(f"""
         <div class="rul-box">
-            <div class="rul-title">Remaining Useful Life (RUL) — Estimasi Sisa Umur Pakai</div>
+            <div class="rul-title">Remaining Useful Life (RUL) — Sisa Umur Pakai</div>
             <div class="rul-val">{rul_display}</div>
             <div class="rul-sub">{date_display}</div>
             <div class="rul-sub" style="color:{rul_caution_color}; margin-top:4px;">[NOTE] {status['rul_confidence']}</div>
@@ -1842,10 +1818,10 @@ elif menu_selection == "Trend Analysis & RUL":
 
         st.markdown("---")
         st.caption("Diagnostic Event Flags:")
-        if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift detected")
-        if status["sustained_t5"]: st.write("▪ Sustained upward T5 degradation confirmed")
+        if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift")
+        if status["sustained_t5"]: st.write("▪ Sustained upward T5 degradation")
         if status["alarm_wash"]: st.write("▪ ITT +10°C wash limit exceeded")
-        if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]: st.write("▪ OEM borescope threshold breached")
+        if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]: st.write("▪ OEM borescope limit breached")
         if not (status["isolated_t5"] or status["isolated_ng"] or status["sustained_t5"] or status["alarm_wash"] or status["alarm_borescope_t5"] or status["alarm_borescope_ng"]):
             st.write("▪ No active anomalies detected")
             
@@ -1858,10 +1834,9 @@ elif menu_selection == "Trend Analysis & RUL":
         )
 
     st.markdown("---")
-    # [PATCH #7] Memunculkan AML No di urutan terdepan pada tabel pengamatan harian
     show_cols = [c for c in ["AML No", "Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
-    st.dataframe(df_engine[show_cols].sort_values("Date", ascending=False), use_container_width=True, height=240)
-
+    st.dataframe(df_engine[show_cols].sort_values("Date", ascending=False), use_container_width=True, height=220)
+    
 # ======================================================================================
 # 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR (WITH 3-WAY RELATIONAL SSOT)
 # ======================================================================================
