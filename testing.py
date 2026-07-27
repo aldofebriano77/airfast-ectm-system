@@ -98,10 +98,11 @@ SUSTAIN_WINDOW = 3
 TREND_WINDOW = 10               
 CONTROL_SIGMA = 2.5             
 
+# [PATCH #7] Menambahkan 'AML No' sebagai relational key utama antar ketiga file
 REQUIRED_COLUMNS = ["Date", "Engine", "T5", "Ng", "Wf"]
 FLEET_REGISTRATIONS = ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]
 CORRECTION_CANDIDATES = ["IOAT", "Press_Alt", "TQ", "Np"]
-OPTIONAL_COLUMNS = CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press"]
+OPTIONAL_COLUMNS = ["AML No"] + CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press"]
 
 NAVY = "#003B6F"
 GOLD = "#f0b73d"
@@ -219,7 +220,6 @@ st.markdown(
     .fim-ref { display:inline-block; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1;
                border-radius: 4px; padding: 2px 8px; font-size:0.75rem; font-weight:600; margin-left:6px;}
                
-    /* [TIER 1 UPGRADE] Structured Heatmap Card & Recommendation Styling */
     .heatmap-card {
         background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid #003B6F;
         border-radius: 6px; padding: 12px; margin-bottom: 12px;
@@ -324,9 +324,6 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
     if reg_filter:
         st.session_state["filter_reg_kw"] = reg_filter
 
-# --------------------------------------------------------------------------------------
-# FULL-SCREEN AUTHORIZATION GATE (LOGIN SECURITY GATE)
-# --------------------------------------------------------------------------------------
 if not st.session_state.get("logged_in", False):
     st.markdown("""
         <style>
@@ -349,7 +346,6 @@ if not st.session_state.get("logged_in", False):
             else:
                 st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-# [REVISI GAP LOGO] Margin negatif (-25px) untuk memangkas jarak kosong
             st.markdown("<hr style='margin: -25px 0px 15px 0px;'>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-5px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
 
@@ -360,7 +356,6 @@ if not st.session_state.get("logged_in", False):
                 st.write("")
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
-                  # [REVISI TEKS TOMBOL] Mengubah "Login to Portal" menjadi "Login"
                     btn_login = st.form_submit_button("Login", type="primary", use_container_width=True)
                 with c_btn2:
                     btn_guest = st.form_submit_button("Continue as Guest", use_container_width=True)
@@ -394,27 +389,6 @@ if not st.session_state.get("logged_in", False):
 # 5. DATA NORMALIZATION & INGESTION MODULE
 # ======================================================================================
 def safe_parse_dates(series: pd.Series) -> pd.Series:
-    """[BUG FIX] pd.to_datetime(series, format="mixed", dayfirst=True) also
-    applies the day-first swap to already-unambiguous ISO strings
-    ("YYYY-MM-DD"), silently turning e.g. "2026-03-07" (7 March) into
-    "2026-07-03" (3 July) whenever the day-of-month is <= 12. This is a
-    documented pandas quirk with format="mixed" + dayfirst - it does not
-    just handle genuinely ambiguous slash/dot-separated dates, it can
-    reinterpret ISO strings too. Because the manual-entry forms in this app
-    generate ISO-format timestamps via pd.to_datetime(), and Excel/CSV
-    round-trips commonly preserve that format, this corrupted chronological
-    order silently - which then feeds straight into baseline selection,
-    regression fitting, slope/RUL calculation, and sort order everywhere.
-    Fix: parse strict ISO format first (unambiguous, no dayfirst needed),
-    and only fall back to dayfirst-aware "mixed" parsing for whatever the
-    strict pass could not resolve (genuinely ambiguous local exports, e.g.
-    "05/01/2026" from an Indonesian-locale spreadsheet).
-
-    NOTE: this must stay defined here, BEFORE process_maintenance_reports()
-    below and before init_all_datasets() further down - that function is
-    called unconditionally at module top-level (not deferred inside a
-    button/callback), so Python must have already executed this def
-    statement by the time it runs, or it raises NameError."""
     iso_date_only = pd.to_datetime(series, format="%Y-%m-%d", errors="coerce")
     iso_with_time = pd.to_datetime(series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
     parsed = iso_date_only.fillna(iso_with_time)
@@ -516,7 +490,12 @@ def init_all_datasets():
                 ng_phys += ng_d * i
                 wf_phys += wf_d * i
                 
+            # [PATCH #7] Menyisipkan relational key 'AML No' harian
+            reg_prefix = eng_id.split("|")[0].strip()
+            aml_str = f"{reg_prefix[3:]}-2026-{(i+1):03d}"
+            
             rows_ectm.append(dict(
+                **{"AML No": aml_str},
                 Date=pd.Timestamp("2026-05-01") + pd.Timedelta(days=i),
                 Engine=eng_id, Press_Alt=round(alt, 0), IOAT=round(ioat, 1),
                 IAS=round(135.0 + rng.normal(0, 1.5), 1), TQ=round(tq, 1), Np=75,
@@ -546,7 +525,9 @@ def init_all_datasets():
             for d in range(60):
                 fc = int(rng.choice([2, 4, 6, 8], p=[0.2, 0.4, 0.3, 0.1]))
                 fh = round(fc * rng.uniform(0.6, 0.9), 1)
+                aml_str = f"{reg[3:]}-2026-{(d+1):03d}"
                 util_rows.append(dict(
+                    **{"AML No": aml_str},
                     Registration=reg,
                     **{'Work (Date)': pd.Timestamp("2026-05-01") + pd.Timedelta(days=d)},
                     FH=fh, FC=fc, **{'Block Hours': round(fh * 1.1, 1)},
@@ -566,12 +547,13 @@ def init_all_datasets():
         df_rep = pd.DataFrame()
 
     if df_rep.empty:
+        # [PATCH #7] Sinkronisasi AML No agar langsung terkunci dengan tanggal simulasi logbook
         df_rep = pd.DataFrame([
-            {"AML No": "OAM-2026-001", "Date": "2026-06-10", "Registration": "PK-OAM", "ATA": 71, "ATA_Desc": "71 - Powerplant General", "Note / Report": "Pilot reported engine T5 ITT running 8 deg C above normal during cruise at 10,000 ft.", "Corrective Action": "Performed Compressor Performance Recovery Wash per AMM 71-00-00. Ground run test SAT. ITT dropped by 7 deg C.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
-            {"AML No": "OAM-2026-002", "Date": "2026-05-26", "Registration": "PK-OAM", "ATA": 77, "ATA_Desc": "77 - Engine Indicating", "Note / Report": "ITT cockpit gauge flickered and showed momentary high spike during climb.", "Corrective Action": "Checked ITT wiring harness and thermocouple terminal connections. Found loose ground wire. Re-torqued and tested SAT.", "Position": "RH", "P/N Off": "3021100", "P/N On": "3021100", "S/N Off": "TH-991", "S/N On": "TH-992"},
-            {"AML No": "OCH-2026-003", "Date": "2026-06-20", "Registration": "PK-OCH", "ATA": 72, "ATA_Desc": "72 - Engine", "Note / Report": "High T5 trend paired with Ng drop. Suspected CT vane erosion or bleed valve leak.", "Corrective Action": "Scheduled engine for mandatory borescope inspection. Replaced faulty compressor bleed valve assembly.", "Position": "LH", "P/N Off": "3100250-01", "P/N On": "3100250-01", "S/N Off": "BV-102", "S/N On": "BV-884"},
-            {"AML No": "OCH-2026-004", "Date": "2026-06-05", "Registration": "PK-OCH", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "All engine parameters (Ng, ITT, Wf) reading slightly lower than baseline at cruise power.", "Corrective Action": "Inspected P3 pneumatic sensing line. Found minor air leak at FCU Bellows B-nut fitting. Re-sealed and leak tested SAT.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
-            {"AML No": "OCG-2026-005", "Date": "2026-06-15", "Registration": "PK-OCG", "ATA": 79, "ATA_Desc": "79 - Engine Oil", "Note / Report": "Oil temperature slightly elevated by 3 deg C over the last 10 sectors.", "Corrective Action": "Inspected oil cooler matrix and cleaned external dust accumulation. Re-verified oil pressure relief valve setting.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OAM-2026-041", "Date": "2026-06-10", "Registration": "PK-OAM", "ATA": 71, "ATA_Desc": "71 - Powerplant General", "Note / Report": "Pilot reported engine T5 ITT running 8 deg C above normal during cruise at 10,000 ft.", "Corrective Action": "Performed Compressor Performance Recovery Wash per AMM 71-00-00. Ground run test SAT. ITT dropped by 7 deg C.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OAM-2026-026", "Date": "2026-05-26", "Registration": "PK-OAM", "ATA": 77, "ATA_Desc": "77 - Engine Indicating", "Note / Report": "ITT cockpit gauge flickered and showed momentary high spike during climb.", "Corrective Action": "Checked ITT wiring harness and thermocouple terminal connections. Found loose ground wire. Re-torqued and tested SAT.", "Position": "RH", "P/N Off": "3021100", "P/N On": "3021100", "S/N Off": "TH-991", "S/N On": "TH-992"},
+            {"AML No": "OCH-2026-051", "Date": "2026-06-20", "Registration": "PK-OCH", "ATA": 72, "ATA_Desc": "72 - Engine", "Note / Report": "High T5 trend paired with Ng drop. Suspected CT vane erosion or bleed valve leak.", "Corrective Action": "Scheduled engine for mandatory borescope inspection. Replaced faulty compressor bleed valve assembly.", "Position": "LH", "P/N Off": "3100250-01", "P/N On": "3100250-01", "S/N Off": "BV-102", "S/N On": "BV-884"},
+            {"AML No": "OCH-2026-036", "Date": "2026-06-05", "Registration": "PK-OCH", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "All engine parameters (Ng, ITT, Wf) reading slightly lower than baseline at cruise power.", "Corrective Action": "Inspected P3 pneumatic sensing line. Found minor air leak at FCU Bellows B-nut fitting. Re-sealed and leak tested SAT.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OCG-2026-046", "Date": "2026-06-15", "Registration": "PK-OCG", "ATA": 79, "ATA_Desc": "79 - Engine Oil", "Note / Report": "Oil temperature slightly elevated by 3 deg C over the last 10 sectors.", "Corrective Action": "Inspected oil cooler matrix and cleaned external dust accumulation. Re-verified oil pressure relief valve setting.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
         ])
 
     df_rep = process_maintenance_reports(df_rep)
@@ -586,8 +568,8 @@ if "df_data" not in st.session_state or "df_util" not in st.session_state or "df
     st.session_state["rep_is_real"] = r_is_real
 
 def csv_template() -> bytes:
-    cols = REQUIRED_COLUMNS + [c for c in OPTIONAL_COLUMNS if c not in REQUIRED_COLUMNS]
-    example = pd.DataFrame([{"Date": "2026-06-01", "Engine": "PK-OAM | LH (SN: PC-E101)", "Press_Alt": 11000, "IOAT": 12.0, "IAS": 135.0, "TQ": 42.0, "Np": 75, "T5": 624.0, "Ng": 91.50, "Wf": 288.0, "Oil_Temp": 72.5, "Oil_Press": 91.0}])
+    cols = ["AML No"] + REQUIRED_COLUMNS + [c for c in OPTIONAL_COLUMNS if c not in REQUIRED_COLUMNS and c != "AML No"]
+    example = pd.DataFrame([{"AML No": "OAM-2026-032", "Date": "2026-06-01", "Engine": "PK-OAM | LH (SN: PC-E101)", "Press_Alt": 11000, "IOAT": 12.0, "IAS": 135.0, "TQ": 42.0, "Np": 75, "T5": 624.0, "Ng": 91.50, "Wf": 288.0, "Oil_Temp": 72.5, "Oil_Press": 91.0}])
     example = example[[c for c in cols if c in example.columns]]
     buf = io.StringIO()
     example.to_csv(buf, index=False)
@@ -600,7 +582,7 @@ def validate_columns(df: pd.DataFrame):
 
 # ======================================================================================
 # 6. AUTOMATED DATA QUALITY AUDIT MODULE
-# ======================================================================================
+
 def run_data_quality_audit(df: pd.DataFrame) -> list:
     alerts = []
     if not df.empty:
@@ -947,15 +929,24 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
 def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = None) -> go.Figure:
     fig = go.Figure()
     
-    specs = [("Delta_T5", "\u0394 T5 (ITT) [\u00b0C]", "#B42318"), ("Delta_Ng", "\u0394 Ng [%]", "#003B6F"), ("Delta_Wf", "\u0394 Wf [PPH]", "#B54708")]
-    for col, label, color in specs:
+    # [PATCH #16] Palet warna super kontras: Tidak ada satu pun garis yang warnanya sama!
+    # Format: (Kolom, Label, Warna Actual, Warna Moving Average)
+    specs = [
+        ("Delta_T5", "\u0394 T5 (ITT) [\u00b0C]", "#DC2626", "#9333EA"),  # Red & Purple
+        ("Delta_Ng", "\u0394 Ng [%]", "#003B6F", "#0891B2"),            # Navy & Teal/Cyan
+        ("Delta_Wf", "\u0394 Wf [PPH]", "#D97706", "#16A34A")           # Amber & Emerald Green
+    ]
+    for col, label, color_act, color_ma in specs:
         fig.add_trace(go.Scatter(
             x=df_engine["Date"], y=df_engine[col], mode="lines+markers", name=label, 
-            line=dict(color=color, width=2), marker=dict(size=5, color=color),
+            line=dict(color=color_act, width=2), marker=dict(size=5, color=color_act),
             hovertemplate="<b>%{y:+.2f}</b><extra></extra>"
         ))
         ma = df_engine[col].rolling(3, min_periods=1).mean().round(2)
-        fig.add_trace(go.Scatter(x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", line=dict(color=color, width=1, dash="dot"), opacity=0.4, showlegend=False, hoverinfo="skip"))
+        fig.add_trace(go.Scatter(
+            x=df_engine["Date"], y=ma, mode="lines", name=f"{label} (3-cyc MA)", 
+            line=dict(color=color_ma, width=1.8, dash="dot"), opacity=0.8, showlegend=True, hoverinfo="skip"
+        ))
 
     if "Adaptive_Sigma_T5" in df_engine.columns:
         upper_vals = (CONTROL_SIGMA * df_engine["Adaptive_Sigma_T5"]).tolist()
@@ -976,17 +967,18 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
         if limiting == "Ng":
             horizon_y = [status["d_ng"], NG_BORESCOPE_LOW_PCT]
             horizon_label = "Est. Ng Borescope Horizon"
-            horizon_color = "#003B6F"
         else:
             horizon_y = [status["d_t5"], T5_BORESCOPE_C]
             horizon_label = "Est. T5 Borescope Horizon"
-            horizon_color = "#B42318"
+            
+        # [PATCH #16] Warna garis Horizon dibedakan spesifik (Deep Magenta) agar tidak lebur dengan limit
+        horizon_color = "#C026D3"
 
         if pd.notnull(proj_date) and proj_date > latest_date:
             fig.add_trace(go.Scatter(
                 x=[latest_date, proj_date], y=horizon_y,
                 mode="lines", name=horizon_label,
-                line=dict(color=horizon_color, width=2, dash="dashdot"), showlegend=True
+                line=dict(color=horizon_color, width=2.2, dash="dashdot"), showlegend=True
             ))
             fig.add_vline(
                 x=proj_date, line_dash="dash", line_color=horizon_color, line_width=1.5,
@@ -994,8 +986,8 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
                 annotation_font=dict(size=10, color=horizon_color), annotation_position="top left"
             )
 
-    fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
-    fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#B42318", line_width=1, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#B42318"))
+    fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1.2, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
+    fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#991B1B", line_width=1.2, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#991B1B"))
 
     # [KUNCI STATIS] dragmode=False & fixedrange=True mencegah ketidaksengajaan zoom/pan
     fig.update_layout(
@@ -1010,9 +1002,13 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
     return fig
 
 def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color: str) -> go.Figure:
+    # [PATCH #16] Membedakan warna Predicted Baseline untuk tiap parameter agar tidak abu-abu semua
+    pred_color_map = {"T5": "#881337", "Ng": "#0891B2", "Wf": "#78350F"}
+    pred_color = pred_color_map.get(param, "#64748B")
+    
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[param], mode="lines+markers", name=f"Actual {param}", line=dict(color=color, width=1.8), marker=dict(size=4)))
-    fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[f"{param}_pred"], mode="lines", name="Predicted Baseline", line=dict(color="#64748B", width=1.5, dash="dash")))
+    fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[f"{param}_pred"], mode="lines", name="Predicted Baseline", line=dict(color=pred_color, width=1.8, dash="dash")))
     
     # [KUNCI STATIS] dragmode=False & fixedrange=True
     fig.update_layout(
@@ -1220,7 +1216,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-if st.sidebar.button("Logout Portal", key="btn_logout_sidebar", use_container_width=True):
+if st.sidebar.button("Logout", key="btn_logout_sidebar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.session_state["user_email"] = ""
     st.session_state["user_name"] = "Guest Viewer"
@@ -1282,16 +1278,18 @@ if missing_required:
     st.error(f"Ingestion Error: Mandatory schema columns missing: {', '.join(missing_required)}. Rectify within Data Collection.")
     st.stop()
 
-for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns]:
+for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns and c != "AML No"]:
     if df_raw[col].dtype == object:
         df_raw[col] = df_raw[col].astype(str).str.replace(",", ".", regex=False)
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
-# [REVISI ROBUSTNESS] Konversi tanggal fleksibel dengan mode dayfirst auto-detect
-# [BUG FIX] Was pd.to_datetime(..., format="mixed", dayfirst=True) directly,
-# which silently swaps day/month on unambiguous ISO dates - see
-# safe_parse_dates() docstring above for details and the reproduction case.
 df_raw["Date"] = safe_parse_dates(df_raw["Date"])
+
+# [PATCH #7] Pengaman otomatis jika file CSV lama tidak memiliki kolom 'AML No'
+if "AML No" not in df_raw.columns:
+    df_raw["AML No"] = df_raw["Date"].dt.strftime("%Y%m%d").apply(lambda x: f"AML-{x}" if pd.notnull(x) else "AML-UNKN")
+if "AML No" not in df_util_current.columns and not df_util_current.empty:
+    df_util_current["AML No"] = df_util_current["Work (Date)"].dt.strftime("%Y%m%d").apply(lambda x: f"AML-{x}" if pd.notnull(x) else "AML-UNKN")
 
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
@@ -1364,9 +1362,8 @@ if run_watchdog_now:
                                 f">> Thermodynamic Signature: {rc.get('signature', 'N/A')}",
                                 rc['body'], 
                                 ""
-                        ])
+                            ])
 
-# [PATCH HOLE 2] Hanya catat ke memori jika email BENAR-BENAR sukses terkirim
                         is_delivered = send_engineering_notice(
                             engine_id=eng_check_id,
                             status_dict=st_check,
@@ -1421,7 +1418,6 @@ if menu_selection == "Home (Fleet Matrix)":
             if reg_id not in aircraft_map: aircraft_map[reg_id] = {}
             aircraft_map[reg_id][pos] = stat_lbl
 
-    # [TIER 1 UPGRADE] OCC Fleet Health Heatmap Grid
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
     hm_cols = st.columns(3)
     col_idx = 0
@@ -1512,7 +1508,6 @@ if menu_selection == "Home (Fleet Matrix)":
             paper_bgcolor='rgba(0,0,0,0)',
             dragmode=False
         )
-        # [KUNCI STATIS] Mencegah zoom pada grafik batang utilization
         fig_util.update_xaxes(fixedrange=True)
         fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)', fixedrange=True)
 
@@ -1534,6 +1529,7 @@ elif menu_selection == "Data Collection & Setup":
             with st.form("form_manual_ectm", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 with col_f1:
+                    m_aml = st.text_input("AML No (Relational Key)", placeholder="e.g., OAM-2026-015").upper()
                     m_date = st.date_input("Flight Date", value=datetime.now())
                     m_eng = st.selectbox("Powerplant ID", engines_available)
                     m_alt = st.number_input("Press Alt (Ft)", min_value=0, max_value=25000, value=10000, step=500)
@@ -1553,6 +1549,7 @@ elif menu_selection == "Data Collection & Setup":
                 submitted_ectm = st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True)
                 if submitted_ectm:
                     new_row = pd.DataFrame([{
+                        "AML No": m_aml if m_aml else f"AML-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
                         "Date": pd.to_datetime(m_date), "Engine": m_eng, "Press_Alt": float(m_alt),
                         "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
                         "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
@@ -1591,6 +1588,7 @@ elif menu_selection == "Data Collection & Setup":
             with st.form("form_manual_util", clear_on_submit=True):
                 col_u1, col_u2, col_u3 = st.columns(3)
                 with col_u1:
+                    u_aml = st.text_input("AML No (Relational Key)", placeholder="e.g., OAM-2026-015").upper()
                     u_reg = st.selectbox("Aircraft Registration", FLEET_REGISTRATIONS)
                     u_date = st.date_input("Work Date", value=datetime.now())
                 with col_u2:
@@ -1604,6 +1602,7 @@ elif menu_selection == "Data Collection & Setup":
                 submitted_util = st.form_submit_button("Save Utilization Record", type="primary", use_container_width=True)
                 if submitted_util:
                     new_u_row = pd.DataFrame([{
+                        "AML No": u_aml if u_aml else f"AML-{pd.to_datetime(u_date).strftime('%Y%m%d')}",
                         "Registration": u_reg, "Work (Date)": pd.to_datetime(u_date),
                         "FH": float(u_fh), "FC": int(u_fc), "Block Hours": float(u_bh),
                         "From": u_from, "To": u_to
@@ -1656,7 +1655,7 @@ elif menu_selection == "Data Collection & Setup":
                         "AML No": r_aml if r_aml else f"{r_reg}-MANUAL", "Date": pd.to_datetime(r_date),
                         "Registration": r_reg, "ATA": int(r_ata),
                         "Note / Report": r_note if r_note else "No description provided.",
-                        "Corrective Action": r_action if r_action else "Pending maintenance action.",
+                        "Corrective Action": r_action if r_action else "Pending action.",
                         "Position": r_pos, "P/N Off": r_pn_off, "S/N Off": r_sn_off,
                         "P/N On": r_pn_on, "S/N On": r_sn_on
                     }])
@@ -1719,10 +1718,8 @@ elif menu_selection == "Trend Analysis & RUL":
 
     col_chart, col_status = st.columns([3, 1])
     with col_chart:
-        # Pass status to plot to enable Visual RUL Horizon extrapolation line
         st.plotly_chart(make_trend_figure(df_engine, selected_engine, status=status), use_container_width=True)
 
-        # [PATCH #8] Menampilkan profil Altitude (Press_Alt) di grafik terpisah yang rapi
         with st.expander("View Operational Flight Profile (Pressure Altitude Level)", expanded=False):
             fig_alt = go.Figure()
             fig_alt.add_trace(go.Scatter(
@@ -1766,7 +1763,6 @@ elif menu_selection == "Trend Analysis & RUL":
         date_display = f"Est. Date: {status['proj_date']} ({status['fc_per_day']:.1f} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
         rul_caution_color = "#B42318" if status["rul_is_linear_caution"] else "#64748B"
 
-        # [PATCH #10] Penjabaran kepanjangan RUL agar jelas dan tidak ambigu
         st.markdown(f"""
         <div class="rul-box">
             <div class="rul-title">Remaining Useful Life (RUL) — Estimasi Sisa Umur Pakai</div>
@@ -1794,11 +1790,12 @@ elif menu_selection == "Trend Analysis & RUL":
         )
 
     st.markdown("---")
-    show_cols = [c for c in ["Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
+    # [PATCH #7] Memunculkan AML No di urutan terdepan pada tabel pengamatan harian
+    show_cols = [c for c in ["AML No", "Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
     st.dataframe(df_engine[show_cols].sort_values("Date", ascending=False), use_container_width=True, height=240)
 
 # ======================================================================================
-# 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR
+# 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR (WITH 3-WAY RELATIONAL SSOT)
 # ======================================================================================
 elif menu_selection == "Logbook & Defect Correlator":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Logbook & Defect Correlator</h1>", unsafe_allow_html=True)
@@ -1826,11 +1823,53 @@ elif menu_selection == "Logbook & Defect Correlator":
     with col_filt3:
         search_kw = st.text_input("Search Keyword in Defect Note / Action", placeholder="e.g., LEAK, WASH, FCU, AGM, ITT")
 
+    # [PATCH #7] FITUR UNGGULAN: Day-to-Day 3-Way Relational Sync Audit (SSOT Join)
+    st.markdown(f"<h3 style='color:#003B6F; margin-top:10px; margin-bottom:4px;'>Day-to-Day 3-Way Relational Sync Audit ({sel_reg})</h3>", unsafe_allow_html=True)
+    st.caption("Single Source of Truth (SSOT) linking **Engine Telemetry**, **Airframe Utilization (FH/FC)**, and **PIREP/MAREP Defects** via exact **AML No** relational key.")
+    
+    with st.expander("View 3-Way Relational Master Table (Day-to-Day Synchronizer)", expanded=True):
+        df_e_sync = st.session_state["df_data"].copy()
+        df_e_sync["Reg"] = df_e_sync["Engine"].astype(str).apply(lambda x: x.split("|")[0].strip())
+        df_e_sync = df_e_sync[df_e_sync["Reg"] == sel_reg]
+        
+        sync_rows = []
+        if not df_e_sync.empty and "AML No" in df_e_sync.columns:
+            for aml_val, grp in df_e_sync.groupby("AML No"):
+                dt_val = grp["Date"].max()
+                
+                # Tarik data telemetri LH & RH
+                lh_row = grp[grp["Engine"].astype(str).str.contains("LH")]
+                rh_row = grp[grp["Engine"].astype(str).str.contains("RH")]
+                lh_t5 = f"{lh_row['Delta_T5'].values[0]:+.1f}°C" if not lh_row.empty and "Delta_T5" in lh_row.columns else "N/A"
+                rh_t5 = f"{rh_row['Delta_T5'].values[0]:+.1f}°C" if not rh_row.empty and "Delta_T5" in rh_row.columns else "N/A"
+                
+                # Tarik data jam terbang dari file Utilization
+                u_match = df_util_current[df_util_current["AML No"] == aml_val] if "AML No" in df_util_current.columns else pd.DataFrame()
+                fh_val = f"{u_match['FH'].values[0]} FH / {u_match['FC'].values[0]} FC" if not u_match.empty else "N/A"
+                
+                # Tarik laporan kerusakan dari file PIREP/MAREP
+                r_match = df_rep_current[df_rep_current["AML No"] == aml_val]
+                rep_val = f"[{r_match['ATA_Desc'].values[0]}] {r_match['Corrective Action'].values[0][:45]}..." if not r_match.empty else "Normal Operations (No Defect Logged)"
+                
+                sync_rows.append({
+                    "AML No (Key)": aml_val,
+                    "Flight Date": dt_val.strftime("%Y-%m-%d") if pd.notnull(dt_val) else "N/A",
+                    "Airframe Util": fh_val,
+                    "#1 LH ΔT5": lh_t5,
+                    "#2 RH ΔT5": rh_t5,
+                    "Maintenance Record / Action": rep_val
+                })
+            
+            df_sync_view = pd.DataFrame(sync_rows).sort_values("Flight Date", ascending=False)
+            st.dataframe(df_sync_view, use_container_width=True, hide_index=True, height=220)
+        else:
+            st.info("Relational synchronization data is being processed. Please execute ECTM analysis in Data Setup.")
+
+    st.markdown("---")
     df_filtered = df_rep_current[df_rep_current['Registration'] == sel_reg]
     if sel_ata != "ALL ATA CHAPTERS":
         df_filtered = df_filtered[df_filtered['ATA_Desc'] == sel_ata]
 
-    # [PATCH #12] Specific Exact Word Search menggunakan Regex Word Boundary (\b)
     if search_kw:
         kw_clean = re.escape(search_kw.strip())
         kw_regex = r'\b' + kw_clean + r'\b'
@@ -1841,7 +1880,6 @@ elif menu_selection == "Logbook & Defect Correlator":
 
     st.markdown(f"**Found {len(df_filtered)} logged defect report(s) matching criteria for {sel_reg}:**")
     
-    # [FITUR HIGHLIGHT] Fungsi untuk memberikan warna latar Gold/Navy pada kata yang dicari
     def highlight_text(text, kw):
         if not isinstance(text, str) or not text:
             return "No description."
@@ -1864,7 +1902,6 @@ elif menu_selection == "Logbook & Defect Correlator":
                 note_text = highlight_text(str(row.get('Note / Report', 'No description.')), search_kw)
                 action_text = highlight_text(str(row.get('Corrective Action', 'Pending action.')), search_kw)
                 
-                # Mengganti blockquote biasa dengan kotak div bergaris pinggir agar highlight HTML tampil sempurna
                 st.markdown(f"**Defect Reported (PIREP/MAREP):**<br><div style='background:#F8FAFC; border-left:3px solid #CBD5E1; padding:8px 12px; margin:4px 0 8px 0; border-radius:0 4px 4px 0; font-size:0.9rem; line-height:1.5;'>{note_text}</div>", unsafe_allow_html=True)
                 st.markdown(f"**Corrective Action Taken:**<br><div style='background:#F8FAFC; border-left:3px solid #003B6F; padding:8px 12px; margin:4px 0 8px 0; border-radius:0 4px 4px 0; font-size:0.9rem; line-height:1.5;'>{action_text}</div>", unsafe_allow_html=True)
                 
