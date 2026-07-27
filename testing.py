@@ -110,166 +110,200 @@ SLATE_DARK = "#0F172A"
 SLATE_MUTED = "#64748B"
 
 # ======================================================================================
-# 3. ENTERPRISE AVIATION SAAS STYLING (CUSTOM CSS WITH TIER 1 ENHANCEMENTS)
+# 3. ULTRA-MODERN AVIATION SAAS STYLING (TIER 1 UI/UX OVERHAUL)
 # ======================================================================================
 st.markdown(
     """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
 
+    /* Latar Belakang Utama - Canvas Bersih dengan Nada Abu-Abu Sangat Lembut */
     [data-testid="stAppViewContainer"], [data-testid="stApp"], .main {
-        background-color: #FFFFFF !important; color: #0F172A !important;
+        background-color: #F8FAFC !important; color: #0F172A !important;
     }
     [data-testid="stHeader"] { background-color: transparent !important; }
     
+    /* Hierarki Tipografi Modern & Bersih */
     h1, h2, h3, h4 { 
-        color: #003B6F !important; 
-        font-weight: 700 !important; 
-        letter-spacing: -0.02em;
+        color: #00284D !important; 
+        font-weight: 800 !important; 
+        letter-spacing: -0.03em !important;
         margin-top: 0rem !important;
-        padding-top: 0rem !important; 
     }
-    h1 { font-size: 1.85rem !important; }
-    h2 { font-size: 1.35rem !important; }
-    h3 { font-size: 1.15rem !important; }
-    
+    h1 { font-size: 2.0rem !important; }
+    h2 { font-size: 1.4rem !important; }
+    h3 { font-size: 1.15rem !important; font-weight: 700 !important; }
+
+    /* ==========================================================================
+       1. METRIC CARDS - ELEVATED WIDGETS WITH HOVER LIFT
+       ========================================================================== */
     div[data-testid="stMetric"] {
-        background-color: #F8FAFC !important; border: 1px solid #E2E8F0 !important;
-        border-left: 4px solid #003B6F !important; padding: 14px 16px !important;
-        border-radius: 6px !important; box-shadow: none !important;
+        background: #FFFFFF !important; 
+        border: none !important;
+        border-radius: 14px !important; 
+        padding: 18px 22px !important;
+        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.05), 0 0 3px 1px rgba(0, 40, 77, 0.03) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        position: relative;
+        overflow: hidden;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px -4px rgba(0, 40, 77, 0.1), 0 0 4px 1px rgba(0, 40, 77, 0.04) !important;
+    }
+    div[data-testid="stMetric"]::before {
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+        background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%);
     }
     div[data-testid="stMetricLabel"] > label > p {
-        color: #475569 !important; font-weight: 600 !important; font-size: 0.82rem !important;
-        text-transform: uppercase; letter-spacing: 0.05em;
+        color: #64748B !important; font-weight: 700 !important; font-size: 0.78rem !important;
+        text-transform: uppercase; letter-spacing: 0.08em;
     }
-    div[data-testid="stMetricValue"] > div { color: #0F172A !important; font-weight: 700 !important; font-size: 1.45rem !important; }
+    div[data-testid="stMetricValue"] > div { 
+        color: #0F172A !important; font-weight: 800 !important; font-size: 1.65rem !important; 
+        letter-spacing: -0.02em; margin-top: 4px;
+    }
 
+    /* ==========================================================================
+       2. SIDEBAR - DEEP NAVY AEROSPACE THEME WITH PILL NAVIGATION
+       ========================================================================== */
     [data-testid="stSidebar"] {
-        background-color: #003B6F !important; border-right: 1px solid #00284D !important;
+        background: linear-gradient(180deg, #00284D 0%, #00172D 100%) !important; 
+        border-right: none !important;
+        box-shadow: 4px 0 25px rgba(0, 0, 0, 0.15);
     }
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label, [data-testid="stSidebar"] h1,
     [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
     [data-testid="stSidebar"] div, [data-testid="stSidebar"] b {
-        color: #F8FAFC !important;
+        color: #F1F5F9 !important;
     }
     
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
-        padding: 12px 16px !important; margin-bottom: 4px !important;
-        border-bottom: 1px solid rgba(255,255,255,0.08) !important;
-        cursor: pointer; transition: all 0.15s ease-in-out; width: 100%; border-radius: 4px !important;
+        padding: 12px 18px !important; margin-bottom: 6px !important;
+        background: transparent !important; border: none !important;
+        cursor: pointer; transition: all 0.2s ease; width: 100%; 
+        border-radius: 10px !important;
     }
     [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
-        background-color: rgba(255,255,255,0.08) !important; padding-left: 20px !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
+        transform: translateX(4px);
     }
     [data-testid="stSidebar"] div[role="radiogroup"] p {
-        font-size: 0.92rem !important; font-weight: 500 !important; color: #CBD5E1 !important; margin: 0 !important;
+        font-size: 0.92rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
     }
     
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
-        border-left: 4px solid #f0b73d !important; background-color: rgba(255,255,255,0.12) !important;
+        background: linear-gradient(90deg, rgba(240, 183, 61, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+        box-shadow: inset 3px 0 0 #f0b73d !important;
     }
     [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p {
-        color: #FFFFFF !important; font-weight: 700 !important;
+        color: #FFFFFF !important; font-weight: 800 !important;
     }
+    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] { display: none !important; }
 
-    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] div {
-        background-color: transparent !important; border-color: #f0b73d !important;
-    }
-    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"][aria-checked="true"] div:first-child {
-        background-color: #f0b73d !important; border-color: #f0b73d !important;
-    }
-    
+    /* ==========================================================================
+       3. BUTTONS - SMOOTH GRADIENTS & MICRO-INTERACTIONS
+       ========================================================================== */
     div[data-testid="stButton"] > button[kind="primary"] {
-        background-color: #003B6F !important; color: #FFFFFF !important;
-        font-weight: 600 !important; font-size: 0.95rem !important;
-        border-radius: 6px !important; padding: 10px 20px !important;
-        border: 1px solid #003B6F !important; transition: all 0.2s ease !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        background: linear-gradient(135deg, #003B6F 0%, #00284D 100%) !important; 
+        color: #FFFFFF !important; font-weight: 700 !important; font-size: 0.92rem !important;
+        border-radius: 10px !important; padding: 12px 24px !important; border: none !important; 
+        box-shadow: 0 4px 12px rgba(0, 59, 111, 0.25) !important; transition: all 0.2s ease !important;
     }
     div[data-testid="stButton"] > button[kind="primary"]:hover {
-        background-color: #00284D !important; border-color: #f0b73d !important; color: #f0b73d !important;
+        transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 59, 111, 0.35) !important;
+        background: linear-gradient(135deg, #00488A 0%, #00305C 100%) !important; color: #f0b73d !important;
     }
 
     div[data-testid="stDownloadButton"] > button, div[data-testid="stButton"] > button[kind="secondary"] {
-        background-color: #FFFFFF !important; color: #0F172A !important;
-        font-weight: 600 !important; font-size: 0.88rem !important;
-        border-radius: 6px !important; border: 1px solid #CBD5E1 !important;
-        transition: all 0.15s ease !important;
+        background: #FFFFFF !important; color: #003B6F !important;
+        font-weight: 700 !important; font-size: 0.88rem !important; border-radius: 10px !important; 
+        border: 1px solid #E2E8F0 !important; box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important;
+        transition: all 0.2s ease !important;
     }
     div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stButton"] > button[kind="secondary"]:hover {
-        background-color: #F8FAFC !important; border-color: #003B6F !important; color: #003B6F !important;
+        background: #F8FAFC !important; border-color: #003B6F !important; 
+        transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 59, 111, 0.1) !important;
     }
 
-    .gold-bar { height: 3px; width: 60px; background-color: #f0b73d; margin-top: -8px; margin-bottom: 20px; }
-    
-    .badge-red { background:#FEF2F2; color:#991B1B; border:1px solid #FECACA; border-radius:4px;
-                 padding:4px 12px; font-weight:700; font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase; display:inline-block;}
-    .badge-amber { background:#FFFBEB; color:#92400E; border:1px solid #FDE68A; border-radius:4px;
-                   padding:4px 12px; font-weight:700; font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase; display:inline-block;}
-    .badge-green { background:#F0FDF4; color:#166534; border:1px solid #BBF7D0; border-radius:4px;
-                   padding:4px 12px; font-weight:700; font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase; display:inline-block;}
-    
-    .rul-box { background:#F8FAFC; border:1px solid #CBD5E1; border-left:4px solid #f0b73d;
-               padding:12px 16px; border-radius:6px; margin-top:10px; margin-bottom:10px; }
-    .rul-title { font-size:0.82rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.05em; }
-    .rul-val { font-size:1.2rem; font-weight:800; color:#003B6F; margin-top:2px; }
-    .rul-sub { font-size:0.78rem; font-weight:500; color:#64748B; margin-top:2px; }
+    div[data-testid="stButton"] > button.red-logout-btn {
+        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%) !important;
+        color: #FFFFFF !important; border: none !important; font-weight: 700 !important;
+        border-radius: 10px !important; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25) !important;
+    }
+    div[data-testid="stButton"] > button.red-logout-btn:hover {
+        background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%) !important;
+        transform: translateY(-2px); box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35) !important;
+    }
 
-    .fim-ref { display:inline-block; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1;
-               border-radius: 4px; padding: 2px 8px; font-size:0.75rem; font-weight:600; margin-left:6px;}
-               
+    /* ==========================================================================
+       4. MODERN TINTED PILL BADGES (ANTI-HEAVY SATURATION)
+       ========================================================================== */
+    .badge-red { background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
+    .badge-amber { background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
+    .badge-green { background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2); border-radius: 30px; padding: 5px 14px; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
+    
+    /* ==========================================================================
+       5. HEATMAP & RECOMMENDATION CARDS (FRAMELESS & SOFT SHADOWS)
+       ========================================================================== */
     .heatmap-card {
-        background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid #003B6F;
-        border-radius: 6px; padding: 12px; margin-bottom: 12px;
+        background: #FFFFFF; border: none; border-radius: 16px; padding: 16px; margin-bottom: 16px;
+        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.06), 0 0 3px 1px rgba(0, 40, 77, 0.03);
+        transition: all 0.25s ease;
     }
-    .heatmap-reg { font-size: 1.05rem; font-weight: 800; color: #003B6F; margin-bottom: 8px; }
-    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 0.82rem; font-weight: 600; }
-    .hm-green { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
-    .hm-amber { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
-    .hm-red { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    .heatmap-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px -4px rgba(0, 40, 77, 0.12), 0 0 4px 1px rgba(0, 40, 77, 0.04);
+    }
+    .heatmap-reg { font-size: 1.2rem; font-weight: 800; color: #00284D; letter-spacing: -0.02em; }
+    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; margin-top: 6px; font-size: 0.82rem; font-weight: 700; }
+    
+    .hm-green { background: rgba(22, 163, 74, 0.06); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
+    .hm-amber { background: rgba(217, 119, 6, 0.06); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
+    .hm-red { background: rgba(220, 38, 38, 0.06); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
     
     .rec-card-box {
-        background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 16px; margin-bottom: 16px;
+        background: #FFFFFF; border: none; border-radius: 14px; padding: 20px; margin-bottom: 18px;
+        box-shadow: 0 4px 20px -2px rgba(0, 40, 77, 0.05);
     }
     .rec-card-red { border-left: 6px solid #DC2626; }
     .rec-card-amber { border-left: 6px solid #D97706; }
     .rec-card-green { border-left: 6px solid #16A34A; }
-    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px; }
-    .rec-title { font-size: 1.1rem; font-weight: 800; color: #003B6F; }
-    
-    div[data-testid="stButton"] > button.red-logout-btn {
-        background-color: #DC2626 !important;
-        color: #FFFFFF !important;
-        border: 1px solid #B91C1C !important;
-        font-weight: 700 !important;
-        transition: all 0.2s ease !important;
-    }
-    div[data-testid="stButton"] > button.red-logout-btn:hover {
-        background-color: #991B1B !important;
-        border-color: #7F1D1D !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important;
-    }    
-    hr { border-color: #E2E8F0 !important; }
-    
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
-    }
+    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F1F5F9; padding-bottom: 12px; margin-bottom: 14px; }
+    .rec-title { font-size: 1.15rem; font-weight: 800; color: #00284D; letter-spacing: -0.01em; }
 
+    .rul-box { 
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); 
+        border: none; border-left: 5px solid #f0b73d;
+        padding: 16px 20px; border-radius: 12px; margin-top: 12px; margin-bottom: 12px;
+        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.05);
+    }
+    .rul-title { font-size: 0.78rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.08em; }
+    .rul-val { font-size: 1.35rem; font-weight: 800; color: #00284D; margin-top: 4px; }
+    .rul-sub { font-size: 0.82rem; font-weight: 600; color: #64748B; margin-top: 4px; }
+
+    .fim-ref { display: inline-block; background: #F1F5F9; color: #334155; border-radius: 6px; padding: 3px 10px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; }
+    
+    /* ==========================================================================
+       6. FROSTED GLASS STICKY HEADER (APPLE/STRIPE STYLE)
+       ========================================================================== */
     div[data-testid="stElementContainer"]:has(.sticky-header-box),
     div.element-container:has(.sticky-header-box) {
         position: sticky !important;
         top: 0 !important;
         z-index: 9999 !important;
-        background-color: #FFFFFF !important;
-        border-bottom: 1px solid #E2E8F0 !important;
-        padding-top: 15px !important;
-        padding-bottom: 10px !important;
-        margin-bottom: 0px !important;
+        background: rgba(248, 250, 252, 0.85) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+        padding-top: 15px !important; padding-bottom: 12px !important;
+        margin-bottom: 10px !important;
     }
+    
+    hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 24px 0 !important; }
+    .gold-bar { height: 4px; width: 48px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -6px; margin-bottom: 24px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -490,7 +524,6 @@ def init_all_datasets():
                 ng_phys += ng_d * i
                 wf_phys += wf_d * i
                 
-            # [PATCH #7] Menyisipkan relational key 'AML No' harian
             reg_prefix = eng_id.split("|")[0].strip()
             aml_str = f"{reg_prefix[3:]}-2026-{(i+1):03d}"
             
@@ -547,7 +580,6 @@ def init_all_datasets():
         df_rep = pd.DataFrame()
 
     if df_rep.empty:
-        # [PATCH #7] Sinkronisasi AML No agar langsung terkunci dengan tanggal simulasi logbook
         df_rep = pd.DataFrame([
             {"AML No": "OAM-2026-041", "Date": "2026-06-10", "Registration": "PK-OAM", "ATA": 71, "ATA_Desc": "71 - Powerplant General", "Note / Report": "Pilot reported engine T5 ITT running 8 deg C above normal during cruise at 10,000 ft.", "Corrective Action": "Performed Compressor Performance Recovery Wash per AMM 71-00-00. Ground run test SAT. ITT dropped by 7 deg C.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
             {"AML No": "OAM-2026-026", "Date": "2026-05-26", "Registration": "PK-OAM", "ATA": 77, "ATA_Desc": "77 - Engine Indicating", "Note / Report": "ITT cockpit gauge flickered and showed momentary high spike during climb.", "Corrective Action": "Checked ITT wiring harness and thermocouple terminal connections. Found loose ground wire. Re-torqued and tested SAT.", "Position": "RH", "P/N Off": "3021100", "P/N On": "3021100", "S/N Off": "TH-991", "S/N On": "TH-992"},
@@ -582,7 +614,7 @@ def validate_columns(df: pd.DataFrame):
 
 # ======================================================================================
 # 6. AUTOMATED DATA QUALITY AUDIT MODULE
-
+# ======================================================================================
 def run_data_quality_audit(df: pd.DataFrame) -> list:
     alerts = []
     if not df.empty:
