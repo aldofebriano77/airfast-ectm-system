@@ -53,7 +53,7 @@ sticky_header_html = """
 <div class="sticky-header-box">
     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div>
-            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">ECTM Fleet Diagnostics Matrix</h1>
+            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">Engine Condition Trend Monitoring Dashboard</h1>
             <p style="margin: 2px 0 0 0; padding: 0; font-size: 0.85rem; font-weight: 600; color: #475569;">PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>
         </div>
         <div style="text-align: right;">
@@ -1414,8 +1414,8 @@ if run_watchdog_now:
 # 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
 # ======================================================================================
 if menu_selection == "Home (Fleet Matrix)":
-    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Engine Condition Trend Monitoring Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color:#475569; font-size:1.05rem; font-weight:500; margin-top:0px;'>Technical Services & Fleet Maintenance | DHC-6 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Fleet Matrix</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#475569; font-size:1.05rem; font-weight:500; margin-top:0px;'>DHC-6-400 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if not st.session_state.get("util_is_real", False):
