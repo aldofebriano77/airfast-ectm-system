@@ -286,11 +286,26 @@ st.markdown(
 
     .fim-ref { display: inline-block; background: #F1F5F9; color: #334155; border-radius: 4px; padding: 2px 8px; font-size: 0.72rem; font-weight: 700; margin-left: 6px; }
     
-    div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) {
-        position: sticky !important; top: 0 !important; z-index: 9999 !important;
-        background: rgba(248, 250, 252, 0.85) !important; backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important; border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
-        padding-top: 10px !important; padding-bottom: 8px !important; margin-bottom: 6px !important;
+    div[data-testid="stElementContainer"]:has(.sticky-header-box),
+    div.element-container:has(.sticky-header-box) {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 9999 !important;
+        background: rgba(248, 250, 252, 0.88) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.9) !important;
+        padding-top: 15px !important;
+        /* [REVISI 1] Padding bawah dinaikkan dari 8px ke 16px agar teks 'y', 'g', 'p' tidak kepotong garis */
+        padding-bottom: 16px !important;
+        /* [REVISI 2] Margin bawah di-nol-kan agar jarak ke judul section di bawahnya tidak terlalu jauh */
+        margin-bottom: 0px !important;
+    }
+    
+    /* Mengatur jarak judul section ('Fleet Matrix') agar pas dan rapi di bawah sticky header */
+    .main .block-container > div:nth-child(2) h1,
+    .main .block-container > div:nth-child(3) h1 {
+        margin-top: 0.5rem !important;
     }
     
     hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 16px 0 !important; }
