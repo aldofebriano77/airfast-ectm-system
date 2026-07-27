@@ -1926,6 +1926,10 @@ elif menu_selection == "Logbook & Defect Correlator":
             for aml_val, grp in df_e_sync.groupby("AML No"):
                 dt_val = grp["Date"].max()
                 
+                # [BULLETPROOF FIX] Paksa parsing ke datetime agar aman dari error strftime
+                dt_parsed = pd.to_datetime(dt_val, errors="coerce")
+                dt_str = dt_parsed.strftime("%Y-%m-%d") if pd.notnull(dt_parsed) else "N/A"
+                
                 # Tarik data telemetri LH & RH
                 lh_row = grp[grp["Engine"].astype(str).str.contains("LH")]
                 rh_row = grp[grp["Engine"].astype(str).str.contains("RH")]
@@ -1933,10 +1937,6 @@ elif menu_selection == "Logbook & Defect Correlator":
                 rh_t5 = f"{rh_row['Delta_T5'].values[0]:+.1f}°C" if not rh_row.empty and "Delta_T5" in rh_row.columns else "N/A"
                 
                 # Tarik data jam terbang dari file Utilization
-                # [BUG FIX] Added a Registration filter alongside AML No -
-                # defense in depth in case two aircraft ever share the same
-                # AML No in real uploaded data (not just the fallback path
-                # fixed above), so the correlator can't cross-link them.
                 u_match = df_util_current[
                     (df_util_current["AML No"] == aml_val) &
                     (df_util_current.get("Registration", sel_reg) == sel_reg)
@@ -1952,7 +1952,7 @@ elif menu_selection == "Logbook & Defect Correlator":
                 
                 sync_rows.append({
                     "AML No (Key)": aml_val,
-                    "Flight Date": dt_val.strftime("%Y-%m-%d") if pd.notnull(dt_val) else "N/A",
+                    "Flight Date": dt_str,
                     "Airframe Util": fh_val,
                     "#1 LH ΔT5": lh_t5,
                     "#2 RH ΔT5": rh_t5,
