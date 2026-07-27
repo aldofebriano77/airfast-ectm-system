@@ -969,10 +969,6 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
             line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip", showlegend=True, name="2.5σ Adaptive Noise Band"
         ))
 
-    # [BUG FIX] This used to always plot against T5/T5_BORESCOPE_C even when
-    # Ng was the closer (limiting) threshold driving status["rul_cycles"] -
-    # the line then didn't match the number shown in its own annotation.
-    # Now it plots and labels whichever parameter is actually limiting.
     if status and status.get("rul_cycles", 999) < 100:
         latest_date = df_engine["Date"].max()
         proj_date = pd.to_datetime(status["proj_date"], errors="coerce")
@@ -1001,13 +997,15 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#B42318", line_width=1, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#B42318"))
 
+    # [KUNCI STATIS] dragmode=False & fixedrange=True mencegah ketidaksengajaan zoom/pan
     fig.update_layout(
         title=dict(text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", font=dict(color=NAVY, size=14)),
         xaxis_title="Flight Date / Cycle", yaxis_title="Residual Delta from Baseline", hovermode="x unified", template="plotly_white", height=480,
         legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11)), 
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=70, b=80),
-        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569")), 
-        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"))
+        dragmode=False,
+        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569"), fixedrange=True), 
+        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"), fixedrange=True)
     )
     return fig
 
@@ -1015,12 +1013,16 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[param], mode="lines+markers", name=f"Actual {param}", line=dict(color=color, width=1.8), marker=dict(size=4)))
     fig.add_trace(go.Scatter(x=df_engine["Date"], y=df_engine[f"{param}_pred"], mode="lines", name="Predicted Baseline", line=dict(color="#64748B", width=1.5, dash="dash")))
+    
+    # [KUNCI STATIS] dragmode=False & fixedrange=True
     fig.update_layout(
         title=dict(text=f"<b>{param} | Actual vs. Condition Baseline ({unit})</b>", font=dict(color=NAVY, size=12)), 
         template="plotly_white", height=320, hovermode="x unified",
         legend=dict(orientation="h", yanchor="top", y=-0.3, xanchor="center", x=0.5, font=dict(size=10)), 
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=60, b=80),
-        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)), yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
+        dragmode=False,
+        xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True), 
+        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True)
     )
     return fig
 
@@ -1507,9 +1509,12 @@ if menu_selection == "Home (Fleet Matrix)":
             hovermode="x unified",
             margin=dict(l=20, r=20, t=50, b=20),
             plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)'
+            paper_bgcolor='rgba(0,0,0,0)',
+            dragmode=False
         )
-        fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)')
+        # [KUNCI STATIS] Mencegah zoom pada grafik batang utilization
+        fig_util.update_xaxes(fixedrange=True)
+        fig_util.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(128,128,128,0.15)', fixedrange=True)
 
         st.plotly_chart(fig_util, use_container_width=True)
 
@@ -1730,8 +1735,9 @@ elif menu_selection == "Trend Analysis & RUL":
                 xaxis_title="Flight Date / Cycle", yaxis_title="Altitude [Feet]", hovermode="x unified",
                 template="plotly_white", height=260, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)",
                 margin=dict(l=40, r=20, t=40, b=40),
-                xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10)),
-                yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10))
+                dragmode=False,
+                xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True),
+                yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True)
             )
             st.plotly_chart(fig_alt, use_container_width=True)
 
@@ -1825,7 +1831,6 @@ elif menu_selection == "Logbook & Defect Correlator":
         df_filtered = df_filtered[df_filtered['ATA_Desc'] == sel_ata]
 
     # [PATCH #12] Specific Exact Word Search menggunakan Regex Word Boundary (\b)
-    # Contoh: Mencari kata "wash" tidak akan lagi menarik kata "washer" atau "washed"
     if search_kw:
         kw_clean = re.escape(search_kw.strip())
         kw_regex = r'\b' + kw_clean + r'\b'
@@ -1836,6 +1841,16 @@ elif menu_selection == "Logbook & Defect Correlator":
 
     st.markdown(f"**Found {len(df_filtered)} logged defect report(s) matching criteria for {sel_reg}:**")
     
+    # [FITUR HIGHLIGHT] Fungsi untuk memberikan warna latar Gold/Navy pada kata yang dicari
+    def highlight_text(text, kw):
+        if not isinstance(text, str) or not text:
+            return "No description."
+        if not kw:
+            return text
+        kw_clean = re.escape(kw.strip())
+        hl_style = 'background-color: #f0b73d; color: #003B6F; font-weight: 800; padding: 1px 6px; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'
+        return re.sub(r'\b(' + kw_clean + r')\b', r'<mark style="' + hl_style + r'">\1</mark>', text, flags=re.IGNORECASE)
+
     if df_filtered.empty:
         st.info("No PIREP / MAREP reports found matching the selected filter criteria.")
     else:
@@ -1846,8 +1861,12 @@ elif menu_selection == "Logbook & Defect Correlator":
                 c_head2.markdown(f"**Date:** `{row['Date'].strftime('%Y-%m-%d') if pd.notnull(row['Date']) else 'N/A'}`")
                 c_head3.markdown(f"**Position:** `{row.get('Position', 'General')}`")
                 
-                st.markdown(f"**Defect Reported (PIREP/MAREP):**\n> {row.get('Note / Report', 'No description.')}")
-                st.markdown(f"**Corrective Action Taken:**\n> {row.get('Corrective Action', 'Pending action.')}")
+                note_text = highlight_text(str(row.get('Note / Report', 'No description.')), search_kw)
+                action_text = highlight_text(str(row.get('Corrective Action', 'Pending action.')), search_kw)
+                
+                # Mengganti blockquote biasa dengan kotak div bergaris pinggir agar highlight HTML tampil sempurna
+                st.markdown(f"**Defect Reported (PIREP/MAREP):**<br><div style='background:#F8FAFC; border-left:3px solid #CBD5E1; padding:8px 12px; margin:4px 0 8px 0; border-radius:0 4px 4px 0; font-size:0.9rem; line-height:1.5;'>{note_text}</div>", unsafe_allow_html=True)
+                st.markdown(f"**Corrective Action Taken:**<br><div style='background:#F8FAFC; border-left:3px solid #003B6F; padding:8px 12px; margin:4px 0 8px 0; border-radius:0 4px 4px 0; font-size:0.9rem; line-height:1.5;'>{action_text}</div>", unsafe_allow_html=True)
                 
                 pn_off, pn_on = row.get('P/N Off'), row.get('P/N On')
                 if pd.notnull(pn_off) or pd.notnull(pn_on):
