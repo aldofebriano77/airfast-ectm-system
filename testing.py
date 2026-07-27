@@ -1308,7 +1308,14 @@ run_watchdog_now = st.sidebar.button("Run Fleet Health Scan Now", key="btn_run_w
 
 st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
 st.sidebar.markdown("---")
-st.sidebar.markdown("<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'><b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br><span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span></div>", unsafe_allow_html=True)
+st.sidebar.markdown("""
+<div style='font-size:0.75rem; line-height:1.5; color:#94A3B8; font-weight:400;'>
+    <b style='color:#FFFFFF; font-weight:600;'>PT. AIRFAST Indonesia</b><br>
+    Jl. Marsekal Suryadarma No.8<br>Neglasari, Tangerang, Banten 15129<br>
+    <span style='font-size:0.7rem; color:#64748B;'>Technical Service Division</span><br>
+    <span style='font-size:0.72rem; color:#f0b73d; font-weight:700; letter-spacing:0.05em;'>SYSTEM RELEASE v2.0 (2ND EDITION)</span>
+</div>
+""", unsafe_allow_html=True)
 
 # ======================================================================================
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
