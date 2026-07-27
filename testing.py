@@ -385,10 +385,12 @@ if not st.session_state.get("logged_in", False):
             else:
                 st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-            st.markdown("<hr style='margin: -25px 0px 15px 0px;'>", unsafe_allow_html=True)
+            # [PERBAIKAN SPACING] Margin ditarik naik (-15px) agar jarak bawah logo seimbang dengan jarak atasnya
+            st.markdown("<hr style='margin: -15px 0px 16px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-5px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
 
-            with st.form("fullscreen_login_form", clear_on_submit=False):
+            # [border=False] Menghilangkan kotak ganda agar form menyatu rapi dengan kontainer luar
+            with st.form("fullscreen_login_form", clear_on_submit=False, border=False):
                 input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
                 input_password = st.text_input("Password", type="password", placeholder="••••••••")
 
@@ -418,7 +420,7 @@ if not st.session_state.get("logged_in", False):
                     st.session_state["user_role"] = "Guest / Viewer"
                     st.rerun()
             
-            st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 10px 0px 10px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
             st.caption("**Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
                        "for a production authentication/audit system. Do not reuse real corporate credentials here.")
             
