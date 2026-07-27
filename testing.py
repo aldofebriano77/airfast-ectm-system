@@ -392,13 +392,45 @@ if not st.session_state.get("logged_in", False):
 # ======================================================================================
 # 5. DATA NORMALIZATION & INGESTION MODULE
 # ======================================================================================
+def safe_parse_dates(series: pd.Series) -> pd.Series:
+    """[BUG FIX] pd.to_datetime(series, format="mixed", dayfirst=True) also
+    applies the day-first swap to already-unambiguous ISO strings
+    ("YYYY-MM-DD"), silently turning e.g. "2026-03-07" (7 March) into
+    "2026-07-03" (3 July) whenever the day-of-month is <= 12. This is a
+    documented pandas quirk with format="mixed" + dayfirst - it does not
+    just handle genuinely ambiguous slash/dot-separated dates, it can
+    reinterpret ISO strings too. Because the manual-entry forms in this app
+    generate ISO-format timestamps via pd.to_datetime(), and Excel/CSV
+    round-trips commonly preserve that format, this corrupted chronological
+    order silently - which then feeds straight into baseline selection,
+    regression fitting, slope/RUL calculation, and sort order everywhere.
+    Fix: parse strict ISO format first (unambiguous, no dayfirst needed),
+    and only fall back to dayfirst-aware "mixed" parsing for whatever the
+    strict pass could not resolve (genuinely ambiguous local exports, e.g.
+    "05/01/2026" from an Indonesian-locale spreadsheet).
+
+    NOTE: this must stay defined here, BEFORE process_maintenance_reports()
+    below and before init_all_datasets() further down - that function is
+    called unconditionally at module top-level (not deferred inside a
+    button/callback), so Python must have already executed this def
+    statement by the time it runs, or it raises NameError."""
+    iso_date_only = pd.to_datetime(series, format="%Y-%m-%d", errors="coerce")
+    iso_with_time = pd.to_datetime(series, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+    parsed = iso_date_only.fillna(iso_with_time)
+
+    remaining_mask = parsed.isna()
+    if remaining_mask.any():
+        fallback = pd.to_datetime(series[remaining_mask], format="mixed", dayfirst=True, errors="coerce")
+        parsed = parsed.mask(remaining_mask, fallback)
+    return parsed
+
 def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
     if df_rep.empty:
         return pd.DataFrame(columns=['AML No', 'Date', 'Registration', 'ATA', 'ATA_Desc', 'Note / Report', 'Corrective Action', 'Position', 'P/N Off', 'P/N On'])
     
     df_rep = df_rep.copy()
     if 'Date' in df_rep.columns:
-        df_rep['Date'] = pd.to_datetime(df_rep['Date'], errors='coerce')
+        df_rep['Date'] = safe_parse_dates(df_rep['Date'])
     if 'Note / Report' in df_rep.columns and 'Date' in df_rep.columns:
         df_rep = df_rep.dropna(subset=['Note / Report', 'Date'])
         
@@ -500,7 +532,7 @@ def init_all_datasets():
         if os.path.exists(util_file):
             try:
                 df_util = pd.read_excel(util_file)
-                df_util['Work (Date)'] = pd.to_datetime(df_util['Work (Date)'], errors='coerce')
+                df_util['Work (Date)'] = safe_parse_dates(df_util['Work (Date)'])
                 df_util = df_util.dropna(subset=['Registration', 'Work (Date)']).sort_values('Work (Date)')
                 util_is_real = not df_util.empty
             except Exception:
@@ -745,6 +777,12 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     rul_t5_borescope = calculate_rul(d_t5, slope_t5, T5_BORESCOPE_C, "UP")
     rul_ng_borescope = calculate_rul(d_ng, slope_ng, NG_BORESCOPE_LOW_PCT, "DOWN")
     rul_cycles = min(rul_t5_borescope, rul_ng_borescope)
+    # [BUG FIX] The RUL Horizon line on the trend chart previously always
+    # plotted against T5, even when Ng was actually the closer (limiting)
+    # threshold - the visual would then not match why that RUL number was
+    # computed. Track which parameter actually drives the number so the
+    # chart/labels can attribute it correctly.
+    rul_limiting_param = "Ng" if rul_ng_borescope < rul_t5_borescope else "T5"
 
     accel_window = min(TREND_WINDOW * 2, len(df_engine))
     accel_t5 = detect_trend_acceleration(df_engine["Delta_T5"], accel_window)
@@ -774,7 +812,7 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         control_breach=control_breach, is_abnormal=is_abnormal,
         health_level=health_level, status_label=status_label,
         slope_t5=slope_t5, slope_ng=slope_ng,
-        rul_cycles=rul_cycles, proj_date=proj_date, fc_per_day=fc_per_day,
+        rul_cycles=rul_cycles, rul_limiting_param=rul_limiting_param, proj_date=proj_date, fc_per_day=fc_per_day,
         rul_confidence=rul_confidence, rul_is_linear_caution=rul_is_linear_caution,
         reg_prefix=reg_prefix
     )
@@ -923,20 +961,33 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
             line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip", showlegend=True, name="2.5σ Adaptive Noise Band"
         ))
 
-    # [TIER 1 UPGRADE] Visual RUL Horizon Extrapolation Line & Marker
+    # [BUG FIX] This used to always plot against T5/T5_BORESCOPE_C even when
+    # Ng was the closer (limiting) threshold driving status["rul_cycles"] -
+    # the line then didn't match the number shown in its own annotation.
+    # Now it plots and labels whichever parameter is actually limiting.
     if status and status.get("rul_cycles", 999) < 100:
         latest_date = df_engine["Date"].max()
         proj_date = pd.to_datetime(status["proj_date"], errors="coerce")
+        limiting = status.get("rul_limiting_param", "T5")
+        if limiting == "Ng":
+            horizon_y = [status["d_ng"], NG_BORESCOPE_LOW_PCT]
+            horizon_label = "Est. Ng Borescope Horizon"
+            horizon_color = "#003B6F"
+        else:
+            horizon_y = [status["d_t5"], T5_BORESCOPE_C]
+            horizon_label = "Est. T5 Borescope Horizon"
+            horizon_color = "#B42318"
+
         if pd.notnull(proj_date) and proj_date > latest_date:
             fig.add_trace(go.Scatter(
-                x=[latest_date, proj_date], y=[status["d_t5"], T5_BORESCOPE_C],
-                mode="lines", name="Est. T5 Borescope Horizon",
-                line=dict(color="#B42318", width=2, dash="dashdot"), showlegend=True
+                x=[latest_date, proj_date], y=horizon_y,
+                mode="lines", name=horizon_label,
+                line=dict(color=horizon_color, width=2, dash="dashdot"), showlegend=True
             ))
             fig.add_vline(
-                x=proj_date, line_dash="dash", line_color="#B42318", line_width=1.5,
-                annotation_text=f"<b>RUL BREACH HORIZON</b><br>{status['rul_cycles']} Cyc ({status['proj_date']})",
-                annotation_font=dict(size=10, color="#B42318"), annotation_position="top left"
+                x=proj_date, line_dash="dash", line_color=horizon_color, line_width=1.5,
+                annotation_text=f"<b>RUL BREACH HORIZON ({limiting})</b><br>{status['rul_cycles']} Cyc ({status['proj_date']})",
+                annotation_font=dict(size=10, color=horizon_color), annotation_position="top left"
             )
 
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
@@ -1207,7 +1258,10 @@ for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.co
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
 # [REVISI ROBUSTNESS] Konversi tanggal fleksibel dengan mode dayfirst auto-detect
-df_raw["Date"] = pd.to_datetime(df_raw["Date"], format="mixed", dayfirst=True, errors="coerce")
+# [BUG FIX] Was pd.to_datetime(..., format="mixed", dayfirst=True) directly,
+# which silently swaps day/month on unambiguous ISO dates - see
+# safe_parse_dates() docstring above for details and the reproduction case.
+df_raw["Date"] = safe_parse_dates(df_raw["Date"])
 
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
@@ -1522,7 +1576,7 @@ elif menu_selection == "Data Collection & Setup":
         up_util = st.file_uploader("Upload Utilization File (.xlsx)", type=["xlsx"], key="up_util_file")
         if up_util is not None:
             df_u_new = pd.read_excel(up_util)
-            df_u_new['Work (Date)'] = pd.to_datetime(df_u_new['Work (Date)'], errors='coerce')
+            df_u_new['Work (Date)'] = safe_parse_dates(df_u_new['Work (Date)'])
             st.session_state["df_util"] = df_u_new.dropna(subset=['Registration', 'Work (Date)'])
             st.session_state["util_is_real"] = not st.session_state["df_util"].empty
             st.success("Flight Utilization dataset synchronized!")
@@ -1759,7 +1813,7 @@ elif menu_selection == "Recommendations & Notice Transmittal":
         <div class="rec-card-box {card_cls}">
             <div class="rec-header">
                 <span class="rec-title">{rec['title']}</span>
-                <span class="{badge_cls}">{rec['priority']}</span>
+                <span class="{badge_cls}">{rec.get('priority', 'ROUTINE')}</span>
             </div>
             <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem; background:#F8FAFC; padding:8px 12px; border-radius:4px; border:1px solid #F1F5F9;">
                 <div><span style="color:#64748B; font-weight:600;">Thermodynamic Signature:</span> <b>{rec.get('signature', 'N/A')}</b></div>
