@@ -369,33 +369,82 @@ if not st.session_state.get("logged_in", False):
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
             [data-testid="stHeader"] { display: none !important; }
+            
+            /* [UI/UX UPGRADE] Menghilangkan border default st.form agar tidak ada kotak ganda */
+            div[data-testid="stForm"] {
+                border: none !important;
+                padding: 0px !important;
+            }
+            
+            /* Memberikan bayangan halus, sudut 16px, dan aksen top-gradient navy/gold pada kartu login */
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.login-portal-marker) > div {
+                border-radius: 16px !important;
+                border: 1px solid #CBD5E1 !important;
+                box-shadow: 0 10px 30px -5px rgba(0, 40, 77, 0.08), 0 0 5px 1px rgba(0, 40, 77, 0.03) !important;
+                background: #FFFFFF !important;
+                position: relative;
+                overflow: hidden;
+                padding: 28px 32px !important;
+            }
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.login-portal-marker) > div::before {
+                content: ""; position: absolute; top: 0; left: 0; right: 0; height: 5px;
+                background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%);
+            }
+            
+            /* Presisi jarak pembatas bawah logo agar pas dan tidak terlalu mepet atau longgar */
+            .login-divider {
+                height: 1px;
+                background-color: #E2E8F0;
+                margin: 12px 0px 18px 0px;
+            }
         </style>
     """, unsafe_allow_html=True)
     
-    st.markdown("<br>" * 2, unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 1.35, 1])
     
     with col_l2:
         with st.container(border=True):
+            # Penanda gaib untuk target CSS styling kartu login di atas
+            st.markdown("<div class='login-portal-marker'></div>", unsafe_allow_html=True)
+            
+            # Badge kapsul penanda keamanan sistem
+            st.markdown("""
+            <div style="text-align:center; margin-bottom: 12px;">
+                <span style="background:rgba(0, 59, 111, 0.06); color:#003B6F; font-size:0.7rem; font-weight:800; padding:5px 14px; border-radius:20px; border:1px solid rgba(0, 59, 111, 0.15); letter-spacing:0.08em;">
+                    SECURE AIRWORTHINESS PORTAL
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+            
             logo_path = "images.png"  
             if os.path.exists(logo_path):
-                col_logo1, col_logo2, col_logo3 = st.columns([1, 1.8, 1])
+                col_logo1, col_logo2, col_logo3 = st.columns([1, 1.6, 1])
                 with col_logo2:
                     st.image(logo_path, use_container_width=True)
             else:
-                st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+                st.markdown("<h2 style='text-align:center; color:#003B6F; margin-top:5px; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-            st.markdown("<hr style='margin: -25px 0px 15px 0px;'>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-5px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            # Garis pembatas proporsional dan deskripsi sistem
+            st.markdown("""
+            <div class="login-divider"></div>
+            <div style="text-align:center; margin-bottom:22px;">
+                <h3 style="color:#00284D; font-size:1.15rem; font-weight:800; margin-bottom:4px;">Engine Condition Trend Monitoring</h3>
+                <p style="color:#64748B; font-size:0.85rem; font-weight:500; margin:0; line-height:1.4;">
+                    Please authenticate with authorized engineering credentials to access airworthiness telemetry and maintenance logbooks.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
 
-            with st.form("fullscreen_login_form", clear_on_submit=False):
+            # [border=False] Kunci utama menghilangkan kotak ganda di form login
+            with st.form("fullscreen_login_form", clear_on_submit=False, border=False):
                 input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
                 input_password = st.text_input("Password", type="password", placeholder="••••••••")
 
                 st.write("")
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
-                    btn_login = st.form_submit_button("Login", type="primary", use_container_width=True)
+                    btn_login = st.form_submit_button("Login to Portal", type="primary", use_container_width=True)
                 with c_btn2:
                     btn_guest = st.form_submit_button("Continue as Guest", use_container_width=True)
                     
@@ -409,7 +458,7 @@ if not st.session_state.get("logged_in", False):
                         st.success("Authorization successful! Redirecting to dashboard...")
                         st.rerun()
                     else:
-                        st.error("Invalid email or password.")
+                        st.error("Invalid corporate email or password.")
                         
                 if btn_guest:
                     st.session_state["logged_in"] = True
@@ -418,9 +467,14 @@ if not st.session_state.get("logged_in", False):
                     st.session_state["user_role"] = "Guest / Viewer"
                     st.rerun()
             
-            st.markdown("<hr style='margin: 15px 0px 10px 0px;'>", unsafe_allow_html=True)
-            st.caption("**Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
-                       "for a production authentication/audit system. Do not reuse real corporate credentials here.")
+            # Access Notice diubah menjadi kotak callout terstruktur yang rapi
+            st.markdown("""
+            <div style="background:#F8FAFC; border-left:3px solid #64748B; padding:10px 14px; border-radius:6px; margin-top:14px; border: 1px solid #F1F5F9; border-left-width:3px;">
+                <p style="color:#64748B; font-size:0.75rem; line-height:1.4; margin:0;">
+                    <b style="color:#334155;">Access Notice:</b> This is an internal access gate for the ECTM prototype, not a substitute for a production authentication/audit system. Do not reuse real corporate credentials here.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
             
     st.stop()
 
