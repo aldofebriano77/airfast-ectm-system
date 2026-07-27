@@ -1119,40 +1119,43 @@ def generate_ewo_html(engine_id, status_label, status, recommendations):
 def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     if not HAS_FPDF: return b""
     
-    # [UNIVERSAL UNICODE SANITIZER] Pengaman mutlak agar FPDF tidak pernah crash kena simbol aneh
+    # [UNIVERSAL UNICODE SANITIZER] Pengaman mutlak karakter non-ASCII
     def clean_text(txt):
         if not isinstance(txt, str): return str(txt)
-        # 1. Ganti simbol aviasi/matematika yang umum menjadi teks ASCII standar
         txt = txt.replace("Δ", "Delta ").replace("°C", "deg C").replace("°", "deg ").replace("**", "").replace("▪", "- ")
-        # 2. Paksa konversi ke latin-1 (standar FPDF Arial) & ganti karakter asing lain dengan "?" agar tidak pernah error lagi
         return txt.encode("latin-1", errors="replace").decode("latin-1")
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, clean_text("ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA"), ln=True, align="C")
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 8, clean_text(f"Powerplant: {engine_id} | Status: {status_label}"), ln=True)
-    pdf.cell(0, 8, clean_text(f"Residuals: Delta T5: {status['d_t5']:+.1f} C | Delta Ng: {status['d_ng']:+.2f} %"), ln=True)
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, clean_text("MAINTENANCE DIRECTIVES:"), ln=True)
-    pdf.set_font("Arial", "", 9)
+    
+    # Lebar cetak efektif (Effective Printable Width) universal untuk semua versi FPDF/FPDF2
+    epw = pdf.w - pdf.l_margin - pdf.r_margin
+    
+    # Helper function agar posisi X selalu di-reset ke margin kiri dan lebar konsisten
+    def write_line(h, text, style="", size=10, align="L"):
+        pdf.set_font("Arial", style, size)
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(epw, h, clean_text(str(text)), align=align)
+
+    write_line(10, "ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA", style="B", size=14, align="C")
+    write_line(7, f"Powerplant: {engine_id} | Status: {status_label}", size=10)
+    write_line(7, f"Residuals: Delta T5: {status['d_t5']:+.1f} C | Delta Ng: {status['d_ng']:+.2f} %", size=10)
+    pdf.ln(4)
+    
+    write_line(8, "MAINTENANCE DIRECTIVES:", style="B", size=11)
     
     for r in recommendations:
-        pdf.set_font("Arial", "B", 10)
-        pdf.multi_cell(0, 6, clean_text(f"[{r['fim_ref']}] {r['title']}"))
-        pdf.set_font("Arial", "I", 9)
+        pdf.ln(2)
+        write_line(6, f"[{r['fim_ref']}] {r['title']}", style="B", size=10)
         
-        # [PATCH ANTI-CRASH] Semua variabel dinamik kini dilapisi fungsi clean_text()
-        sig_clean = clean_text(str(r.get('signature', 'N/A')))
-        prio_clean = clean_text(str(r.get('priority', 'ROUTINE')))
-        down_clean = clean_text(str(r.get('downtime', 'N/A')))
-        pdf.multi_cell(0, 5, f"Priority: {prio_clean} | Downtime: {down_clean}\nSignature: {sig_clean}")
+        meta_text = (
+            f"Priority: {r.get('priority', 'ROUTINE')} | Downtime: {r.get('downtime', 'N/A')}\n"
+            f"Signature: {r.get('signature', 'N/A')}"
+        )
+        write_line(5, meta_text, style="I", size=9)
         
-        pdf.set_font("Arial", "", 9)
-        body_clean = clean_text(str(r.get('body', '')))
-        pdf.multi_cell(0, 5, f"{body_clean}\n\n")
+        body_text = f"{r.get('body', '')}\n"
+        write_line(5, body_text, style="", size=9)
     
     try:
         out = pdf.output(dest="S")
