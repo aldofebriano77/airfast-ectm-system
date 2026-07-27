@@ -1420,8 +1420,7 @@ if menu_selection == "Home (Fleet Matrix)":
 
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
     
-    # [FALLBACK BLUEPRINT] Ilustrasi cadangan jika file foto .jpg/.png belum ditaruh di folder
-    dhc6_svg_blueprint = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="75" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 4px; margin-bottom: 10px;">
+    dhc6_svg_blueprint = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="110" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 4px; margin-bottom: 10px;">
 <g stroke="#E2E8F0" stroke-width="0.6"><line x1="0" y1="20" x2="320" y2="20"/><line x1="0" y1="40" x2="320" y2="40"/><line x1="0" y1="60" x2="320" y2="60"/><line x1="80" y1="0" x2="80" y2="80"/><line x1="160" y1="0" x2="160" y2="80"/><line x1="240" y1="0" x2="240" y2="80"/></g>
 <g fill="#003B6F"><path d="M 40 45 L 60 42 C 80 40, 120 40, 180 40 L 250 38 L 285 22 L 295 22 L 285 42 C 295 44, 298 47, 290 51 L 250 51 L 180 50 L 80 50 C 60 50, 45 49, 40 45 Z"/><path d="M 110 37 L 140 37 L 155 48 L 105 48 Z" fill="#00284D"/><ellipse cx="98" cy="43" rx="3" ry="12" fill="#f0b73d" opacity="0.9"/><line x1="98" y1="28" x2="98" y2="58" stroke="#f0b73d" stroke-width="1.5" stroke-dasharray="2,2"/><path d="M 255 38 L 280 12 L 292 12 L 285 38 Z" fill="#00284D"/></g>
 <text x="12" y="18" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" font-weight="800" fill="#003B6F" letter-spacing="1.5">DHC-6 TWIN OTTER</text>
@@ -1441,9 +1440,6 @@ if menu_selection == "Home (Fleet Matrix)":
                 if st_val == "ADVISORY": return "hm-amber"
                 return "hm-green"
 
-            # [PATCH #18] Deteksi foto otomatis (.jpg / .jpeg / .png)
-            # Prioritas 1: Foto spesifik per registrasi (misal: PK-OAM.jpg atau pk-oam.png)
-            # Prioritas 2: Foto umum armada (misal: dhc6.jpg atau dhc6.png)
             img_candidates = [
                 f"{reg}.jpg", f"{reg.lower()}.jpg",
                 f"{reg}.jpeg", f"{reg.lower()}.jpeg",
@@ -1462,11 +1458,12 @@ if menu_selection == "Home (Fleet Matrix)":
                     b64_str = base64.b64encode(f_img.read()).decode()
                 ext = found_img_path.split(".")[-1].lower()
                 mime_type = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
-                visual_html = f'<div style="text-align:center; margin-bottom:10px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:4px; height:85px; display:flex; align-items:center; justify-content:center; overflow:hidden;"><img src="data:{mime_type};base64,{b64_str}" style="max-height:100%; max-width:100%; object-fit:contain; border-radius:4px;"></div>'
+                # [PERBAIKAN CSS GAMBAR] width: 100%, height: 110px, object-fit: cover agar pas memenuhi kotak tanpa peyang
+                visual_html = f'<div style="margin-bottom:10px; border:1px solid #CBD5E1; border-radius:6px; overflow:hidden; width:100%; height:110px; background:#F8FAFC;"><img src="data:{mime_type};base64,{b64_str}" style="width:100%; height:100%; object-fit:cover; object-position:center; display:block;"></div>'
             else:
                 visual_html = dhc6_svg_blueprint
                 
-            # [PENTING: SEMUA BARIS DI SINI DIGENJOT KE KIRI AGAR TIDAK BOCOR JADI CODE BLOCK]
+            # [EMOTIKON DIHAPUS] Kata "#1 LH Powerplant" dan "#2 RH Powerplant" kini bersih dari ikon non-formal
             card_html = f"""<div class="heatmap-card" style="box-shadow: 0 2px 4px rgba(0,0,0,0.03); transition: all 0.2s ease;">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
 <span class="heatmap-reg" style="margin-bottom:0px; font-size:1.15rem;">{reg}</span>
@@ -1474,10 +1471,10 @@ if menu_selection == "Home (Fleet Matrix)":
 </div>
 {visual_html}
 <div class="heatmap-row {get_hm_class(lh_stat)}">
-<span>✈️ #1 LH Powerplant</span><b>{lh_stat}</b>
+<span>#1 LH Powerplant</span><b>{lh_stat}</b>
 </div>
 <div class="heatmap-row {get_hm_class(rh_stat)}">
-<span>✈️ #2 RH Powerplant</span><b>{rh_stat}</b>
+<span>#2 RH Powerplant</span><b>{rh_stat}</b>
 </div>
 </div>"""
             st.markdown(card_html, unsafe_allow_html=True)
