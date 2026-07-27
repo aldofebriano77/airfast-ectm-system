@@ -1419,6 +1419,28 @@ if menu_selection == "Home (Fleet Matrix)":
             aircraft_map[reg_id][pos] = stat_lbl
 
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
+    
+    # [PATCH #18] Siluet Blueprint SVG DHC-6 Twin Otter yang elegan & bebas error (tanpa file eksternal)
+    # Menjamin tampilan profesional di komputer mentor tanpa risiko broken image icon
+    dhc6_svg_blueprint = """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="70" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 6px; margin-bottom: 10px;">
+        <g stroke="#E2E8F0" stroke-width="0.6">
+            <line x1="0" y1="20" x2="320" y2="20"/><line x1="0" y1="40" x2="320" y2="40"/><line x1="0" y1="60" x2="320" y2="60"/>
+            <line x1="80" y1="0" x2="80" y2="80"/><line x1="160" y1="0" x2="160" y2="80"/><line x1="240" y1="0" x2="240" y2="80"/>
+        </g>
+        <g fill="#003B6F">
+            <path d="M 40 45 L 60 42 C 80 40, 120 40, 180 40 L 250 38 L 285 22 L 295 22 L 285 42 C 295 44, 298 47, 290 51 L 250 51 L 180 50 L 80 50 C 60 50, 45 49, 40 45 Z"/>
+            <path d="M 110 37 L 140 37 L 155 48 L 105 48 Z" fill="#00284D"/>
+            <ellipse cx="98" cy="43" rx="3" ry="12" fill="#f0b73d" opacity="0.9"/>
+            <line x1="98" y1="28" x2="98" y2="58" stroke="#f0b73d" stroke-width="1.5" stroke-dasharray="2,2"/>
+            <path d="M 255 38 L 280 12 L 292 12 L 285 38 Z" fill="#00284D"/>
+        </g>
+        <text x="12" y="18" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" font-weight="800" fill="#003B6F" letter-spacing="1.5">DHC-6 TWIN OTTER</text>
+        <text x="12" y="30" font-family="'Plus Jakarta Sans', sans-serif" font-size="7.5" font-weight="600" fill="#64748B">TWIN TURBOPROP | P&amp;WC PT6A-34</text>
+        <circle cx="300" cy="15" r="4" fill="#16A34A"/>
+    </svg>
+    """
+
     hm_cols = st.columns(3)
     col_idx = 0
     for reg, engs in sorted(aircraft_map.items()):
@@ -1430,15 +1452,32 @@ if menu_selection == "Home (Fleet Matrix)":
                 if st_val == "CRITICAL": return "hm-red"
                 if st_val == "ADVISORY": return "hm-amber"
                 return "hm-green"
+
+            # Logika Fallback Pintar: Cari foto spesifik reg (e.g. pk-oam.png), lalu dhc6.png, jika tidak ada baru render siluet vektor
+            img_file = f"{reg.lower()}.png"
+            if not os.path.exists(img_file):
+                img_file = "dhc6.png"
+
+            if os.path.exists(img_file):
+                import base64
+                with open(img_file, "rb") as f_img:
+                    b64_img = base64.b64encode(f_img.read()).decode()
+                visual_html = f'<div style="text-align:center; margin-bottom:10px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:8px; height:70px; display:flex; align-items:center; justify-content:center;"><img src="data:image/png;base64,{b64_img}" style="max-height:60px; max-width:100%; object-fit:contain;"></div>'
+            else:
+                visual_html = dhc6_svg_blueprint
                 
             st.markdown(f"""
-            <div class="heatmap-card">
-                <div class="heatmap-reg">{reg}</div>
+            <div class="heatmap-card" style="box-shadow: 0 2px 4px rgba(0,0,0,0.03); transition: all 0.2s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span class="heatmap-reg" style="margin-bottom:0px; font-size:1.15rem;">{reg}</span>
+                    <span style="background:#EFF4FA; color:#003B6F; font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
+                </div>
+                {visual_html}
                 <div class="heatmap-row {get_hm_class(lh_stat)}">
-                    <span>#1 LH Powerplant</span><b>{lh_stat}</b>
+                    <span>✈️ #1 LH Powerplant</span><b>{lh_stat}</b>
                 </div>
                 <div class="heatmap-row {get_hm_class(rh_stat)}">
-                    <span>#2 RH Powerplant</span><b>{rh_stat}</b>
+                    <span>✈️ #2 RH Powerplant</span><b>{rh_stat}</b>
                 </div>
             </div>
             """, unsafe_allow_html=True)
