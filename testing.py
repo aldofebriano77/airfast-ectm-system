@@ -1,18 +1,14 @@
 """
 ========================================================================================
- ENTERPRISE ENGINE CONDITION & FLEET MAINTENANCE CONTROL SYSTEM (FINAL RELEASE v4)
+ ENTERPRISE ENGINE CONDITION & FLEET MAINTENANCE CONTROL SYSTEM (FINAL RELEASE v4.2)
  PT. AIRFAST INDONESIA | DHC-6 TWIN OTTER / P&WC PT6A-34 FLEET
 ========================================================================================
  Architecture : Standalone Enterprise SaaS (Streamlit / Plotly / Multi-Linear Regression)
  Compliance   : P&WC PT6A-34 Fault Isolation Manual (P/N 3021242, Rev 75.0)
- Enhancements : - [v4] Single Source of Truth (SSOT) via EngineHealth Enum (Anti-Contradiction)
-                - [v4] Clean Tooltip UI (Rounded Residuals & Simplified Hovertemplate)
-                - Automated Data Quality & Outlier Audit (Pre-Flight Ingestion Check)
-                - Adaptive Expanding Statistical Noise Banding (Dynamic Control Limits)
-                - Robust Regex Registration Matching for Defect Correlator
-                - Dual-Protocol SMTP Fallback (SSL Port 465 -> STARTTLS Port 587)
-                - Native Print-Ready PDF Engineering Work Order (EWO) Generator
+ Enhancements : - [v4.0] Single Source of Truth (SSOT) via EngineHealth Enum
                 - [v4.1] Zero-Gap Sticky Header & Standardized Aviation Terminology
+                - [v4.2] Tier 1 UI/UX Upgrade: OCC Fleet Heatmap, Visual RUL Horizon,
+                         and Structured Maintenance Directive Cards.
 ========================================================================================
 """
 
@@ -53,7 +49,6 @@ st.set_page_config(
 # ======================================================================================
 # EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
-
 sticky_header_html = """
 <div class="sticky-header-box">
     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -63,12 +58,10 @@ sticky_header_html = """
         </div>
         <div style="text-align: right;">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="180" height="40">
-              <!-- Ikon Monogram 'A' / Emblem Sayap Kompak -->
               <g transform="translate(0, 2)">
                 <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
                 <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
               </g>
-              <!-- Teks Brand Rapi dan Proporsional -->
               <g transform="translate(52, 28)">
                 <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
                 <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
@@ -116,7 +109,7 @@ SLATE_DARK = "#0F172A"
 SLATE_MUTED = "#64748B"
 
 # ======================================================================================
-# 3. ENTERPRISE AVIATION SAAS STYLING (CUSTOM CSS)
+# 3. ENTERPRISE AVIATION SAAS STYLING (CUSTOM CSS WITH TIER 1 ENHANCEMENTS)
 # ======================================================================================
 st.markdown(
     """
@@ -225,6 +218,27 @@ st.markdown(
 
     .fim-ref { display:inline-block; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1;
                border-radius: 4px; padding: 2px 8px; font-size:0.75rem; font-weight:600; margin-left:6px;}
+               
+    /* [TIER 1 UPGRADE] Structured Heatmap Card & Recommendation Styling */
+    .heatmap-card {
+        background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid #003B6F;
+        border-radius: 6px; padding: 12px; margin-bottom: 12px;
+    }
+    .heatmap-reg { font-size: 1.05rem; font-weight: 800; color: #003B6F; margin-bottom: 8px; }
+    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-size: 0.82rem; font-weight: 600; }
+    .hm-green { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+    .hm-amber { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+    .hm-red { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    
+    .rec-card-box {
+        background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 16px; margin-bottom: 16px;
+    }
+    .rec-card-red { border-left: 6px solid #DC2626; }
+    .rec-card-amber { border-left: 6px solid #D97706; }
+    .rec-card-green { border-left: 6px solid #16A34A; }
+    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px; }
+    .rec-title { font-size: 1.1rem; font-weight: 800; color: #003B6F; }
+    
     div[data-testid="stButton"] > button.red-logout-btn {
         background-color: #DC2626 !important;
         color: #FFFFFF !important;
@@ -765,47 +779,92 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         reg_prefix=reg_prefix
     )
 
+# [TIER 1 UPGRADE] Enhanced Recommendation Output with Structured Fields
 def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     recs = []
+    sig_str = f"ΔT5: {status['d_t5']:+.1f}°C | ΔNg: {status['d_ng']:+.2f}% | ΔWf: {status['d_wf']:+.1f} PPH"
+    
     if status["isolated_t5"] or status["isolated_ng"]:
-        recs.append(dict(level="amber", title="Possible Indicating System Anomaly (Isolated Point Shift)", fim_ref="FIM Table 101, Note 2",
-            body=("The latest observation indicates a rapid single-cycle parameter shift inconsistent with preceding thermodynamic regression trends. "
+        recs.append(dict(
+            level="amber", 
+            title="Possible Indicating System Anomaly (Isolated Point Shift)", 
+            fim_ref="FIM Table 101, Note 2",
+            priority="ROUTINE OBSERVATION",
+            downtime="0 Hours (Deferred Action)",
+            signature="Rapid single-cycle parameter shift inconsistent with thermodynamic regression trends.",
+            body=("The latest observation indicates an isolated single-point deviation. "
                   "Per OEM manual guidance, isolated spikes are predominantly caused by instrumentation calibration drift or electrical transmitter faults.\n\n"
                   "**Line Engineering Directives:**\n1. Verify source flight-log entries to rule out transcription errors.\n"
                   "2. Conduct instrumentation calibration check on T5 / Ng cockpit indicators and engine transmitter units per AMM Ref. 77-00-00.\n"
-                  "3. Defer invasive hardware maintenance; confirm whether shift persists across subsequent operating cycles.")))
+                  "3. Defer invasive hardware maintenance; confirm whether shift persists across subsequent operating cycles.")
+        ))
     if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]:
-        recs.append(dict(level="red", title="Mandatory Hot-Section Borescope Inspection Required", fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+        recs.append(dict(
+            level="red", 
+            title="Mandatory Hot-Section Borescope Inspection Required", 
+            fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+            priority="IMMEDIATE GROUNDING",
+            downtime="Est. 8 - 12 Hours (Invasive Inspection)",
+            signature=f"Critical FIM Breach -> {sig_str}",
             body=(f"Thermodynamic residuals breached critical OEM limits: Delta T5 = **{status['d_t5']:+.1f} °C** (Limit: +15.0 °C) / "
                   f"Delta Ng = **{status['d_ng']:+.2f} %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n"
                   "1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n"
                   "2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n"
                   "3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n"
-                  "4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.")))
+                  "4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.")
+        ))
     elif status["alarm_wash"] or status["sustained_t5"]:
-        recs.append(dict(level="amber", title="Compressor Performance Recovery Wash Recommended", fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+        recs.append(dict(
+            level="amber", 
+            title="Compressor Performance Recovery Wash Recommended", 
+            fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+            priority="NEXT MAINTENANCE WINDOW",
+            downtime="Est. 3 - 4 Hours (Ground Wash & Run)",
+            signature=f"Sustained Upward T5 Degradation -> {sig_str}",
             body=(f"Delta T5 demonstrates a sustained upward degradation trend reaching **{status['d_t5']:+.1f} °C** above installation baseline.\n\n"
                   "**Line Engineering Directives:**\n1. Execute compressor performance recovery wash per AMM Ref. 71-00-00.\n"
                   "2. Perform engine ground test run post-wash to confirm ITT recovery and re-verify baseline calibration.\n"
-                  "3. Inspect fuel nozzle assemblies for spray pattern distortion if fuel flow deviation (ΔWf) is concurrently elevated.")))
+                  "3. Inspect fuel nozzle assemblies for spray pattern distortion if fuel flow deviation (ΔWf) is concurrently elevated.")
+        ))
     t5, ng, wf = status["shift_t5"], status["shift_ng"], status["shift_wf"]
     if t5 == "UP" and ng == "DOWN" and wf == "UP":
-        recs.append(dict(level="amber", title="Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly", fim_ref="FIM Table 101 / Fig. 103",
+        recs.append(dict(
+            level="amber", 
+            title="Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly", 
+            fim_ref="FIM Table 101 / Fig. 103",
+            priority="NEXT MAINTENANCE WINDOW",
+            downtime="Est. 4 - 6 Hours (Valve Check & Wash)",
+            signature="ITT Increase | Ng Decrease | Fuel Flow Increase",
             body=("Thermodynamic Signature: **ITT Increase | Ng Decrease | Fuel Flow Increase**. Consistent with aerodynamic efficiency degradation.\n\n"
                   "**Line Engineering Directives:**\n1. Perform compressor desalination or performance recovery wash.\n"
                   "2. Inspect compressor bleed valve operation and diaphragm integrity (Ref. 75-30-00) to confirm full acoustic closure.\n"
-                  "3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05.")))
+                  "3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05.")
+        ))
     elif t5 == "UP" and ng == "UP" and wf == "UP":
-        recs.append(dict(level="amber", title="Compressor Turbine Nozzle Area Enlargement", fim_ref="FIM Table 101 / Fig. 103 Sheet 1",
+        recs.append(dict(
+            level="amber", 
+            title="Compressor Turbine Nozzle Area Enlargement", 
+            fim_ref="FIM Table 101 / Fig. 103 Sheet 1",
+            priority="PLANNED HSI SCHEDULING",
+            downtime="Est. 1 - 2 Days (Hot Section Access)",
+            signature="ITT Increase | Ng Increase | Fuel Flow Increase",
             body=("Thermodynamic Signature: **ITT Increase | Ng Increase | Fuel Flow Increase**. Consistent with effective nozzle area enlargement.\n\n"
                   "**Line Engineering Directives:**\n1. Schedule Hot Section Inspection (HSI) at next available maintenance window.\n"
                   "2. Inspect Compressor Turbine (CT) stator vanes for trailing-edge erosion, cracking, or bowing.\n"
-                  "3. Verify power turbine vane ring class average specification per AMM Ref. 72-50-03.")))
+                  "3. Verify power turbine vane ring class average specification per AMM Ref. 72-50-03.")
+        ))
     elif t5 == "DOWN" and ng == "DOWN" and wf == "DOWN":
-        recs.append(dict(level="amber", title="Pneumatic Sensing Reference Leak / FCU Calibration Drift", fim_ref="FIM Table 101",
+        recs.append(dict(
+            level="amber", 
+            title="Pneumatic Sensing Reference Leak / FCU Calibration Drift", 
+            fim_ref="FIM Table 101",
+            priority="NEXT MAINTENANCE WINDOW",
+            downtime="Est. 2 - 3 Hours (Line Inspection & Leak Test)",
+            signature="Uniform Downward Shift Across All Parameters",
             body=("Thermodynamic Signature: **Uniform downward shift across all parameters**. Indicates pneumatic sensing line leakage or FCU drift.\n\n"
                   "**Line Engineering Directives:**\n1. Inspect P3 and Py pneumatic sensing lines, fittings, and FCU bellows for leakage.\n"
-                  "2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units.")))
+                  "2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units.")
+        ))
     
     if not recs:
         if status["health_level"] == EngineHealth.ADVISORY:
@@ -813,6 +872,9 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                 level="amber", 
                 title="Advisory Watch | Statistical Baseline Trend Deviation", 
                 fim_ref="FIM Table 101 (Statistical Control)",
+                priority="ROUTINE OBSERVATION",
+                downtime="0 Hours (Operational)",
+                signature=f"2.5-Sigma Noise Band Breach -> {sig_str}",
                 body=("Thermodynamic residuals have exceeded the 2.5-sigma statistical noise band of the installation baseline, "
                       "although absolute values remain within OEM operational safety limits.\n\n"
                       "**Line Engineering Directives:**\n"
@@ -825,15 +887,18 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                 level="green", 
                 title="Optimal Powerplant Condition | No Maintenance Action Required", 
                 fim_ref="Normal Operations",
+                priority="ROUTINE MONITORING",
+                downtime="0 Hours (Optimal)",
+                signature=f"Within Statistical Limits -> {sig_str}",
                 body=("All monitored thermodynamic parameters remain within acceptable OEM operating tolerances. Condition-corrected residuals are stable.\n\n"
                       "**Line Engineering Directives:** Continue routine Engine Performance Logbook recording and periodic trend evaluations.")
             ))
     return recs
 
 # ======================================================================================
-# 10. PLOTLY VISUALIZATION ENGINE (CLEAN HOVERTEMPLATE UI)
+# 10. PLOTLY VISUALIZATION ENGINE (WITH TIER 1 VISUAL RUL HORIZON)
 # ======================================================================================
-def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
+def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = None) -> go.Figure:
     fig = go.Figure()
     
     specs = [("Delta_T5", "\u0394 T5 (ITT) [\u00b0C]", "#B42318"), ("Delta_Ng", "\u0394 Ng [%]", "#003B6F"), ("Delta_Wf", "\u0394 Wf [PPH]", "#B54708")]
@@ -857,6 +922,22 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str) -> go.Figure:
             fill='toself', fillcolor='rgba(0, 59, 111, 0.05)',
             line=dict(color='rgba(255,255,255,0)'), hoverinfo="skip", showlegend=True, name="2.5σ Adaptive Noise Band"
         ))
+
+    # [TIER 1 UPGRADE] Visual RUL Horizon Extrapolation Line & Marker
+    if status and status.get("rul_cycles", 999) < 100:
+        latest_date = df_engine["Date"].max()
+        proj_date = pd.to_datetime(status["proj_date"], errors="coerce")
+        if pd.notnull(proj_date) and proj_date > latest_date:
+            fig.add_trace(go.Scatter(
+                x=[latest_date, proj_date], y=[status["d_t5"], T5_BORESCOPE_C],
+                mode="lines", name="Est. T5 Borescope Horizon",
+                line=dict(color="#B42318", width=2, dash="dashdot"), showlegend=True
+            ))
+            fig.add_vline(
+                x=proj_date, line_dash="dash", line_color="#B42318", line_width=1.5,
+                annotation_text=f"<b>RUL BREACH HORIZON</b><br>{status['rul_cycles']} Cyc ({status['proj_date']})",
+                annotation_font=dict(size=10, color="#B42318"), annotation_position="top left"
+            )
 
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#B42318", line_width=1, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#B42318"))
@@ -1015,9 +1096,6 @@ else:
 
 st.sidebar.markdown("---")
 
-# --------------------------------------------------------------------------------------
-# USER PROFILE CARD (FORMAL - NO EMOJI)
-# --------------------------------------------------------------------------------------
 st.sidebar.markdown(f"""
 <div style="background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); padding: 14px 16px; border-radius: 6px; margin-bottom: 12px;">
     <span style="color: #f0b73d !important; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: block; letter-spacing: 0.05em;">LOGGED IN AS</span>
@@ -1026,9 +1104,6 @@ st.sidebar.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------------------------------------------
-# TOMBOL LOGOUT MERAH (FORMAL - NO EMOJI)
-# --------------------------------------------------------------------------------------
 st.markdown("""
 <style>
     [data-testid="stSidebar"] [data-testid="stButton"] > button,
@@ -1069,9 +1144,6 @@ if st.sidebar.button("Logout Portal", key="btn_logout_sidebar", use_container_wi
 
 st.sidebar.markdown("---")
 
-# --------------------------------------------------------------------------------------
-# DYNAMIC MENU FILTERING ([DEV MODE] FULL ACCESS UNTUK REVIEW MENTOR)
-# --------------------------------------------------------------------------------------
 all_menus = [
     "Home (Fleet Matrix)", 
     "Data Collection & Setup", 
@@ -1210,7 +1282,7 @@ if run_watchdog_now:
             st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed.")
 
 # ======================================================================================
-# 14. PAGE 1: HOME (FLEET MATRIX & UTILIZATION INTEGRATION)
+# 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
 # ======================================================================================
 if menu_selection == "Home (Fleet Matrix)":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Engine Condition Trend Monitoring Dashboard</h1>", unsafe_allow_html=True)
@@ -1223,6 +1295,8 @@ if menu_selection == "Home (Fleet Matrix)":
                 "for accurate projections.")
 
     fleet_summary_data = []
+    aircraft_map = {}
+    
     for eng in engines_available:
         df_sub = df_raw[df_raw["Engine"] == eng].copy()
         if len(df_sub) >= 2:
@@ -1242,6 +1316,39 @@ if menu_selection == "Home (Fleet Matrix)":
                 "Predictive RUL (Borescope)": rul_str
             })
             
+            reg_id = st_sub["reg_prefix"]
+            pos = "LH Engine" if "LH" in eng else "RH Engine"
+            if reg_id not in aircraft_map: aircraft_map[reg_id] = {}
+            aircraft_map[reg_id][pos] = stat_lbl
+
+    # [TIER 1 UPGRADE] OCC Fleet Health Heatmap Grid
+    st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
+    hm_cols = st.columns(3)
+    col_idx = 0
+    for reg, engs in sorted(aircraft_map.items()):
+        with hm_cols[col_idx % 3]:
+            lh_stat = engs.get("LH Engine", "UNKNOWN")
+            rh_stat = engs.get("RH Engine", "UNKNOWN")
+            
+            def get_hm_class(st_val):
+                if st_val == "CRITICAL": return "hm-red"
+                if st_val == "ADVISORY": return "hm-amber"
+                return "hm-green"
+                
+            st.markdown(f"""
+            <div class="heatmap-card">
+                <div class="heatmap-reg">{reg}</div>
+                <div class="heatmap-row {get_hm_class(lh_stat)}">
+                    <span>#1 LH Powerplant</span><b>{lh_stat}</b>
+                </div>
+                <div class="heatmap-row {get_hm_class(rh_stat)}">
+                    <span>#2 RH Powerplant</span><b>{rh_stat}</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        col_idx += 1
+
+    st.markdown("<br>", unsafe_allow_html=True)
     df_fleet_matrix = pd.DataFrame(fleet_summary_data)
     st.dataframe(df_fleet_matrix, use_container_width=True, hide_index=True)
     
@@ -1312,9 +1419,6 @@ elif menu_selection == "Data Collection & Setup":
 
     tab_ectm, tab_util, tab_rep = st.tabs(["1. Engine Performance Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. PIREP / MAREP (.xlsx)"])
     
-    # -------------------------------------------------------------------------
-    # TAB 1: ENGINE PERFORMANCE LOGBOOK (TELEMETRY)
-    # -------------------------------------------------------------------------
     with tab_ectm:
         with st.expander("Add Daily Engine Performance Record (Manual Entry)", expanded=False):
             st.caption("Log daily engine telemetry directly from pilot flight logbook without uploading a CSV.")
@@ -1372,9 +1476,6 @@ elif menu_selection == "Data Collection & Setup":
 
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
 
-    # -------------------------------------------------------------------------
-    # TAB 2: FLIGHT UTILIZATION (FH / FC TRACKING)
-    # -------------------------------------------------------------------------
     with tab_util:
         with st.expander("Add Daily Flight Utilization Record (Manual Entry)", expanded=False):
             st.caption("Log daily airframe flight hours (FH) and flight cycles (FC) to update RUL calendar projections.")
@@ -1417,9 +1518,6 @@ elif menu_selection == "Data Collection & Setup":
                        "simulated utilization dataset - upload the real file above for accurate dates.")
         st.dataframe(st.session_state["df_util"].head(100), use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 3: PIREP / MAREP DEFECT REPORTS
-    # -------------------------------------------------------------------------
     with tab_rep:
         with st.expander("Add PIREP / MAREP Defect Report (Manual Entry)", expanded=False):
             st.caption("Log pilot defect reports (PIREP) or maintenance actions (MAREP) to feed the Defect Correlator.")
@@ -1500,7 +1598,7 @@ elif menu_selection == "Data Collection & Setup":
         st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Trend Analysis & RUL",))
 
 # ======================================================================================
-# 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL
+# 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH TIER 1 VISUAL HORIZON)
 # ======================================================================================
 elif menu_selection == "Trend Analysis & RUL":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Thermodynamic Trend Analysis</h1>", unsafe_allow_html=True)
@@ -1512,7 +1610,8 @@ elif menu_selection == "Trend Analysis & RUL":
 
     col_chart, col_status = st.columns([3, 1])
     with col_chart:
-        st.plotly_chart(make_trend_figure(df_engine, selected_engine), use_container_width=True)
+        # Pass status to plot to enable Visual RUL Horizon extrapolation line
+        st.plotly_chart(make_trend_figure(df_engine, selected_engine, status=status), use_container_width=True)
         with st.expander("View Raw Observations vs. Predicted Condition Baseline"):
             cc1, cc2, cc3 = st.columns(3)
             with cc1: st.plotly_chart(make_raw_vs_predicted(df_engine, "T5", "\u00b0C", "#B42318"), use_container_width=True)
@@ -1625,7 +1724,7 @@ elif menu_selection == "Logbook & Defect Correlator":
                     st.caption(f"Component Change Tracking -> P/N Off: `{pn_off}` (S/N: `{row.get('S/N Off', '-')}`) ➔ P/N On: `{pn_on}` (S/N: `{row.get('S/N On', '-')}`)")
 
 # ======================================================================================
-# 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & NOTICE TRANSMITTAL
+# 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & NOTICE TRANSMITTAL (WITH TIER 1 CARDS)
 # ======================================================================================
 elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Recommendations & Notice Transmittal</h1>", unsafe_allow_html=True)
@@ -1636,12 +1735,29 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **System Classification:** **{overall_status_label}**")
     st.markdown("<br>", unsafe_allow_html=True)
 
-    level_fn = {"red": st.error, "amber": st.warning, "green": st.success}
+    # [TIER 1 UPGRADE] Structured Recommendation Cards (Replacing Plain Alerts)
     for rec in recommendations:
+        lvl = rec["level"]
+        badge_cls = "badge-red" if lvl == "red" else ("badge-amber" if lvl == "amber" else "badge-green")
+        card_cls = f"rec-card-{lvl}"
+        
+        st.markdown(f"""
+        <div class="rec-card-box {card_cls}">
+            <div class="rec-header">
+                <span class="rec-title">{rec['title']}</span>
+                <span class="{badge_cls}">{rec['priority']}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem; background:#F8FAFC; padding:8px 12px; border-radius:4px; border:1px solid #F1F5F9;">
+                <div><span style="color:#64748B; font-weight:600;">Thermodynamic Signature:</span> <b>{rec.get('signature', 'N/A')}</b></div>
+                <div><span style="color:#64748B; font-weight:600;">Estimated Downtime:</span> <b>{rec.get('downtime', 'N/A')}</b></div>
+                <div><span style="color:#64748B; font-weight:600;">FIM Manual Ref:</span> <b style="color:#003B6F;">{rec['fim_ref']}</b></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         with st.container(border=True):
-            level_fn[rec["level"]](f"**{rec['title']}**")
-            st.caption(f"OEM Manual Reference: {rec['fim_ref']}")
+            st.markdown("<b>Action Directives & Engineering Procedures:</b>", unsafe_allow_html=True)
             st.markdown(rec["body"])
+            st.write("")
 
     st.markdown("---")
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Engineering Document Export</h3>", unsafe_allow_html=True)
