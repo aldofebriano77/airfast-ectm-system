@@ -349,18 +349,19 @@ if not st.session_state.get("logged_in", False):
             else:
                 st.markdown("<h2 style='text-align:center; color:#003B6F; margin-bottom:0px;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
             
-            st.markdown("<hr style='margin: 15px 0px 20px 0px;'>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
-            st.write("")
-            
+# [REVISI GAP LOGO] Margin negatif (-25px) untuk memangkas jarak kosong
+            st.markdown("<hr style='margin: -25px 0px 15px 0px;'>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-5px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+
             with st.form("fullscreen_login_form", clear_on_submit=False):
                 input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
                 input_password = st.text_input("Password", type="password", placeholder="••••••••")
-                
+
                 st.write("")
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
-                    btn_login = st.form_submit_button("Login to Portal", type="primary", use_container_width=True)
+                  # [REVISI TEKS TOMBOL] Mengubah "Login to Portal" menjadi "Login"
+                    btn_login = st.form_submit_button("Login", type="primary", use_container_width=True)
                 with c_btn2:
                     btn_guest = st.form_submit_button("Continue as Guest", use_container_width=True)
                     
@@ -640,7 +641,14 @@ def apply_correction_model(model: dict, df: pd.DataFrame) -> np.ndarray:
 @st.cache_data(show_spinner=False)
 def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correction: bool):
     df_engine = df_engine.sort_values("Date").reset_index(drop=True)
+    
+    # [PATCH HOLE 1] Mencegah crash akibat sel kosong (NaN) pada sensor IOAT/Alt/TQ/Np
+    corr_cols_present = [c for c in CORRECTION_CANDIDATES if c in df_engine.columns]
+    if corr_cols_present:
+        df_engine[corr_cols_present] = df_engine[corr_cols_present].ffill().bfill().fillna(0.0)
+        
     n = max(2, min(baseline_n, len(df_engine)))
+    # ... (sisa kode ke bawah tetap sama persis)
     df_baseline = df_engine.iloc[:n]
     predictors = [c for c in CORRECTION_CANDIDATES if c in df_engine.columns] if use_correction else []
     models = {}
@@ -1127,7 +1135,10 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
         pdf.set_font("Arial", "I", 9)
         pdf.multi_cell(0, 5, f"Priority: {r.get('priority', 'ROUTINE')} | Downtime: {r.get('downtime', 'N/A')}\nSignature: {r.get('signature', 'N/A')}")
         pdf.set_font("Arial", "", 9)
-        pdf.multi_cell(0, 5, f"{r['body']}\n\n")
+
+      # [PATCH HOLE 3] Membersihkan simbol ** Markdown dan mengamankan karakter derajat
+        clean_body = r['body'].replace("**", "").replace("°C", "deg C")
+        pdf.multi_cell(0, 5, f"{clean_body}\n\n")
     
     try:
         out = pdf.output(dest="S")
@@ -1336,14 +1347,16 @@ if run_watchdog_now:
                                 ""
                         ])
 
-                        send_engineering_notice(
+# [PATCH HOLE 2] Hanya catat ke memori jika email BENAR-BENAR sukses terkirim
+                        is_delivered = send_engineering_notice(
                             engine_id=eng_check_id,
                             status_dict=st_check,
                             report_body="\n".join(auto_report_lines),
                             recipients=watchdog_recipients,
                             is_automated=True,
                         )
-                        st.session_state["auto_alert_sent"].add(alert_key)
+                        if is_delivered:
+                            st.session_state["auto_alert_sent"].add(alert_key)
         if n_critical_found == 0:
             st.sidebar.success("Fleet scan complete - no engines currently at CRITICAL.")
         else:
