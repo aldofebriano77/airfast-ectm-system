@@ -5,3 +5,7 @@ backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F8FAFC"
 textColor = "#0F172A"
 font = "sans serif"
+
+[server]
+# Mengatur batas maksimal file upload menjadi 1 GB (1000 MB)
+maxUploadSize = 1000
