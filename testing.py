@@ -1180,7 +1180,9 @@ def make_t5_gauge_chart(d_t5: float, health_level: EngineHealth) -> go.Figure:
 # ======================================================================================
 # 11. AUTOMATED EMAIL TRANSMITTAL PROTOCOL & NATIVE PDF EWO GENERATOR
 # ======================================================================================
-def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False):
+from email.mime.application import MIMEApplication
+
+def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False, recommendations: list = None):
     try:
         sender_email = st.secrets["email"]["sender_address"]
         sender_password = st.secrets["email"]["app_password"]
@@ -1207,23 +1209,28 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                       f"Trigger Source: {trigger_type}\n"
                       "Please immediately review the powerplant condition and execute the OEM FIM directives below:")
         subject_prefix = "[URGENT - CRITICAL BREACH]"
+        header_bg = "#DC2626"
     elif health == EngineHealth.ADVISORY:
         intro_text = (f"ADVISORY WATCH NOTICE: A statistical baseline deviation has been detected on Powerplant {engine_id}.\n"
                       f"Trigger Source: {trigger_type}\n"
                       "Please review the computed residuals and increase telemetry logging frequency:")
         subject_prefix = "[ADVISORY - WATCH]"
+        header_bg = "#D97706"
     else:
         intro_text = (f"ROUTINE EVALUATION: Powerplant {engine_id} is operating within normal OEM thermodynamic tolerances.\n"
                       f"Trigger Source: {trigger_type}\n"
                       "Please find the routine condition logging evaluation below:")
         subject_prefix = "[ROUTINE - NORMAL]"
+        header_bg = "#16A34A"
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("mixed")
     msg['From'] = f"AIRFAST ECTM Automated System <{sender_email}>"
     msg['To'] = ", ".join(recipients)
     msg['Subject'] = f"{subject_prefix} ECTM Alert: Powerplant {engine_id} Status Report"
     
-    email_content = (
+    body_part = MIMEMultipart("alternative")
+    
+    email_plain = (
         f"EXECUTIVE ENGINEERING NOTICE | PT. AIRFAST INDONESIA\n"
         f"====================================================================\n"
         f"Powerplant Serial / Position : {engine_id}\n"
@@ -1234,11 +1241,102 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         f"{intro_text}\n\n"
         f"{report_body}\n\n"
         f"--------------------------------------------------------------------\n"
-        f"Automated transmission from AIRFAST ECTM Technical Services System.\n"
-        f"Do not reply directly to this automated service address."
+        f"Notice: A formal signed PDF Engineering Work Order (EWO) is attached to this email.\n"
+        f"Automated transmission from AIRFAST ECTM Technical Services System."
     )
-    msg.attach(MIMEText(email_content, 'plain'))
+    body_part.attach(MIMEText(email_plain, 'plain'))
     
+    recs_html = ""
+    if recommendations:
+        for r in recommendations:
+            clean_body = r['body'].replace('\n', '<br>').replace('**', '')
+            recs_html += f"""
+            <div style="background-color: #F8FAFC; border-left: 4px solid {header_bg}; padding: 12px 16px; margin-bottom: 12px; border-radius: 0 6px 6px 0; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;">
+                <p style="margin: 0 0 6px 0; color: #00284D; font-weight: bold; font-size: 14px;">[{r['fim_ref']}] {r['title']}</p>
+                <p style="margin: 0 0 8px 0; color: #64748B; font-size: 12px;">Priority: <b>{r.get('priority', 'ROUTINE')}</b> | Est. Downtime: <b>{r.get('downtime', 'N/A')}</b></p>
+                <p style="margin: 0; color: #334155; font-size: 13px; line-height: 1.5;">{clean_body}</p>
+            </div>
+            """
+    else:
+        recs_html = f"<p style='color: #475569; font-size: 13px;'>{report_body.replace('/n', '<br>')}</p>"
+
+    intro_html = intro_text.replace('\n', '<br>')
+    email_html = f"""
+    <html>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F1F5F9; margin: 0; padding: 20px;">
+        <div style="max-width: 650px; margin: 0 auto; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; border: 1px solid #CBD5E1; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div style="background-color: #003B6F; padding: 20px; text-align: left; border-bottom: 4px solid #f0b73d;">
+                <h2 style="margin: 0; color: #FFFFFF; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">PT. AIRFAST INDONESIA | TECHNICAL SERVICES</h2>
+                <p style="margin: 4px 0 0 0; color: #94A3B8; font-size: 12px; font-weight: 600;">ENGINE CONDITION TREND MONITORING TRANSMITTAL</p>
+            </div>
+            
+            <div style="padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #E2E8F0;">
+                    <div>
+                        <span style="font-size: 12px; color: #64748B; font-weight: bold; text-transform: uppercase; display: block;">Powerplant Position</span>
+                        <span style="font-size: 16px; color: #0F172A; font-weight: 800;">{engine_id}</span>
+                    </div>
+                    <div>
+                        <span style="background-color: {header_bg}; color: #FFFFFF; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase;">{status_label}</span>
+                    </div>
+                </div>
+                
+                <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 0;">{intro_html}</p>
+                
+                <h4 style="color: #003B6F; font-size: 14px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 2px solid #003B6F; padding-bottom: 4px;">Thermodynamic Residual Vector</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+                    <tr style="background-color: #F8FAFC; text-align: left;">
+                        <th style="padding: 10px; border: 1px solid #E2E8F0; color: #475569;">Parameter</th>
+                        <th style="padding: 10px; border: 1px solid #E2E8F0; color: #475569;">Residual Delta</th>
+                        <th style="padding: 10px; border: 1px solid #E2E8F0; color: #475569;">OEM Limit / Status</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: #0F172A;">Delta T5 (ITT)</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: {'#DC2626' if status_dict['alarm_borescope_t5'] else '#0F172A'};">{status_dict['d_t5']:+.1f} &deg;C</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; color: #64748B;">Max +15.0 &deg;C (Borescope)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: #0F172A;">Delta Ng (Gas Gen)</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: {'#DC2626' if status_dict['alarm_borescope_ng'] else '#0F172A'};">{status_dict['d_ng']:+.2f} %</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; color: #64748B;">Min -1.0% to -1.5%</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: #0F172A;">Delta Wf (Fuel Flow)</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; font-weight: bold; color: #0F172A;">{status_dict['d_wf']:+.1f} PPH</td>
+                        <td style="padding: 10px; border: 1px solid #E2E8F0; color: #64748B;">Statistical Baseline Band</td>
+                    </tr>
+                </table>
+                
+                <h4 style="color: #003B6F; font-size: 14px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 2px solid #003B6F; padding-bottom: 4px;">Line Maintenance Directives</h4>
+                {recs_html}
+                
+                <div style="background-color: #EFF4FA; border: 1px solid #CBD5E1; border-radius: 6px; padding: 12px 16px; margin-top: 24px;">
+                    <p style="margin: 0; color: #003B6F; font-size: 12px; font-weight: bold;">[NOTICE] Formal Engineering Work Order (EWO) Attached</p>
+                    <p style="margin: 4px 0 0 0; color: #475569; font-size: 12px;">A print-ready PDF document containing exact maintenance directives and sign-off blocks has been generated and attached to this email for immediate hangar distribution.</p>
+                </div>
+            </div>
+            
+            <div style="background-color: #F8FAFC; padding: 15px 24px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 11px; color: #64748B;">
+                <p style="margin: 0;">Transmitted via AIRFAST ECTM Watchdog | Evaluated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p style="margin: 4px 0 0 0;">Do not reply directly to this system transmission address.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    body_part.attach(MIMEText(email_html, 'html'))
+    msg.attach(body_part)
+    
+    try:
+        pdf_bytes = generate_ewo_pdf(engine_id, status_label, status_dict, recommendations if recommendations else [])
+        if pdf_bytes:
+            pdf_part = MIMEApplication(pdf_bytes, _subtype="pdf")
+            filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
+            msg.attach(pdf_part)
+    except Exception as pdf_err:
+        print(f"PDF Attachment Generation Failed: {pdf_err}")
+
     try:
         with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
             server.login(sender_email, sender_password)
@@ -1551,6 +1649,7 @@ if run_watchdog_now:
                             report_body="\n".join(auto_report_lines),
                             recipients=watchdog_recipients,
                             is_automated=True,
+                            recommendations=recs_check,
                         )
                         if is_delivered:
                             st.session_state["auto_alert_sent"].add(alert_key)
@@ -2258,7 +2357,7 @@ elif menu_selection == "Recommendations & Notice Transmittal":
                     st.error("Enter at least one recipient email address.")
                 else:
                     with st.spinner("Transmitting engineering notice via secure SMTP..."):
-                        success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False)
+                        success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False, recommendations=recommendations)
                         if success: st.success("Manual Engineering Notice transmitted successfully to target recipients.")
     if not can_dispatch:
         st.caption("Signed in as Guest / Viewer - dispatching official notices is restricted to authorized engineering/maintenance accounts.")
