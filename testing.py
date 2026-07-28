@@ -21,6 +21,7 @@ import json
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from enum import Enum
 
 import numpy as np
@@ -1289,9 +1290,20 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
     <html>
     <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F1F5F9; margin: 0; padding: 20px;">
         <div style="max-width: 650px; margin: 0 auto; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; border: 1px solid #CBD5E1; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="background-color: #003B6F; padding: 20px; text-align: left; border-bottom: 4px solid #f0b73d;">
-                <h2 style="margin: 0; color: #FFFFFF; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">PT. AIRFAST INDONESIA | TECHNICAL SERVICES</h2>
-                <p style="margin: 4px 0 0 0; color: #94A3B8; font-size: 12px; font-weight: 600;">ENGINE CONDITION TREND MONITORING TRANSMITTAL</p>
+            <div style="background-color: #003B6F; padding: 18px 22px; text-align: left; border-bottom: 4px solid #f0b73d;">
+                <table style="width: 100%; border-collapse: collapse; border: none;">
+                    <tr>
+                        <td style="width: 70px; padding-right: 16px; vertical-align: middle;">
+                            <!-- Bantalan putih (background #FFFFFF) memastikan logo tetap kontras dan jelas di atas warna Airfast Navy -->
+                            <img src="cid:airfast_logo_cid" alt="AIRFAST Logo" style="width: 65px; height: auto; display: block; border-radius: 6px; background-color: #FFFFFF; padding: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <h2 style="margin: 0; color: #FFFFFF; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">PT. AIRFAST INDONESIA</h2>
+                            <p style="margin: 2px 0 0 0; color: #f0b73d; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">TECHNICAL SERVICES DIVISION</p>
+                            <p style="margin: 2px 0 0 0; color: #94A3B8; font-size: 11px; font-weight: 600; text-transform: uppercase;">Engine Condition Trend Monitoring Transmittal</p>
+                        </td>
+                    </tr>
+                </table>
             </div>
             
             <div style="padding: 24px;">
@@ -1353,6 +1365,20 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
         pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
         msg.attach(pdf_part)
+
+    # --- [TAMBAHKAN KODE INI: EMBED LOGO CID UNTUK HEADER HTML] ---
+    logo_file_path = "images.png"  # Menggunakan file logo yang sama dengan sidebar login
+    if os.path.exists(logo_file_path):
+        try:
+            with open(logo_file_path, "rb") as f_img:
+                logo_part = MIMEImage(f_img.read())
+                # Menetapakan Content-ID agar bisa dipanggil oleh <img src="cid:airfast_logo_cid"> di HTML
+                logo_part.add_header('Content-ID', '<airfast_logo_cid>')
+                logo_part.add_header('Content-Disposition', 'inline', filename="airfast_logo.png")
+                msg.attach(logo_part)
+        except Exception as img_err:
+            print(f"[EMAIL LOGO WARNING] Gagal menyisipkan logo CID: {img_err}")
+    # -----------------------------------------------------------------
 
     # --- [POIN 1 & 6 FIX: Preserved Error Details & Reduced Timeout] ---
     try:
