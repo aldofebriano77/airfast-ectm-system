@@ -1043,6 +1043,26 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
         xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569"), fixedrange=True), 
         yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"), fixedrange=True)
     )
+
+    # =========================================================================
+    # --- [V2.0 UPGRADE: INTERACTIVE RANGE SLIDER & QUICK ZOOM] ---
+    # =========================================================================
+    fig.update_xaxes(
+        fixedrange=False,  # [WAJIB FALSE] Agar slider & tombol zoom bisa digeser oleh engineer
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=7, label="1W", step="day", stepmode="backward"),
+                dict(count=1, label="1M", step="month", stepmode="backward"),
+                dict(count=3, label="3M", step="month", stepmode="backward"),
+                dict(step="all", label="ALL")
+            ]),
+            bgcolor="#EFF4FA",
+            activecolor="#003B6F",
+            font=dict(color="#0F172A", size=11)
+        )
+    )
+
     return fig
 
 def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color: str) -> go.Figure:
@@ -1063,6 +1083,54 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
         dragmode=False,
         xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True), 
         yaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=10), fixedrange=True)
+    )
+    return fig
+
+def make_t5_gauge_chart(d_t5: float, health_level: EngineHealth) -> go.Figure:
+    # Menentukan warna jarum/bar spidometer berdasarkan level kesehatan mesin
+    bar_color = "#DC2626" if health_level == EngineHealth.CRITICAL else ("#D97706" if health_level == EngineHealth.ADVISORY else "#16A34A")
+    
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=d_t5,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={
+            'text': "<b>Δ T5 Residual to Borescope Limit</b><br><span style='color:#64748B; font-size:0.75rem;'>Max OEM Limit: +15.0 °C</span>", 
+            'font': {'size': 12, 'color': NAVY}
+        },
+        delta={
+            'reference': T5_BORESCOPE_C, 
+            'increasing': {'color': "#DC2626"}, 
+            'decreasing': {'color': "#16A34A"}, 
+            'suffix': " °C to Limit"
+        },
+        number={'suffix': " °C", 'font': {'size': 22, 'color': SLATE_DARK, 'weight': "bold"}},
+        gauge={
+            'axis': {'range': [-5, 20], 'tickwidth': 1, 'tickcolor': SLATE_MUTED, 'dtick': 5, 'tickfont': {'size': 10}},
+            'bar': {'color': bar_color, 'thickness': 0.3},
+            'bgcolor': "#FFFFFF",
+            'borderwidth': 1,
+            'bordercolor': "#CBD5E1",
+            'steps': [
+                {'range': [-5, T5_WASH_C], 'color': "rgba(22, 163, 74, 0.12)"},       # Zona Hijau (Normal)
+                {'range': [T5_WASH_C, T5_BORESCOPE_C], 'color': "rgba(217, 119, 6, 0.18)"},  # Zona Kuning (Wash Limit)
+                {'range': [T5_BORESCOPE_C, 20], 'color': "rgba(220, 38, 38, 0.22)"}        # Zona Merah (Borescope Breach)
+            ],
+            'threshold': {
+                'line': {'color': "#991B1B", 'width': 3},
+                'thickness': 0.8,
+                'value': T5_BORESCOPE_C
+            }
+        }
+    ))
+    
+    # [KUNCI STATIS] dragmode=False agar spidometer tidak rusak saat di-drag audiens
+    fig.update_layout(
+        height=210,
+        margin=dict(l=15, r=15, t=45, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        dragmode=False
     )
     return fig
 
@@ -1851,6 +1919,11 @@ elif menu_selection == "Trend Analysis & RUL":
             st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
 
         st.write("")
+        
+        # --- [V2.0 UPGRADE: RADIAL GAUGE INDICATOR FOR DELTA T5] ---
+        st.plotly_chart(make_t5_gauge_chart(status['d_t5'], status['health_level']), use_container_width=True)
+        # -----------------------------------------------------------
+        
         st.metric("Latest \u0394 T5 Residual", f"{status['d_t5']:+.1f} \u00b0C", delta=f"{status['slope_t5']:+.2f} °C/cyc", delta_color="inverse")
         st.metric("Latest \u0394 Ng Residual", f"{status['d_ng']:+.2f} %", delta=f"{status['slope_ng']:+.3f} %/cyc")
         st.metric("Latest \u0394 Wf Residual", f"{status['d_wf']:+.1f} PPH", delta=f"{status['latest']['Delta_Wf_pct']:+.1f}% shift", delta_color="inverse")
