@@ -1307,17 +1307,20 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
             </div>
             
             <div style="padding: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #E2E8F0;">
-                    <div>
-                        <span style="font-size: 12px; color: #64748B; font-weight: bold; text-transform: uppercase; display: block;">Powerplant Position</span>
-                        <span style="font-size: 16px; color: #0F172A; font-weight: 800;">{engine_id}</span>
-                    </div>
-                    <div>
-                        <span style="background-color: {header_bg}; color: #FFFFFF; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; text-transform: uppercase;">{status_label}</span>
-                    </div>
-                </div>
+                <!-- [FIX: STRUKTUR TABEL ANTI-NEMPEL UNTUK ID MESIN & BADGE STATUS] -->
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <tr>
+                        <td style="text-align: left; vertical-align: middle; padding-bottom: 15px; padding-right: 20px; border-bottom: 1px solid #E2E8F0;">
+                            <span style="font-size: 11px; color: #64748B; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 2px;">Powerplant Position</span>
+                            <span style="font-size: 16px; color: #0F172A; font-weight: 800; display: block;">{engine_id}</span>
+                        </td>
+                        <td style="text-align: right; vertical-align: middle; padding-bottom: 15px; border-bottom: 1px solid #E2E8F0; width: 170px; white-space: nowrap;">
+                            <span style="background-color: {header_bg}; color: #FFFFFF; padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; display: inline-block; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">{status_label}</span>
+                        </td>
+                    </tr>
+                </table>
                 
-                <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 0;">{intro_html}</p>
+                <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-top: 5px;">{intro_html}</p>
                 
                 <h4 style="color: #003B6F; font-size: 14px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 2px solid #003B6F; padding-bottom: 4px;">Thermodynamic Residual Vector</h4>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
