@@ -1183,7 +1183,7 @@ def make_t5_gauge_chart(d_t5: float, health_level: EngineHealth) -> go.Figure:
 # ======================================================================================
 from email.mime.application import MIMEApplication
 
-def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False, recommendations: list = None):
+def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False, recommendations: list = None, alert_key: str = None):
     try:
         sender_email = st.secrets["email"]["sender_address"]
         sender_password = st.secrets["email"]["app_password"]
@@ -1281,7 +1281,8 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
             </div>
             """
     else:
-        recs_html = f"<p style='color: #475569; font-size: 13px;'>{report_body.replace('\n', '<br>')}</p>"
+        report_body_html = report_body.replace('\n', '<br>')
+        recs_html = f"<p style='color: #475569; font-size: 13px;'>{report_body_html}</p>"
 
     intro_html = intro_text.replace('\n', '<br>')
     email_html = f"""
@@ -1374,7 +1375,7 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
             # Preserved detail error asli untuk console & UI
             err_detail = f"SSL: {type(ssl_err).__name__}: {ssl_err} | TLS: {type(tls_err).__name__}: {tls_err}"
             print(f"[SMTP FAILURE] {engine_id}: {err_detail}")
-            save_to_pending_queue(engine_id, status_dict, report_body, recipients, recommendations)
+            save_to_pending_queue(engine_id, status_dict, report_body, recipients, recommendations, alert_key=alert_key)
             
             # [POIN 2 FIX: Visual Feedback di UI untuk Jalur Otomatis]
             if is_automated:
@@ -1428,11 +1429,26 @@ def load_pending_queue() -> dict:
     except Exception:
         return {}
 
-def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, recipients: list, recommendations: list = None):
+def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, recipients: list, recommendations: list = None, alert_key: str = None):
     os.makedirs(os.path.dirname(QUEUE_FILE_PATH), exist_ok=True)
     queue = load_pending_queue()
     queue_key = f"{engine_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
+
+    # [BUG FIX] flight_date and alert_key were previously not preserved here,
+    # so retry_pending_queue() had no way to register a successful retry in
+    # the dedup ledger - meaning a retried alert could be sent AGAIN by a
+    # later watchdog scan for the same underlying finding. alert_key is only
+    # set for watchdog-originated sends (see execute_silent_watchdog); manual
+    # ad-hoc dispatches from the Recommendations page intentionally pass
+    # alert_key=None, since a human resend shouldn't be ledger-gated.
+    flight_date_str = None
+    try:
+        latest_row = status_dict.get("latest")
+        if latest_row is not None and pd.notnull(latest_row.get("Date")):
+            flight_date_str = pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d")
+    except Exception:
+        flight_date_str = None
+
     # Sanitasi status_dict agar 100% aman diserialisasi ke JSON (mencegah crash akibat Enum/Timestamp)
     safe_status = {
         "health_level": status_dict["health_level"].name if hasattr(status_dict["health_level"], "name") else str(status_dict["health_level"]),
@@ -1451,7 +1467,9 @@ def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, r
         "status_dict": safe_status,
         "report_body": report_body,
         "recipients": recipients,
-        "recommendations": recommendations if recommendations else []
+        "recommendations": recommendations if recommendations else [],
+        "alert_key": alert_key,
+        "flight_date": flight_date_str
     }
     try:
         with open(QUEUE_FILE_PATH, "w") as f:
@@ -1497,6 +1515,16 @@ def retry_pending_queue() -> tuple:
         if is_sent:
             remove_from_pending_queue(key)
             success_count += 1
+            # [BUG FIX] Previously a successful retry was never registered in
+            # the dedup ledger, so a later watchdog scan for the same
+            # underlying CRITICAL finding could send a duplicate alert. Only
+            # register when alert_key was actually set (watchdog-originated
+            # sends) - manual ad-hoc dispatches intentionally stay ungated.
+            if item.get("alert_key"):
+                save_alert_to_ledger(
+                    item["alert_key"], item["engine_id"],
+                    item.get("flight_date", "N/A"), item["recipients"]
+                )
         else:
             fail_count += 1
     return success_count, fail_count
@@ -1633,7 +1661,8 @@ def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: lis
                     is_delivered = send_engineering_notice(
                         engine_id=eng_id, status_dict=st_check,
                         report_body="\n".join(auto_report_lines),
-                        recipients=recipients, is_automated=not is_manual_trigger, recommendations=recs_check
+                        recipients=recipients, is_automated=not is_manual_trigger, recommendations=recs_check,
+                        alert_key=alert_key
                     )
                     if is_delivered:
                         save_alert_to_ledger(alert_key, eng_id, flight_dt_str, recipients)
