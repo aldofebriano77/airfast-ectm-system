@@ -309,6 +309,27 @@ st.markdown(
 
     hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 16px 0 !important; }
     .gold-bar { height: 3px; width: 40px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -4px; margin-bottom: 16px; }
+    
+    /* ==========================================================================
+       6. FORM INPUTS & DROPDOWNS (SELECTBOX, TEXT INPUT, NUMBER INPUT)
+       ========================================================================== */
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"] > input {
+        background-color: #FFFFFF !important;
+        border: 1.5px solid #94A3B8 !important; /* Slate-400: Kontras tegas tapi tetap elegan */
+        border-radius: 8px !important;
+        box-shadow: 0 2px 5px rgba(0, 40, 77, 0.05) !important;
+        color: #0F172A !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+    }
+    div[data-baseweb="select"] > div:hover,
+    div[data-baseweb="input"] > div:hover {
+        border-color: #003B6F !important; /* Berubah jadi Airfast Navy saat di-hover */
+        box-shadow: 0 4px 10px rgba(0, 59, 111, 0.1) !important;
+    }
+    input::placeholder { color: #94A3B8 !important; opacity: 1 !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -2100,23 +2121,52 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **System Classification:** **{overall_status_label}**")
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # [TIER 1 UPGRADE] Structured Recommendation Cards (Replacing Plain Alerts)
+    # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
     for rec in recommendations:
         lvl = rec["level"]
         badge_cls = "badge-red" if lvl == "red" else ("badge-amber" if lvl == "amber" else "badge-green")
         card_cls = f"rec-card-{lvl}"
+        border_color = "#DC2626" if lvl == "red" else ("#D97706" if lvl == "amber" else "#16A34A")
+        
+        # Pisahkan paragraf penjelasan umum dengan daftar instruksi (Line Engineering Directives)
+        parts = rec["body"].split("**Line Engineering Directives:**")
+        overview = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", parts[0].replace("\n", "<br>").strip())
+        directives = parts[1].strip() if len(parts) > 1 else ""
+        
+        # Format daftar instruksi menjadi Callout Checklist Box bernomor yang elegan
+        directives_html = ""
+        if directives:
+            lines = [line.strip() for line in directives.split("\n") if line.strip()]
+            if any(re.match(r"^\d+\.", line) for line in lines):
+                cleaned_lines = [re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", re.sub(r"^\d+\.\s*", "", line)) for line in lines]
+                list_items = "".join([f"<li style='margin-bottom: 8px; line-height: 1.5;'>{line}</li>" for line in cleaned_lines])
+                content_body = f"<ol style='margin: 0; padding-left: 20px; color: #0F172A; font-size: 0.9rem; font-weight: 500;'>{list_items}</ol>"
+            else:
+                formatted_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", directives)
+                content_body = f"<p style='margin: 0; color: #0F172A; font-size: 0.9rem; line-height: 1.6; font-weight: 500;'>{formatted_text}</p>"
+                
+            directives_html = f"""
+            <div style="background: #F8FAFC; border-left: 4px solid {border_color}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;">
+                <span style="color: #003B6F; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">🛠️ Line Engineering Directives & Action Checklist:</span>
+                {content_body}
+            </div>
+            """
         
         st.markdown(f"""
-        <div class="rec-card-box {card_cls}">
-            <div class="rec-header">
-                <span class="rec-title">{rec['title']}</span>
+        <div class="rec-card-box {card_cls}" style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 6px solid {border_color}; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 6px 18px -3px rgba(0, 40, 77, 0.06);">
+            <div class="rec-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px; margin-bottom: 14px;">
+                <span class="rec-title" style="font-size: 1.15rem; font-weight: 800; color: #00284D;">{rec['title']}</span>
                 <span class="{badge_cls}">{rec.get('priority', 'ROUTINE')}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.85rem; background:#F8FAFC; padding:8px 12px; border-radius:4px; border:1px solid #F1F5F9;">
-                <div><span style="color:#64748B; font-weight:600;">Thermodynamic Signature:</span> <b>{rec.get('signature', 'N/A')}</b></div>
-                <div><span style="color:#64748B; font-weight:600;">Estimated Downtime:</span> <b>{rec.get('downtime', 'N/A')}</b></div>
-                <div><span style="color:#64748B; font-weight:600;">FIM Manual Ref:</span> <b style="color:#003B6F;">{rec['fim_ref']}</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom: 14px; font-size:0.85rem; background: #EFF4FA; padding: 10px 14px; border-radius: 6px; border: 1px solid #CBD5E1;">
+                <div><span style="color:#475569; font-weight:600;">Thermodynamic Signature:</span> <b style="color:#0F172A;">{rec.get('signature', 'N/A')}</b></div>
+                <div><span style="color:#475569; font-weight:600;">Estimated Downtime:</span> <b style="color:#0F172A;">{rec.get('downtime', 'N/A')}</b></div>
+                <div><span style="color:#475569; font-weight:600;">FIM Manual Ref:</span> <b style="color:#003B6F;">{rec['fim_ref']}</b></div>
             </div>
+            <div style="color: #334155; font-size: 0.92rem; line-height: 1.6; font-weight: 500;">
+                {overview}
+            </div>
+            {directives_html}
         </div>
         """, unsafe_allow_html=True)
         with st.container(border=True):
