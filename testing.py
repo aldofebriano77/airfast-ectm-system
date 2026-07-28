@@ -2122,6 +2122,7 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
+    # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
     for rec in recommendations:
         lvl = rec["level"]
         badge_cls = "badge-red" if lvl == "red" else ("badge-amber" if lvl == "amber" else "badge-green")
@@ -2145,12 +2146,8 @@ elif menu_selection == "Recommendations & Notice Transmittal":
                 formatted_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", directives)
                 content_body = f"<p style='margin: 0; color: #0F172A; font-size: 0.9rem; line-height: 1.6; font-weight: 500;'>{formatted_text}</p>"
                 
-            directives_html = f"""
-            <div style="background: #F8FAFC; border-left: 4px solid {border_color}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;">
-                <span style="color: #003B6F; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">🛠️ Line Engineering Directives & Action Checklist:</span>
-                {content_body}
-            </div>
-            """
+            # [ANTI-CODE BLOCK] Ditulis dalam 1 baris padat tanpa spasi indentasi awal agar tidak diubah menjadi code block oleh Markdown
+            directives_html = f"<div style='background: #F8FAFC; border-left: 4px solid {border_color}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;'><span style='color: #003B6F; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;'>🛠️ Line Engineering Directives & Action Checklist:</span>{content_body}</div>"
         
         st.markdown(f"""
         <div class="rec-card-box {card_cls}" style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 6px solid {border_color}; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 6px 18px -3px rgba(0, 40, 77, 0.06);">
