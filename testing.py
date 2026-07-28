@@ -2187,11 +2187,7 @@ elif menu_selection == "Recommendations & Notice Transmittal":
             {directives_html}
         </div>
         """, unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown("<b>Action Directives & Engineering Procedures:</b>", unsafe_allow_html=True)
-            st.markdown(rec["body"])
-            st.write("")
-
+    
     st.markdown("---")
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>Engineering Document Export</h3>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Download technical reports or generate formal Engineering Work Orders (EWO) for line maintenance execution.</p>", unsafe_allow_html=True)
