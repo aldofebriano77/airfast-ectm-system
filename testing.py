@@ -1199,10 +1199,10 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
 
     if not live_mode:
         if is_automated:
-            st.toast(f"AUTOMATED ALERT FIRED: Powerplant {engine_id} breached CRITICAL limit. Notice simulated to {', '.join(recipients)}.")
-            st.sidebar.error(f"AUTOMATED NOTICE TRANSMITTED\nTarget: {recipients[0]}\nEngine: {engine_id} ({status_label})")
+            st.toast(f"AUTOMATED ALERT FIRED: Powerplant {engine_id} breached CRITICAL limit.", icon="🚨")
+            st.sidebar.error(f"AUTOMATED NOTICE TRANSMITTED\nTarget: {recipients[0] if recipients else 'N/A'}\nEngine: {engine_id} ({status_label})")
         else:
-            st.info(f"[SYSTEM SIMULATION MODE - {trigger_type}] SMTP secrets not configured. In production, notice for {engine_id} ({status_label}) is transmitted to: {', '.join(recipients)}.")
+            st.info(f"[SYSTEM SIMULATION MODE - {trigger_type}] SMTP secrets not configured. Notice simulated for {engine_id} to: {', '.join(recipients)}.")
         return True
 
     if health == EngineHealth.CRITICAL:
@@ -1224,6 +1224,28 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         subject_prefix = "[ROUTINE - NORMAL]"
         header_bg = "#16A34A"
 
+    # --- [POIN 7 FIX: EWO PDF Attachment Generation & Dynamic Body Text] ---
+    pdf_bytes = None
+    try:
+        pdf_bytes = generate_ewo_pdf(engine_id, status_label, status_dict, recommendations if recommendations else [])
+    except Exception as pdf_err:
+        print(f"[PDF GEN ERROR] {engine_id}: {pdf_err}")
+
+    if pdf_bytes:
+        pdf_notice_plain = "Notice: A formal signed PDF Engineering Work Order (EWO) is attached to this email."
+        pdf_notice_html = """
+        <div style="background-color: #EFF4FA; border: 1px solid #CBD5E1; border-radius: 6px; padding: 12px 16px; margin-top: 24px;">
+            <p style="margin: 0; color: #003B6F; font-size: 12px; font-weight: bold;">[NOTICE] Formal Engineering Work Order (EWO) Attached</p>
+            <p style="margin: 4px 0 0 0; color: #475569; font-size: 12px;">A print-ready PDF document containing exact maintenance directives and sign-off blocks has been generated and attached to this email for immediate hangar distribution.</p>
+        </div>"""
+    else:
+        pdf_notice_plain = "Notice: PDF EWO document generation was bypassed or unavailable. Please review line directives above."
+        pdf_notice_html = """
+        <div style="background-color: #FFFBEB; border: 1px solid #FCD34D; border-radius: 6px; padding: 12px 16px; margin-top: 24px;">
+            <p style="margin: 0; color: #92400E; font-size: 12px; font-weight: bold;">[NOTICE] EWO PDF Attachment Omitted</p>
+            <p style="margin: 4px 0 0 0; color: #78350F; font-size: 12px;">PDF EWO attachment was unavailable during dispatch. Please refer directly to the HTML maintenance directives above.</p>
+        </div>"""
+
     msg = MIMEMultipart("mixed")
     msg['From'] = f"AIRFAST ECTM Automated System <{sender_email}>"
     msg['To'] = ", ".join(recipients)
@@ -1242,7 +1264,7 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         f"{intro_text}\n\n"
         f"{report_body}\n\n"
         f"--------------------------------------------------------------------\n"
-        f"Notice: A formal signed PDF Engineering Work Order (EWO) is attached to this email.\n"
+        f"{pdf_notice_plain}\n"
         f"Automated transmission from AIRFAST ECTM Technical Services System."
     )
     body_part.attach(MIMEText(email_plain, 'plain'))
@@ -1259,7 +1281,7 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
             </div>
             """
     else:
-        recs_html = f"<p style='color: #475569; font-size: 13px;'>{report_body.replace('/n', '<br>')}</p>"
+        recs_html = f"<p style='color: #475569; font-size: 13px;'>{report_body.replace('\n', '<br>')}</p>"
 
     intro_html = intro_text.replace('\n', '<br>')
     email_html = f"""
@@ -1311,10 +1333,7 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                 <h4 style="color: #003B6F; font-size: 14px; margin: 20px 0 10px 0; text-transform: uppercase; border-bottom: 2px solid #003B6F; padding-bottom: 4px;">Line Maintenance Directives</h4>
                 {recs_html}
                 
-                <div style="background-color: #EFF4FA; border: 1px solid #CBD5E1; border-radius: 6px; padding: 12px 16px; margin-top: 24px;">
-                    <p style="margin: 0; color: #003B6F; font-size: 12px; font-weight: bold;">[NOTICE] Formal Engineering Work Order (EWO) Attached</p>
-                    <p style="margin: 4px 0 0 0; color: #475569; font-size: 12px;">A print-ready PDF document containing exact maintenance directives and sign-off blocks has been generated and attached to this email for immediate hangar distribution.</p>
-                </div>
+                {pdf_notice_html}
             </div>
             
             <div style="background-color: #F8FAFC; padding: 15px 24px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 11px; color: #64748B;">
@@ -1328,39 +1347,41 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
     body_part.attach(MIMEText(email_html, 'html'))
     msg.attach(body_part)
     
-    try:
-        pdf_bytes = generate_ewo_pdf(engine_id, status_label, status_dict, recommendations if recommendations else [])
-        if pdf_bytes:
-            pdf_part = MIMEApplication(pdf_bytes, _subtype="pdf")
-            filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
-            pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
-            msg.attach(pdf_part)
-    except Exception as pdf_err:
-        print(f"PDF Attachment Generation Failed: {pdf_err}")
+    if pdf_bytes:
+        pdf_part = MIMEApplication(pdf_bytes, _subtype="pdf")
+        filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
+        msg.attach(pdf_part)
 
+    # --- [POIN 1 & 6 FIX: Preserved Error Details & Reduced Timeout] ---
     try:
-        with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
+        with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=5) as server:
             server.login(sender_email, sender_password)
             server.send_message(msg)
         if is_automated:
-            st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0]}.")
+            st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
         return True
     except Exception as ssl_err:
         try:
-            with smtplib.SMTP(smtp_server, 587, timeout=10) as server:
+            with smtplib.SMTP(smtp_server, 587, timeout=5) as server:
                 server.starttls()
                 server.login(sender_email, sender_password)
                 server.send_message(msg)
             if is_automated:
-                st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0]}.")
+                st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
             return True
         except Exception as tls_err:
-            # [FAILOVER QUEUE] Tangkap kegagalan jaringan & simpan ke antrean offline
+            # Preserved detail error asli untuk console & UI
+            err_detail = f"SSL: {type(ssl_err).__name__}: {ssl_err} | TLS: {type(tls_err).__name__}: {tls_err}"
+            print(f"[SMTP FAILURE] {engine_id}: {err_detail}")
             save_to_pending_queue(engine_id, status_dict, report_body, recipients, recommendations)
+            
+            # [POIN 2 FIX: Visual Feedback di UI untuk Jalur Otomatis]
             if is_automated:
-                print(f"[FAILOVER QUEUED] SMTP Timeout for {engine_id}. Notice saved to offline dispatch queue.")
+                st.toast(f"⚠️ SMTP Failure for {engine_id}. Alert saved to Offline Queue.", icon="⚠️")
+                st.sidebar.warning(f"WATCHDOG SMTP QUEUED: {engine_id}\nDetail: {type(tls_err).__name__}")
             else:
-                st.warning(f"Network / SMTP Timeout (SSL/TLS Error). Transmittal for **{engine_id}** has been saved to the **Pending Transmittal Queue** for manual retry.")
+                st.warning(f"SMTP Transmittal Failed for **{engine_id}**. Details: `{err_detail}`. Notice preserved in Pending Transmittal Queue.")
             return False
 
 # --- [PERSISTENT DISK LEDGER / ANTI-SPAM ENGINE] ---
@@ -1544,8 +1565,8 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     return b""
 
 # --- [SILENT BACKGROUND WATCHDOG TRIGGER ENGINE] ---
-def execute_silent_watchdog(engines_to_scan: list = None):
-    # 1. Ambil snapshot data terbaru langsung dari memori sesi
+# --- [SILENT BACKGROUND WATCHDOG TRIGGER ENGINE] ---
+def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: list = None, is_manual_trigger: bool = False):
     fresh_df = st.session_state["df_data"].copy()
     fresh_util = st.session_state["df_util"].copy()
     base_n = int(st.session_state.get("target_baseline_n", 6))
@@ -1554,36 +1575,46 @@ def execute_silent_watchdog(engines_to_scan: list = None):
     fresh_df["Date"] = safe_parse_dates(fresh_df["Date"])
     fresh_df = fresh_df.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
     
-    # 2. Tentukan email tujuan MCC (prioritas: st.secrets -> input sidebar -> default korporat)
-    recipients = []
-    try:
-        sec_recs = st.secrets["email"].get("mcc_recipients")
-        if sec_recs:
-            recipients = sec_recs if isinstance(sec_recs, list) else [r.strip() for r in str(sec_recs).split(",") if r.strip()]
-    except Exception:
-        pass
+    recipients = custom_recipients
+    if not recipients:
+        try:
+            sec_recs = st.secrets["email"].get("mcc_recipients")
+            if sec_recs:
+                recipients = sec_recs if isinstance(sec_recs, list) else [r.strip() for r in str(sec_recs).split(",") if r.strip()]
+        except Exception:
+            pass
     if not recipients:
         ui_recs = [r.strip() for r in st.session_state.get("watchdog_recipient", "").split(",") if r.strip()]
-        recipients = ui_recs if ui_recs else ["mcc.duty@airfastindonesia.com", "engineering@airfastindonesia.com"]
+        recipients = ui_recs if ui_recs else []
 
-    # 3. Pindai mesin target atau seluruh armada jika tidak dispesifikasikan
+    if not recipients:
+        if is_manual_trigger:
+            st.sidebar.error("Transmittal aborted: No recipient email address provided.")
+        return 0, 0, 0
+
     scan_list = engines_to_scan if engines_to_scan else sorted(fresh_df["Engine"].dropna().unique().tolist())
+    n_crit = 0
+    n_sent = 0
+    n_already_sent = 0
+
     for eng_id in scan_list:
         df_check = fresh_df[fresh_df["Engine"] == eng_id].copy()
         if len(df_check) >= 2:
             df_check_proc = compute_engine_trend(df_check, base_n, use_corr)
             st_check = build_status(df_check_proc, fresh_util)
             
-            # Evaluasi ambang batas Borescope (CRITICAL)
             if st_check["health_level"] == EngineHealth.CRITICAL:
+                n_crit += 1
                 flight_dt_str = st_check['latest']['Date'].strftime('%Y-%m-%d')
-                alert_key = f"{eng_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
                 
-                # Cek ke persistent ledger agar tidak mengirim alarm ganda
+                # [POIN 10 FIX: Key menyertakan level kesehatan agar aman dari revisi data]
+                alert_key = f"{eng_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}_{st_check['health_level'].name}"
+                
                 if not is_alert_already_sent(alert_key):
                     recs_check = generate_recommendations(df_check_proc, st_check)
+                    trigger_lbl = "FLEET WATCHDOG MANUAL SCAN" if is_manual_trigger else "SILENT BACKGROUND WATCHDOG"
                     auto_report_lines = [
-                        "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY SILENT BACKGROUND WATCHDOG",
+                        f"CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY {trigger_lbl}",
                         f"Latest Logbook Timestamp : {flight_dt_str}",
                         f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
                         f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
@@ -1602,10 +1633,16 @@ def execute_silent_watchdog(engines_to_scan: list = None):
                     is_delivered = send_engineering_notice(
                         engine_id=eng_id, status_dict=st_check,
                         report_body="\n".join(auto_report_lines),
-                        recipients=recipients, is_automated=True, recommendations=recs_check
+                        recipients=recipients, is_automated=not is_manual_trigger, recommendations=recs_check
                     )
                     if is_delivered:
                         save_alert_to_ledger(alert_key, eng_id, flight_dt_str, recipients)
+                        n_sent += 1
+                else:
+                    n_already_sent += 1
+                    print(f"[SILENT BYPASS] Alert for {alert_key} was already transmitted previously.")
+                    
+    return n_crit, n_sent, n_already_sent
 # -------------------------------------------------------------------
 
 # ======================================================================================
@@ -1790,68 +1827,25 @@ status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
 
 # ======================================================================================
-# FLEET WATCHDOG - MANUAL SCAN WITH PERSISTENT DISK LEDGER (ANTI-SPAM)
+# FLEET WATCHDOG - MANUAL SCAN (SINGLE SOURCE OF TRUTH TRIGGER)
 # ======================================================================================
 if run_watchdog_now:
     watchdog_recipients = [r.strip() for r in watchdog_recipient_input.split(",") if r.strip()]
     if not watchdog_recipients:
         st.sidebar.error("Enter at least one recipient email before running the scan.")
     else:
-        n_critical_found = 0
-        n_already_sent = 0
-        for eng_check_id in engines_available:
-            df_check = df_raw[df_raw["Engine"] == eng_check_id].copy()
-            if len(df_check) >= 2:
-                df_check_proc = compute_engine_trend(df_check, int(baseline_n_input), use_correction)
-                st_check = build_status(df_check_proc, df_util_current)
-
-                if st_check["health_level"] == EngineHealth.CRITICAL:
-                    n_critical_found += 1
-                    flight_dt_str = st_check['latest']['Date'].strftime('%Y-%m-%d')
-                    alert_key = f"{eng_check_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
-
-                    # Cek ke dalam file disk permanen sebelum menembakkan email
-                    if not is_alert_already_sent(alert_key):
-                        recs_check = generate_recommendations(df_check_proc, st_check)
-
-                        auto_report_lines = [
-                            "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG SCAN",
-                            f"Latest Logbook Timestamp : {flight_dt_str}",
-                            f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
-                            f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
-                            f"RUL Linear Confidence     : {st_check['rul_confidence']}",
-                            "-------------------------------------------------------------------------",
-                            "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:",
-                        ]
-                        for rc in recs_check:
-                            auto_report_lines.extend([
-                                f"[{rc['fim_ref']}] {rc['title']}",
-                                f">> Priority: {rc.get('priority', 'ROUTINE')} | Est. Downtime: {rc.get('downtime', 'N/A')}",
-                                f">> Thermodynamic Signature: {rc.get('signature', 'N/A')}",
-                                rc['body'], 
-                                ""
-                            ])
-
-                        is_delivered = send_engineering_notice(
-                            engine_id=eng_check_id,
-                            status_dict=st_check,
-                            report_body="\n".join(auto_report_lines),
-                            recipients=watchdog_recipients,
-                            is_automated=True,
-                            recommendations=recs_check,
-                        )
-                        if is_delivered:
-                            save_alert_to_ledger(alert_key, eng_check_id, flight_dt_str, watchdog_recipients)
-                    else:
-                        n_already_sent += 1
-                        print(f"[SILENT BYPASS] Alert for {alert_key} was already transmitted previously.")
-
-        if n_critical_found == 0:
+        with st.spinner("Executing fleet-wide thermodynamic health scan..."):
+            n_crit, n_sent, n_already = execute_silent_watchdog(
+                engines_to_scan=engines_available, 
+                custom_recipients=watchdog_recipients, 
+                is_manual_trigger=True
+            )
+        if n_crit == 0:
             st.sidebar.success("Fleet scan complete - no engines currently at CRITICAL.")
-        elif n_already_sent == n_critical_found:
-            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) detected, but all notices were already transmitted previously. No duplicate emails sent.")
+        elif n_already == n_crit:
+            st.sidebar.info(f"Scan complete - {n_crit} CRITICAL engine(s) detected, but all notices were already transmitted previously. No duplicate emails sent.")
         else:
-            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed ({n_critical_found - n_already_sent} new alerts dispatched).")
+            st.sidebar.success(f"Scan complete - {n_crit} CRITICAL engine(s) processed ({n_sent} new alert(s) dispatched).")
 
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
