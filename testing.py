@@ -1355,9 +1355,132 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                 st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0]}.")
             return True
         except Exception as tls_err:
-            st.error(f"SMTP Transmission Failure (SSL Error: {ssl_err} | TLS Error: {tls_err})")
+            # [FAILOVER QUEUE] Tangkap kegagalan jaringan & simpan ke antrean offline
+            save_to_pending_queue(engine_id, status_dict, report_body, recipients, recommendations)
+            if is_automated:
+                print(f"[FAILOVER QUEUED] SMTP Timeout for {engine_id}. Notice saved to offline dispatch queue.")
+            else:
+                st.warning(f"Network / SMTP Timeout (SSL/TLS Error). Transmittal for **{engine_id}** has been saved to the **Pending Transmittal Queue** for manual retry.")
             return False
+
+# --- [PERSISTENT DISK LEDGER / ANTI-SPAM ENGINE] ---
+LEDGER_FILE_PATH = os.path.join(".streamlit_cache", "alert_dispatch_ledger.json")
+
+def load_alert_ledger() -> dict:
+    if not os.path.exists(LEDGER_FILE_PATH):
+        return {}
+    try:
+        with open(LEDGER_FILE_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_alert_to_ledger(alert_key: str, engine_id: str, flight_date: str, recipients: list):
+    os.makedirs(os.path.dirname(LEDGER_FILE_PATH), exist_ok=True)
+    ledger = load_alert_ledger()
+    ledger[alert_key] = {
+        "dispatch_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "engine_id": engine_id,
+        "flight_date": flight_date,
+        "recipients": recipients
+    }
+    try:
+        with open(LEDGER_FILE_PATH, "w") as f:
+            json.dump(ledger, f, indent=4)
+    except Exception as e:
+        print(f"Failed to save alert ledger: {e}")
+
+def is_alert_already_sent(alert_key: str) -> bool:
+    ledger = load_alert_ledger()
+    return alert_key in ledger
+# ---------------------------------------------------
+
+# --- [PENDING TRANSMITTAL QUEUE / FAILOVER ENGINE] ---
+QUEUE_FILE_PATH = os.path.join(".streamlit_cache", "pending_transmittal_queue.json")
+
+def load_pending_queue() -> dict:
+    if not os.path.exists(QUEUE_FILE_PATH):
+        return {}
+    try:
+        with open(QUEUE_FILE_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, recipients: list, recommendations: list = None):
+    os.makedirs(os.path.dirname(QUEUE_FILE_PATH), exist_ok=True)
+    queue = load_pending_queue()
+    queue_key = f"{engine_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Sanitasi status_dict agar 100% aman diserialisasi ke JSON (mencegah crash akibat Enum/Timestamp)
+    safe_status = {
+        "health_level": status_dict["health_level"].name if hasattr(status_dict["health_level"], "name") else str(status_dict["health_level"]),
+        "status_label": str(status_dict.get("status_label", "UNKNOWN")),
+        "d_t5": float(status_dict.get("d_t5", 0.0)),
+        "d_ng": float(status_dict.get("d_ng", 0.0)),
+        "d_wf": float(status_dict.get("d_wf", 0.0)),
+        "alarm_borescope_t5": bool(status_dict.get("alarm_borescope_t5", False)),
+        "alarm_borescope_ng": bool(status_dict.get("alarm_borescope_ng", False)),
+        "reg_prefix": str(status_dict.get("reg_prefix", "ENG"))
+    }
+    
+    queue[queue_key] = {
+        "failed_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "engine_id": engine_id,
+        "status_dict": safe_status,
+        "report_body": report_body,
+        "recipients": recipients,
+        "recommendations": recommendations if recommendations else []
+    }
+    try:
+        with open(QUEUE_FILE_PATH, "w") as f:
+            json.dump(queue, f, indent=4)
+    except Exception as e:
+        print(f"Failed to save pending queue: {e}")
+
+def remove_from_pending_queue(queue_key: str):
+    queue = load_pending_queue()
+    if queue_key in queue:
+        del queue[queue_key]
+        try:
+            with open(QUEUE_FILE_PATH, "w") as f:
+                json.dump(queue, f, indent=4)
+        except Exception as e:
+            print(f"Failed to remove from queue: {e}")
+
+def retry_pending_queue() -> tuple:
+    queue = load_pending_queue()
+    if not queue:
+        return 0, 0
+    success_count = 0
+    fail_count = 0
+    for key, item in list(queue.items()):
+        safe_status = item["status_dict"]
+        # Rekonstruksi tipe Enum EngineHealth untuk pemanggilan ulang
+        h_str = safe_status.get("health_level", "NORMAL")
+        if "CRITICAL" in h_str:
+            safe_status["health_level"] = EngineHealth.CRITICAL
+        elif "ADVISORY" in h_str:
+            safe_status["health_level"] = EngineHealth.ADVISORY
+        else:
+            safe_status["health_level"] = EngineHealth.NORMAL
         
+        is_sent = send_engineering_notice(
+            engine_id=item["engine_id"],
+            status_dict=safe_status,
+            report_body=item["report_body"],
+            recipients=item["recipients"],
+            is_automated=False,
+            recommendations=item.get("recommendations", [])
+        )
+        if is_sent:
+            remove_from_pending_queue(key)
+            success_count += 1
+        else:
+            fail_count += 1
+    return success_count, fail_count
+# -----------------------------------------------------
+   
 def generate_ewo_html(engine_id, status_label, status, recommendations):
     html = f"<html><head><title>EWO {engine_id}</title></head><body style='font-family:sans-serif; padding:20px;'>"
     html += f"<h2>ENGINEERING WORK ORDER | PT. AIRFAST INDONESIA</h2><hr>"
@@ -1419,6 +1542,71 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     elif isinstance(out, (bytes, bytearray)):
         return bytes(out)
     return b""
+
+# --- [SILENT BACKGROUND WATCHDOG TRIGGER ENGINE] ---
+def execute_silent_watchdog(engines_to_scan: list = None):
+    # 1. Ambil snapshot data terbaru langsung dari memori sesi
+    fresh_df = st.session_state["df_data"].copy()
+    fresh_util = st.session_state["df_util"].copy()
+    base_n = int(st.session_state.get("target_baseline_n", 6))
+    use_corr = bool(st.session_state.get("target_use_correction", True))
+    
+    fresh_df["Date"] = safe_parse_dates(fresh_df["Date"])
+    fresh_df = fresh_df.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
+    
+    # 2. Tentukan email tujuan MCC (prioritas: st.secrets -> input sidebar -> default korporat)
+    recipients = []
+    try:
+        sec_recs = st.secrets["email"].get("mcc_recipients")
+        if sec_recs:
+            recipients = sec_recs if isinstance(sec_recs, list) else [r.strip() for r in str(sec_recs).split(",") if r.strip()]
+    except Exception:
+        pass
+    if not recipients:
+        ui_recs = [r.strip() for r in st.session_state.get("watchdog_recipient", "").split(",") if r.strip()]
+        recipients = ui_recs if ui_recs else ["mcc.duty@airfastindonesia.com", "engineering@airfastindonesia.com"]
+
+    # 3. Pindai mesin target atau seluruh armada jika tidak dispesifikasikan
+    scan_list = engines_to_scan if engines_to_scan else sorted(fresh_df["Engine"].dropna().unique().tolist())
+    for eng_id in scan_list:
+        df_check = fresh_df[fresh_df["Engine"] == eng_id].copy()
+        if len(df_check) >= 2:
+            df_check_proc = compute_engine_trend(df_check, base_n, use_corr)
+            st_check = build_status(df_check_proc, fresh_util)
+            
+            # Evaluasi ambang batas Borescope (CRITICAL)
+            if st_check["health_level"] == EngineHealth.CRITICAL:
+                flight_dt_str = st_check['latest']['Date'].strftime('%Y-%m-%d')
+                alert_key = f"{eng_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
+                
+                # Cek ke persistent ledger agar tidak mengirim alarm ganda
+                if not is_alert_already_sent(alert_key):
+                    recs_check = generate_recommendations(df_check_proc, st_check)
+                    auto_report_lines = [
+                        "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY SILENT BACKGROUND WATCHDOG",
+                        f"Latest Logbook Timestamp : {flight_dt_str}",
+                        f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
+                        f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
+                        f"RUL Linear Confidence     : {st_check['rul_confidence']}",
+                        "-------------------------------------------------------------------------",
+                        "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:",
+                    ]
+                    for rc in recs_check:
+                        auto_report_lines.extend([
+                            f"[{rc['fim_ref']}] {rc['title']}",
+                            f">> Priority: {rc.get('priority', 'ROUTINE')} | Est. Downtime: {rc.get('downtime', 'N/A')}",
+                            f">> Thermodynamic Signature: {rc.get('signature', 'N/A')}",
+                            rc['body'], ""
+                        ])
+                    
+                    is_delivered = send_engineering_notice(
+                        engine_id=eng_id, status_dict=st_check,
+                        report_body="\n".join(auto_report_lines),
+                        recipients=recipients, is_automated=True, recommendations=recs_check
+                    )
+                    if is_delivered:
+                        save_alert_to_ledger(alert_key, eng_id, flight_dt_str, recipients)
+# -------------------------------------------------------------------
 
 # ======================================================================================
 # 12. CLEAN EXECUTIVE SIDEBAR (AUTHORIZED USER & RBAC NAVIGATION)
@@ -1602,17 +1790,15 @@ status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
 
 # ======================================================================================
-# FLEET WATCHDOG - MANUAL SCAN (runs only on explicit button click, see sidebar)
+# FLEET WATCHDOG - MANUAL SCAN WITH PERSISTENT DISK LEDGER (ANTI-SPAM)
 # ======================================================================================
-if "auto_alert_sent" not in st.session_state:
-    st.session_state["auto_alert_sent"] = set()
-
 if run_watchdog_now:
     watchdog_recipients = [r.strip() for r in watchdog_recipient_input.split(",") if r.strip()]
     if not watchdog_recipients:
         st.sidebar.error("Enter at least one recipient email before running the scan.")
     else:
         n_critical_found = 0
+        n_already_sent = 0
         for eng_check_id in engines_available:
             df_check = df_raw[df_raw["Engine"] == eng_check_id].copy()
             if len(df_check) >= 2:
@@ -1621,14 +1807,16 @@ if run_watchdog_now:
 
                 if st_check["health_level"] == EngineHealth.CRITICAL:
                     n_critical_found += 1
+                    flight_dt_str = st_check['latest']['Date'].strftime('%Y-%m-%d')
                     alert_key = f"{eng_check_id}_{st_check['latest']['Date'].strftime('%Y%m%d')}"
 
-                    if alert_key not in st.session_state["auto_alert_sent"]:
+                    # Cek ke dalam file disk permanen sebelum menembakkan email
+                    if not is_alert_already_sent(alert_key):
                         recs_check = generate_recommendations(df_check_proc, st_check)
 
                         auto_report_lines = [
                             "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG SCAN",
-                            f"Latest Logbook Timestamp : {st_check['latest']['Date'].strftime('%Y-%m-%d')}",
+                            f"Latest Logbook Timestamp : {flight_dt_str}",
                             f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
                             f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
                             f"RUL Linear Confidence     : {st_check['rul_confidence']}",
@@ -1653,11 +1841,17 @@ if run_watchdog_now:
                             recommendations=recs_check,
                         )
                         if is_delivered:
-                            st.session_state["auto_alert_sent"].add(alert_key)
+                            save_alert_to_ledger(alert_key, eng_check_id, flight_dt_str, watchdog_recipients)
+                    else:
+                        n_already_sent += 1
+                        print(f"[SILENT BYPASS] Alert for {alert_key} was already transmitted previously.")
+
         if n_critical_found == 0:
             st.sidebar.success("Fleet scan complete - no engines currently at CRITICAL.")
+        elif n_already_sent == n_critical_found:
+            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) detected, but all notices were already transmitted previously. No duplicate emails sent.")
         else:
-            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed.")
+            st.sidebar.info(f"Fleet scan complete - {n_critical_found} CRITICAL engine(s) processed ({n_critical_found - n_already_sent} new alerts dispatched).")
 
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
@@ -1838,11 +2032,6 @@ elif menu_selection == "Data Collection & Setup":
                 
                 submitted_ectm = st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True)
                 if submitted_ectm:
-                    # [BUG FIX] Fallback key now includes the registration
-                    # (parsed from m_eng) instead of date alone, to avoid
-                    # colliding with another aircraft logged the same day -
-                    # see the AML No fallback comment above for why this
-                    # matters for the SSOT correlator.
                     _m_reg_fallback = str(m_eng).split("|")[0].strip()
                     new_row = pd.DataFrame([{
                         "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
@@ -1852,6 +2041,10 @@ elif menu_selection == "Data Collection & Setup":
                         "Oil_Temp": float(m_otemp), "Oil_Press": float(m_opress)
                     }])
                     st.session_state["df_data"] = pd.concat([st.session_state["df_data"], new_row], ignore_index=True)
+                    
+                    # [SILENT BACKGROUND WATCHDOG] Pindai otomatis mesin yang baru disubmit
+                    execute_silent_watchdog(engines_to_scan=[m_eng])
+                    
                     st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
                     st.rerun()
 
@@ -1863,6 +2056,10 @@ elif menu_selection == "Data Collection & Setup":
                 missing, _ = validate_columns(new_df)
                 if not missing:
                     st.session_state["df_data"] = new_df
+                    
+                    # [SILENT BACKGROUND WATCHDOG] Pindai otomatis seluruh armada setelah ingest CSV baru
+                    execute_silent_watchdog()
+                    
                     st.success("Engine Performance Logbook ingested successfully.")
                     st.rerun()
         with col_dl:
@@ -2327,6 +2524,40 @@ elif menu_selection == "Recommendations & Notice Transmittal":
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Fleet-Scan Trigger)</h3>", unsafe_allow_html=True)
+    # --- [FAILOVER MONITOR / PENDING QUEUE UI] ---
+    pending_queue = load_pending_queue()
+    if pending_queue:
+        n_pending = len(pending_queue)
+        with st.container(border=True):
+            st.markdown(f"""
+            <div style="background-color: rgba(217, 119, 6, 0.1); border-left: 4px solid #D97706; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 14px;">
+                <span style="color: #D97706; font-weight: 800; font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.05em; display: block;">Offline Failover Alert: {n_pending} Pending Notice(s) Queued</span>
+                <span style="color: #334155; font-size: 0.85rem; line-height: 1.5; display: block; margin-top: 4px; font-weight: 500;">
+                    Previous SMTP transmittals failed due to network timeout or offline connectivity at the hangar/strip. Notices and PDF work orders are safely preserved in the local persistent cache.
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            q_rows = []
+            for q_key, q_item in pending_queue.items():
+                q_rows.append({
+                    "Powerplant ID": q_item["engine_id"],
+                    "Failed Timestamp": q_item["failed_timestamp"],
+                    "Target MCC Recipients": ", ".join(q_item["recipients"]),
+                    "Status Classification": q_item["status_dict"].get("status_label", "UNKNOWN")
+                })
+            st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True, height=120)
+            
+            if st.button(f"Retry Dispatch Now ({n_pending} Pending Notices)", type="primary", use_container_width=True, key="btn_retry_queue"):
+                with st.spinner("Re-attempting SMTP transmission to MCC for all queued notices..."):
+                    succ, fail = retry_pending_queue()
+                    if succ > 0:
+                        st.success(f"Successfully dispatched {succ} notice(s) to MCC!")
+                    if fail > 0:
+                        st.error(f"Failed to dispatch {fail} notice(s). Network connection may still be unreachable.")
+                    st.rerun()
+            st.write("")
+    # ---------------------------------------------
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Transmit urgent engineering evaluations directly to responsible Fleet Managers and Maintenance Control Center (MCC).</p>", unsafe_allow_html=True)
 
     st.markdown("""
