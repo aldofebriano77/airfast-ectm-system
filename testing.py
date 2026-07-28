@@ -1079,32 +1079,33 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#991B1B", line_width=1.2, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#991B1B"))
 
     # [KUNCI STATIS & LEGEND RESTORATION]
-    # Tanpa range slider, legend diletakkan rapi di dalam kotak berbingkai di bawah sumbu X
+    # Koordinat y diturunkan ke -0.28 agar duduk manis di bawah teks "Flight Date / Cycle"
     fig.update_layout(
         title=dict(text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", font=dict(color=NAVY, size=14)),
         xaxis_title="Flight Date / Cycle", 
         yaxis_title="Residual Delta from Baseline", 
         hovermode="x unified", 
         template="plotly_white", 
-        height=480,
+        height=520,  # Ditambahkan sedikit dari 480 ke 520 agar area grafik tetap luas
         legend=dict(
             orientation="h", 
             yanchor="top", 
-            y=-0.16, 
+            y=-0.28,  # [SOLUSI] Diturunkan ke -0.28 agar bebas total dari judul sumbu X
             xanchor="center", 
             x=0.5, 
-            font=dict(size=11, color="#0F172A", weight="bold"),
-            bgcolor="rgba(255, 255, 255, 0.9)",
+            font=dict(size=10, color="#0F172A", weight="bold"),
+            bgcolor="rgba(255, 255, 255, 0.95)",
             bordercolor="#CBD5E1",
             borderwidth=1
         ), 
         paper_bgcolor="rgba(0,0,0,0)", 
         plot_bgcolor="rgba(248,250,252,1)", 
-        margin=dict(l=40, r=20, t=65, b=115), # Margin bawah (b=115) memberi ruang luas agar legend tidak terpotong
+        margin=dict(l=40, r=20, t=65, b=140), # [SOLUSI] Margin bawah 140px memberi ruang eksklusif untuk 3 baris legenda
         dragmode=False,
         xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569"), fixedrange=True), 
         yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"), fixedrange=True)
     )
+
     return fig
 
 def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color: str) -> go.Figure:
@@ -2143,7 +2144,6 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
-    # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
     for rec in recommendations:
         lvl = rec["level"]
         badge_cls = "badge-red" if lvl == "red" else ("badge-amber" if lvl == "amber" else "badge-green")
@@ -2167,8 +2167,8 @@ elif menu_selection == "Recommendations & Notice Transmittal":
                 formatted_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", directives)
                 content_body = f"<p style='margin: 0; color: #0F172A; font-size: 0.9rem; line-height: 1.6; font-weight: 500;'>{formatted_text}</p>"
                 
-            # [ANTI-CODE BLOCK] Ditulis dalam 1 baris padat tanpa spasi indentasi awal agar tidak diubah menjadi code block oleh Markdown
-            directives_html = f"<div style='background: #F8FAFC; border-left: 4px solid {border_color}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;'><span style='color: #003B6F; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;'>🛠️ Line Engineering Directives & Action Checklist:</span>{content_body}</div>"
+            # [ANTI-CODE BLOCK & ZERO EMOTICON] Ditulis padat tanpa spasi awal dan tanpa emotikon
+            directives_html = f"<div style='background: #F8FAFC; border-left: 4px solid {border_color}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-top: 14px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;'><span style='color: #003B6F; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;'>Line Engineering Directives & Action Checklist:</span>{content_body}</div>"
         
         st.markdown(f"""
         <div class="rec-card-box {card_cls}" style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 6px solid {border_color}; border-radius: 12px; padding: 18px; margin-bottom: 20px; box-shadow: 0 6px 18px -3px rgba(0, 40, 77, 0.06);">
