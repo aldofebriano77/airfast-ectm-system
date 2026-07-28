@@ -311,25 +311,49 @@ st.markdown(
     .gold-bar { height: 3px; width: 40px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -4px; margin-bottom: 16px; }
     
     /* ==========================================================================
-       6. FORM INPUTS & DROPDOWNS (SELECTBOX, TEXT INPUT, NUMBER INPUT)
+       6. FORM INPUTS & DROPDOWNS (BULLETPROOF CONTRAST OVERRIDE)
        ========================================================================== */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    div[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+    div[data-testid="stNumberInput"] div[data-baseweb="input"] > div,
+    div[data-testid="stDateInput"] div[data-baseweb="input"] > div,
     div[data-baseweb="select"] > div,
     div[data-baseweb="input"] > div,
     div[data-baseweb="base-input"] > input {
         background-color: #FFFFFF !important;
-        border: 1.5px solid #94A3B8 !important; /* Slate-400: Kontras tegas tapi tetap elegan */
+        border-top: 2px solid #334155 !important;    /* Slate-700: Garis gelap tegas */
+        border-right: 2px solid #334155 !important;
+        border-bottom: 2px solid #334155 !important;
+        border-left: 2px solid #334155 !important;
         border-radius: 8px !important;
-        box-shadow: 0 2px 5px rgba(0, 40, 77, 0.05) !important;
+        box-shadow: 0 4px 10px rgba(0, 40, 77, 0.08) !important; /* Shadow lebih tebal */
         color: #0F172A !important;
         font-weight: 600 !important;
         transition: all 0.2s ease !important;
     }
+    
+    /* Efek saat kursor diarahkan (Hover / Focus) berubah jadi Airfast Navy + Gold Glow */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover,
+    div[data-testid="stTextInput"] div[data-baseweb="input"] > div:hover,
     div[data-baseweb="select"] > div:hover,
-    div[data-baseweb="input"] > div:hover {
-        border-color: #003B6F !important; /* Berubah jadi Airfast Navy saat di-hover */
-        box-shadow: 0 4px 10px rgba(0, 59, 111, 0.1) !important;
+    div[data-baseweb="input"] > div:hover,
+    div[data-baseweb="select"] > div:focus-within,
+    div[data-baseweb="input"] > div:focus-within {
+        border-top-color: #003B6F !important;
+        border-right-color: #003B6F !important;
+        border-bottom-color: #003B6F !important;
+        border-left-color: #003B6F !important;
+        box-shadow: 0 0 0 3px rgba(240, 183, 61, 0.3) !important; /* Sorotan emas */
     }
-    input::placeholder { color: #94A3B8 !important; opacity: 1 !important; }
+    
+    /* Memastikan teks pilihan & ketikan selalu hitam pekat terbaca jelas */
+    div[data-baseweb="select"] span, 
+    div[data-baseweb="select"] div, 
+    input[type="text"], input[type="number"] {
+        color: #0F172A !important;
+        font-weight: 600 !important;
+    }
+    input::placeholder { color: #64748B !important; opacity: 1 !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -1054,36 +1078,33 @@ def make_trend_figure(df_engine: pd.DataFrame, engine_name: str, status: dict = 
     fig.add_hline(y=T5_WASH_C, line_dash="dash", line_color="#B54708", line_width=1.2, annotation_text="ITT +10°C (Wash Limit)", annotation_font=dict(size=10, color="#B54708"))
     fig.add_hline(y=T5_BORESCOPE_C, line_dash="dash", line_color="#991B1B", line_width=1.2, annotation_text="ITT +15°C (Borescope Limit)", annotation_font=dict(size=10, color="#991B1B"))
 
-    # [KUNCI STATIS] dragmode=False & fixedrange=True mencegah ketidaksengajaan zoom/pan
+    # [KUNCI STATIS & LEGEND RESTORATION]
+    # Tanpa range slider, legend diletakkan rapi di dalam kotak berbingkai di bawah sumbu X
     fig.update_layout(
         title=dict(text=f"<b>Condition-Corrected Parameter Shift | Powerplant {engine_name}</b> ({len(df_engine)} Cycles Recorded)", font=dict(color=NAVY, size=14)),
-        xaxis_title="Flight Date / Cycle", yaxis_title="Residual Delta from Baseline", hovermode="x unified", template="plotly_white", height=480,
-        legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11)), 
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,250,252,1)", margin=dict(l=40, r=20, t=70, b=80),
+        xaxis_title="Flight Date / Cycle", 
+        yaxis_title="Residual Delta from Baseline", 
+        hovermode="x unified", 
+        template="plotly_white", 
+        height=480,
+        legend=dict(
+            orientation="h", 
+            yanchor="top", 
+            y=-0.16, 
+            xanchor="center", 
+            x=0.5, 
+            font=dict(size=11, color="#0F172A", weight="bold"),
+            bgcolor="rgba(255, 255, 255, 0.9)",
+            bordercolor="#CBD5E1",
+            borderwidth=1
+        ), 
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(248,250,252,1)", 
+        margin=dict(l=40, r=20, t=65, b=115), # Margin bawah (b=115) memberi ruang luas agar legend tidak terpotong
         dragmode=False,
         xaxis=dict(showgrid=True, gridcolor="#F1F5F9", tickfont=dict(size=11, color="#475569"), fixedrange=True), 
         yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=True, zerolinecolor="#94A3B8", zerolinewidth=1, tickfont=dict(size=11, color="#475569"), fixedrange=True)
     )
-
-    # =========================================================================
-    # --- [V2.0 UPGRADE: INTERACTIVE RANGE SLIDER & QUICK ZOOM] ---
-    # =========================================================================
-    fig.update_xaxes(
-        fixedrange=False,  # [WAJIB FALSE] Agar slider & tombol zoom bisa digeser oleh engineer
-        rangeslider_visible=True,
-        rangeselector=dict(
-            buttons=list([
-                dict(count=7, label="1W", step="day", stepmode="backward"),
-                dict(count=1, label="1M", step="month", stepmode="backward"),
-                dict(count=3, label="3M", step="month", stepmode="backward"),
-                dict(step="all", label="ALL")
-            ]),
-            bgcolor="#EFF4FA",
-            activecolor="#003B6F",
-            font=dict(color="#0F172A", size=11)
-        )
-    )
-
     return fig
 
 def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color: str) -> go.Figure:
