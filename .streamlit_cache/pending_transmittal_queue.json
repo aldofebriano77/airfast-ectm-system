@@ -1,0 +1,153 @@
+{
+    "PK-OCH | LH (SN: PC-E103)_20260729_075406": {
+        "failed_timestamp": "2026-07-29 07:54:06",
+        "engine_id": "PK-OCH | LH (SN: PC-E103)",
+        "status_dict": {
+            "health_level": "CRITICAL",
+            "status_label": "CRITICAL / ABNORMAL",
+            "d_t5": 37.59838718064066,
+            "d_ng": -2.3118445638403244,
+            "d_wf": 64.01754493343668,
+            "alarm_borescope_t5": true,
+            "alarm_borescope_ng": true,
+            "reg_prefix": "PK-OCH"
+        },
+        "report_body": "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG MANUAL SCAN\nLatest Logbook Timestamp : 2026-06-29\nComputed Residual Vector  : \u0394T5 = +37.6 \u00b0C | \u0394Ng = -2.31 % | \u0394Wf = +64.0 PPH\nPredictive RUL Remaining  : 0 Flight Cycles (2026-07-29)\nRUL Linear Confidence     : Indicative only - assumes a constant (linear) degradation rate\n-------------------------------------------------------------------------\nIMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:\n[FIM Fig. 103 Sheet 9, Note 3] Mandatory Hot-Section Borescope Inspection Required\n>> Priority: IMMEDIATE GROUNDING | Est. Downtime: Est. 8 - 12 Hours (Invasive Inspection)\n>> Thermodynamic Signature: Critical FIM Breach -> \u0394T5: +37.6\u00b0C | \u0394Ng: -2.31% | \u0394Wf: +64.0 PPH\nThermodynamic residuals breached critical OEM limits: Delta T5 = **+37.6 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-2.31 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.\n\n[FIM Table 101 / Fig. 103] Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly\n>> Priority: NEXT MAINTENANCE WINDOW | Est. Downtime: Est. 4 - 6 Hours (Valve Check & Wash)\n>> Thermodynamic Signature: ITT Increase | Ng Decrease | Fuel Flow Increase\nThermodynamic Signature: **ITT Increase | Ng Decrease | Fuel Flow Increase**. Consistent with aerodynamic efficiency degradation.\n\n**Line Engineering Directives:**\n1. Perform compressor desalination or performance recovery wash.\n2. Inspect compressor bleed valve operation and diaphragm integrity (Ref. 75-30-00) to confirm full acoustic closure.\n3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05.\n",
+        "recipients": [
+            "aldofebriano77@gmail.com"
+        ],
+        "recommendations": [
+            {
+                "level": "red",
+                "title": "Mandatory Hot-Section Borescope Inspection Required",
+                "fim_ref": "FIM Fig. 103 Sheet 9, Note 3",
+                "priority": "IMMEDIATE GROUNDING",
+                "downtime": "Est. 8 - 12 Hours (Invasive Inspection)",
+                "signature": "Critical FIM Breach -> \u0394T5: +37.6\u00b0C | \u0394Ng: -2.31% | \u0394Wf: +64.0 PPH",
+                "body": "Thermodynamic residuals breached critical OEM limits: Delta T5 = **+37.6 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-2.31 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility."
+            },
+            {
+                "level": "amber",
+                "title": "Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly",
+                "fim_ref": "FIM Table 101 / Fig. 103",
+                "priority": "NEXT MAINTENANCE WINDOW",
+                "downtime": "Est. 4 - 6 Hours (Valve Check & Wash)",
+                "signature": "ITT Increase | Ng Decrease | Fuel Flow Increase",
+                "body": "Thermodynamic Signature: **ITT Increase | Ng Decrease | Fuel Flow Increase**. Consistent with aerodynamic efficiency degradation.\n\n**Line Engineering Directives:**\n1. Perform compressor desalination or performance recovery wash.\n2. Inspect compressor bleed valve operation and diaphragm integrity (Ref. 75-30-00) to confirm full acoustic closure.\n3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05."
+            }
+        ],
+        "alert_key": "PK-OCH | LH (SN: PC-E103)_20260629_CRITICAL",
+        "flight_date": "2026-06-29"
+    },
+    "PK-OCH | RH (SN: PC-E104)_20260729_075416": {
+        "failed_timestamp": "2026-07-29 07:54:16",
+        "engine_id": "PK-OCH | RH (SN: PC-E104)",
+        "status_dict": {
+            "health_level": "CRITICAL",
+            "status_label": "CRITICAL / ABNORMAL",
+            "d_t5": -8.47068834159245,
+            "d_ng": -1.3447716977905912,
+            "d_wf": -36.731350763943,
+            "alarm_borescope_t5": false,
+            "alarm_borescope_ng": true,
+            "reg_prefix": "PK-OCH"
+        },
+        "report_body": "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG MANUAL SCAN\nLatest Logbook Timestamp : 2026-06-29\nComputed Residual Vector  : \u0394T5 = -8.5 \u00b0C | \u0394Ng = -1.34 % | \u0394Wf = -36.7 PPH\nPredictive RUL Remaining  : 0 Flight Cycles (2026-07-29)\nRUL Linear Confidence     : Low - trend is accelerating; linear extrapolation likely overstates remaining life\n-------------------------------------------------------------------------\nIMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:\n[FIM Fig. 103 Sheet 9, Note 3] Mandatory Hot-Section Borescope Inspection Required\n>> Priority: IMMEDIATE GROUNDING | Est. Downtime: Est. 8 - 12 Hours (Invasive Inspection)\n>> Thermodynamic Signature: Critical FIM Breach -> \u0394T5: -8.5\u00b0C | \u0394Ng: -1.34% | \u0394Wf: -36.7 PPH\nThermodynamic residuals breached critical OEM limits: Delta T5 = **-8.5 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-1.34 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.\n\n[FIM Table 101] Pneumatic Sensing Reference Leak / FCU Calibration Drift\n>> Priority: NEXT MAINTENANCE WINDOW | Est. Downtime: Est. 2 - 3 Hours (Line Inspection & Leak Test)\n>> Thermodynamic Signature: Uniform Downward Shift Across All Parameters\nThermodynamic Signature: **Uniform downward shift across all parameters**. Indicates pneumatic sensing line leakage or FCU drift.\n\n**Line Engineering Directives:**\n1. Inspect P3 and Py pneumatic sensing lines, fittings, and FCU bellows for leakage.\n2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units.\n",
+        "recipients": [
+            "aldofebriano77@gmail.com"
+        ],
+        "recommendations": [
+            {
+                "level": "red",
+                "title": "Mandatory Hot-Section Borescope Inspection Required",
+                "fim_ref": "FIM Fig. 103 Sheet 9, Note 3",
+                "priority": "IMMEDIATE GROUNDING",
+                "downtime": "Est. 8 - 12 Hours (Invasive Inspection)",
+                "signature": "Critical FIM Breach -> \u0394T5: -8.5\u00b0C | \u0394Ng: -1.34% | \u0394Wf: -36.7 PPH",
+                "body": "Thermodynamic residuals breached critical OEM limits: Delta T5 = **-8.5 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-1.34 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility."
+            },
+            {
+                "level": "amber",
+                "title": "Pneumatic Sensing Reference Leak / FCU Calibration Drift",
+                "fim_ref": "FIM Table 101",
+                "priority": "NEXT MAINTENANCE WINDOW",
+                "downtime": "Est. 2 - 3 Hours (Line Inspection & Leak Test)",
+                "signature": "Uniform Downward Shift Across All Parameters",
+                "body": "Thermodynamic Signature: **Uniform downward shift across all parameters**. Indicates pneumatic sensing line leakage or FCU drift.\n\n**Line Engineering Directives:**\n1. Inspect P3 and Py pneumatic sensing lines, fittings, and FCU bellows for leakage.\n2. Conduct instrumentation calibration check on cockpit indicators and engine transmitter units."
+            }
+        ],
+        "alert_key": "PK-OCH | RH (SN: PC-E104)_20260629_CRITICAL",
+        "flight_date": "2026-06-29"
+    },
+    "PK-OCH | LH (SN: PC-E103)_20260729_075613": {
+        "failed_timestamp": "2026-07-29 07:56:13",
+        "engine_id": "PK-OCH | LH (SN: PC-E103)",
+        "status_dict": {
+            "health_level": "CRITICAL",
+            "status_label": "CRITICAL / ABNORMAL",
+            "d_t5": 37.59838718064066,
+            "d_ng": -2.3118445638403244,
+            "d_wf": 64.01754493343668,
+            "alarm_borescope_t5": true,
+            "alarm_borescope_ng": true,
+            "reg_prefix": "PK-OCH"
+        },
+        "report_body": "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG MANUAL SCAN\nLatest Logbook Timestamp : 2026-06-29\nComputed Residual Vector  : \u0394T5 = +37.6 \u00b0C | \u0394Ng = -2.31 % | \u0394Wf = +64.0 PPH\nPredictive RUL Remaining  : 0 Flight Cycles (2026-07-29)\nRUL Linear Confidence     : Indicative only - assumes a constant (linear) degradation rate\n-------------------------------------------------------------------------\nIMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:\n[FIM Fig. 103 Sheet 9, Note 3] Mandatory Hot-Section Borescope Inspection Required\n>> Priority: IMMEDIATE GROUNDING | Est. Downtime: Est. 8 - 12 Hours (Invasive Inspection)\n>> Thermodynamic Signature: Critical FIM Breach -> \u0394T5: +37.6\u00b0C | \u0394Ng: -2.31% | \u0394Wf: +64.0 PPH\nThermodynamic residuals breached critical OEM limits: Delta T5 = **+37.6 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-2.31 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.\n\n[FIM Table 101 / Fig. 103] Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly\n>> Priority: NEXT MAINTENANCE WINDOW | Est. Downtime: Est. 4 - 6 Hours (Valve Check & Wash)\n>> Thermodynamic Signature: ITT Increase | Ng Decrease | Fuel Flow Increase\nThermodynamic Signature: **ITT Increase | Ng Decrease | Fuel Flow Increase**. Consistent with aerodynamic efficiency degradation.\n\n**Line Engineering Directives:**\n1. Perform compressor desalination or performance recovery wash.\n2. Inspect compressor bleed valve operation and diaphragm integrity (Ref. 75-30-00) to confirm full acoustic closure.\n3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05.\n",
+        "recipients": [
+            "aldofebriano77@gmail.com"
+        ],
+        "recommendations": [
+            {
+                "level": "red",
+                "title": "Mandatory Hot-Section Borescope Inspection Required",
+                "fim_ref": "FIM Fig. 103 Sheet 9, Note 3",
+                "priority": "IMMEDIATE GROUNDING",
+                "downtime": "Est. 8 - 12 Hours (Invasive Inspection)",
+                "signature": "Critical FIM Breach -> \u0394T5: +37.6\u00b0C | \u0394Ng: -2.31% | \u0394Wf: +64.0 PPH",
+                "body": "Thermodynamic residuals breached critical OEM limits: Delta T5 = **+37.6 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-2.31 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility."
+            },
+            {
+                "level": "amber",
+                "title": "Compressor Aerodynamic Efficiency Loss / Bleed Valve Anomaly",
+                "fim_ref": "FIM Table 101 / Fig. 103",
+                "priority": "NEXT MAINTENANCE WINDOW",
+                "downtime": "Est. 4 - 6 Hours (Valve Check & Wash)",
+                "signature": "ITT Increase | Ng Decrease | Fuel Flow Increase",
+                "body": "Thermodynamic Signature: **ITT Increase | Ng Decrease | Fuel Flow Increase**. Consistent with aerodynamic efficiency degradation.\n\n**Line Engineering Directives:**\n1. Perform compressor desalination or performance recovery wash.\n2. Inspect compressor bleed valve operation and diaphragm integrity (Ref. 75-30-00) to confirm full acoustic closure.\n3. Execute visual and borescope examination of first-stage compressor blades for FOD per AMM Ref. 72-30-05."
+            }
+        ],
+        "alert_key": "PK-OCH | LH (SN: PC-E103)_20260629_CRITICAL",
+        "flight_date": "2026-06-29"
+    },
+    "PK-OAM | LH (SN: PC-E301)_20260729_075719": {
+        "failed_timestamp": "2026-07-29 07:57:19",
+        "engine_id": "PK-OAM | LH (SN: PC-E301)",
+        "status_dict": {
+            "health_level": "CRITICAL",
+            "status_label": "CRITICAL / ABNORMAL",
+            "d_t5": 20.750798679866193,
+            "d_ng": -0.24903762376244742,
+            "d_wf": 3.975141914190715,
+            "alarm_borescope_t5": true,
+            "alarm_borescope_ng": false,
+            "reg_prefix": "PK-OAM"
+        },
+        "report_body": "CRITICAL THERMODYNAMIC DEGRADATION DETECTED BY FLEET WATCHDOG MANUAL SCAN\nLatest Logbook Timestamp : 2026-11-20\nComputed Residual Vector  : \u0394T5 = +20.8 \u00b0C | \u0394Ng = -0.25 % | \u0394Wf = +4.0 PPH\nPredictive RUL Remaining  : 0 Flight Cycles (2026-07-29)\nRUL Linear Confidence     : Low - trend is accelerating; linear extrapolation likely overstates remaining life\n-------------------------------------------------------------------------\nIMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:\n[FIM Fig. 103 Sheet 9, Note 3] Mandatory Hot-Section Borescope Inspection Required\n>> Priority: IMMEDIATE GROUNDING | Est. Downtime: Est. 8 - 12 Hours (Invasive Inspection)\n>> Thermodynamic Signature: Critical FIM Breach -> \u0394T5: +20.8\u00b0C | \u0394Ng: -0.25% | \u0394Wf: +4.0 PPH\nThermodynamic residuals breached critical OEM limits: Delta T5 = **+20.8 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-0.25 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.\n",
+        "recipients": [
+            "aldofebriano77@gmail.com"
+        ],
+        "recommendations": [
+            {
+                "level": "red",
+                "title": "Mandatory Hot-Section Borescope Inspection Required",
+                "fim_ref": "FIM Fig. 103 Sheet 9, Note 3",
+                "priority": "IMMEDIATE GROUNDING",
+                "downtime": "Est. 8 - 12 Hours (Invasive Inspection)",
+                "signature": "Critical FIM Breach -> \u0394T5: +20.8\u00b0C | \u0394Ng: -0.25% | \u0394Wf: +4.0 PPH",
+                "body": "Thermodynamic residuals breached critical OEM limits: Delta T5 = **+20.8 \u00b0C** (Limit: +15.0 \u00b0C) / Delta Ng = **-0.25 %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility."
+            }
+        ],
+        "alert_key": "PK-OAM | LH (SN: PC-E301)_20261120_CRITICAL",
+        "flight_date": "2026-11-20"
+    }
+}

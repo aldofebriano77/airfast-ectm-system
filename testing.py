@@ -2628,29 +2628,44 @@ elif menu_selection == "Recommendations & Notice Transmittal":
     </div>
     """, unsafe_allow_html=True)
 
-    can_dispatch = st.session_state.get("user_role") not in ("Guest / Viewer",)
+    # =========================================================================
+    # MANUAL TRIGGER (FULL HUMAN OVERRIDE - BEBAS KIRIM KAPAN SAJA)
+    # =========================================================================
+    st.markdown("""
+    <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
+        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">FLEET WATCHDOG - MANUAL TRIGGER</b>
+        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Manual dispatch bypasses the anti-spam ledger. You can transmit notices multiple times to any recipient.</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.container(border=True):
         col_em1, col_em2 = st.columns([3, 1])
         with col_em1:
+            # Email langsung diisi di 'value' supaya tidak sekadar placeholder abu-abu
+            default_recipients = "mcc.duty@airfastindonesia.com, chief.engineer@airfastindonesia.com"
             target_emails = st.text_input(
-                "Recipient Email Addresses (comma-separated)", value="",
-                placeholder="mcc.duty@airfastindonesia.com, chief.engineer@airfastindonesia.com",
-                disabled=not can_dispatch,
+                "Recipient Email Addresses (comma-separated)", 
+                value=default_recipients,
+                key="manual_email_input"
             )
         with col_em2:
             st.write("")
             st.write("")
-            if not can_dispatch:
-                st.button("Transmit Engineering Notice", disabled=True, use_container_width=True,
-                           help="Guest accounts cannot dispatch official engineering notices. Log in with an authorized account.")
-            elif st.button("Transmit Engineering Notice", type="primary", use_container_width=True):
+            # Tombol kirim selalu aktif tanpa pengecekan can_dispatch atau ledger
+            if st.button("Transmit Engineering Notice", type="primary", use_container_width=True):
                 recipients_list = [e.strip() for e in target_emails.split(",") if e.strip()]
                 if not recipients_list:
-                    st.error("Enter at least one recipient email address.")
+                    st.error("❌ Enter at least one recipient email address.")
                 else:
                     with st.spinner("Transmitting engineering notice via secure SMTP..."):
-                        success = send_engineering_notice(selected_engine, status, "\n".join(report_lines), recipients_list, is_automated=False, recommendations=recommendations)
-                        if success: st.success("Manual Engineering Notice transmitted successfully to target recipients.")
-    if not can_dispatch:
-        st.caption("Signed in as Guest / Viewer - dispatching official notices is restricted to authorized engineering/maintenance accounts.")
+                        # Panggil fungsi kirim email TANPA menyertakan alert_key (Bypass Ledger)
+                        success = send_engineering_notice(
+                            selected_engine, 
+                            status, 
+                            "\n".join(report_lines), 
+                            recipients_list, 
+                            is_automated=False, 
+                            recommendations=recommendations
+                        )
+                        if success: 
+                            st.success(f"✅ Manual Engineering Notice transmitted successfully to: {', '.join(recipients_list)}")
