@@ -2585,6 +2585,7 @@ elif menu_selection == "Recommendations & Notice Transmittal":
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>MCC Emergency Transmittal Protocol (Manual & Fleet-Scan Trigger)</h3>", unsafe_allow_html=True)
+
     # --- [FAILOVER MONITOR / PENDING QUEUE UI] ---
     pending_queue = load_pending_queue()
     if pending_queue:
@@ -2619,22 +2620,19 @@ elif menu_selection == "Recommendations & Notice Transmittal":
                     st.rerun()
             st.write("")
     # ---------------------------------------------
+    
     st.markdown("<p style='color:#475569; font-size:0.88rem; margin-bottom:14px;'>Transmit urgent engineering evaluations directly to responsible Fleet Managers and Maintenance Control Center (MCC).</p>", unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
-        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">FLEET WATCHDOG - MANUAL TRIGGER</b>
-        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Fleet-wide CRITICAL scanning is <b>not automatic</b> - use the "Run Fleet Health Scan Now" control in the sidebar (with your own recipient address) to check all engines at once.</span>
-    </div>
-    """, unsafe_allow_html=True)
 
     # =========================================================================
     # MANUAL TRIGGER (FULL HUMAN OVERRIDE - BEBAS KIRIM KAPAN SAJA)
     # =========================================================================
     st.markdown("""
     <div style="background-color:#F8FAFC; border-left:4px solid #003B6F; border-top:1px solid #E2E8F0; border-right:1px solid #E2E8F0; border-bottom:1px solid #E2E8F0; padding:12px 16px; border-radius:4px; margin-bottom:16px;">
-        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">FLEET WATCHDOG - MANUAL TRIGGER</b>
-        <span style="color:#475569; font-size:0.8rem; line-height:1.4; display:block;">Manual dispatch bypasses the anti-spam ledger. You can transmit notices multiple times to any recipient.</span>
+        <b style="color:#003B6F; font-size:0.85rem; letter-spacing:0.03em; display:block; margin-bottom:4px;">EXECUTIVE NOTICE TRANSMITTAL & FLEET OVERRIDE</b>
+        <span style="color:#475569; font-size:0.8rem; line-height:1.5; display:block;">
+            <b>Manual Dispatch:</b> Bypasses the anti-spam ledger, allowing you to transmit EWO notices multiple times to any custom recipient.<br>
+            <b>Fleet Watchdog:</b> To run an automated CRITICAL health scan across all engines at once, use the <i>"Run Fleet Health Scan Now"</i> control in the sidebar.
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
