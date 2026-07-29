@@ -1983,10 +1983,12 @@ if menu_selection == "Home (Fleet Matrix)":
 <circle cx="300" cy="15" r="4" fill="#16A34A"/></svg>"""
 
     import base64
-    hm_cols = st.columns(3)
+    # [UI/UX UPGRADE: 5-COLUMN OCC FLEET COMMAND DECK]
+    # Menampilkan 5 pesawat DHC-6 AIRFAST sejajar dalam satu baris eksekutif di layar Wide
+    hm_cols = st.columns(5)
     col_idx = 0
     for reg, engs in sorted(aircraft_map.items()):
-        with hm_cols[col_idx % 3]:
+        with hm_cols[col_idx % 5]:
             lh_stat = engs.get("LH Engine", "UNKNOWN")
             rh_stat = engs.get("RH Engine", "UNKNOWN")
             
@@ -1995,6 +1997,7 @@ if menu_selection == "Home (Fleet Matrix)":
                 if st_val == "ADVISORY": return "hm-amber"
                 return "hm-green"
 
+            # Sistem otomatis mencari foto pesawat berdasarkan registrasi
             img_candidates = [
                 f"{reg}.jpg", f"{reg.lower()}.jpg",
                 f"{reg}.jpeg", f"{reg.lower()}.jpeg",
@@ -2013,21 +2016,21 @@ if menu_selection == "Home (Fleet Matrix)":
                     b64_str = base64.b64encode(f_img.read()).decode()
                 ext = found_img_path.split(".")[-1].lower()
                 mime_type = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
-                visual_html = f'<div style="margin-bottom:8px; border:1px solid #CBD5E1; border-radius:6px; overflow:hidden; width:100%; height:105px; background:#F8FAFC;"><img src="data:{mime_type};base64,{b64_str}" style="width:100%; height:100%; object-fit:cover; object-position:center; display:block;"></div>'
+                visual_html = f'<div style="margin-bottom:8px; border:1px solid #CBD5E1; border-radius:6px; overflow:hidden; width:100%; height:90px; background:#F8FAFC;"><img src="data:{mime_type};base64,{b64_str}" style="width:100%; height:100%; object-fit:cover; object-position:center; display:block;"></div>'
             else:
                 visual_html = dhc6_svg_blueprint
                 
-            card_html = f"""<div class="heatmap-card">
+            card_html = f"""<div class="heatmap-card" style="padding: 10px;">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-<span class="heatmap-reg" style="margin-bottom:0px; font-size:1.1rem;">{reg}</span>
-<span style="background:#EFF4FA; color:#003B6F; font-size:0.7rem; font-weight:700; padding:2px 6px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
+<span class="heatmap-reg" style="margin-bottom:0px; font-size:0.95rem;">{reg}</span>
+<span style="background:#EFF4FA; color:#003B6F; font-size:0.65rem; font-weight:700; padding:2px 5px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
 </div>
 {visual_html}
-<div class="heatmap-row {get_hm_class(lh_stat)}">
-<span>#1 LH Powerplant</span><b>{lh_stat}</b>
+<div class="heatmap-row {get_hm_class(lh_stat)}" style="font-size:0.72rem; padding:4px 6px;">
+<span>#1 LH</span><b>{lh_stat}</b>
 </div>
-<div class="heatmap-row {get_hm_class(rh_stat)}">
-<span>#2 RH Powerplant</span><b>{rh_stat}</b>
+<div class="heatmap-row {get_hm_class(rh_stat)}" style="font-size:0.72rem; padding:4px 6px;">
+<span>#2 RH</span><b>{rh_stat}</b>
 </div>
 </div>"""
             st.markdown(card_html, unsafe_allow_html=True)
