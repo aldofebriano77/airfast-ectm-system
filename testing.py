@@ -1796,10 +1796,10 @@ st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<p style='font-weight:700; color:#f0b73d; font-size:0.85rem; margin-bottom:2px;'>FLEET WATCHDOG</p>", unsafe_allow_html=True)
 st.sidebar.caption(
-    "Manual trigger only - runs a one-time scan across the fleet and dispatches "
-    "alerts for engines currently at CRITICAL. Deduplication only lasts for this "
-    "browser session (not persisted), so re-running after a page refresh may "
-    "re-send an alert for the same finding."
+    "Also runs automatically after a new logbook entry or CSV upload. This button "
+    "triggers an additional full-fleet scan on demand. Deduplication is persisted "
+    "to disk (alert_dispatch_ledger.json) - the same engine + date + status "
+    "combination will not be re-alerted even across browser sessions or app restarts."
 )
 watchdog_recipient_input = st.sidebar.text_input(
     "Alert recipient email(s)", value=st.session_state.get("watchdog_recipient", ""),
