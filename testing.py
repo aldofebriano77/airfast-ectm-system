@@ -1860,18 +1860,33 @@ df_raw["Date"] = safe_parse_dates(df_raw["Date"])
 # AML field is left blank (both very likely in normal daily use). Fix:
 # include the registration/engine identity in the fallback key so it stays
 # unique per aircraft, not just per date.
+# --- KODE BARU (Pengaman Sel Kosong / NaN) ---
 if "AML No" not in df_raw.columns:
     _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
     df_raw["AML No"] = (
         "AML-" + _fallback_reg.fillna("UNKN") + "-" +
         df_raw["Date"].dt.strftime("%Y%m%d").fillna("UNKN")
     )
+else:
+    # Jika kolom AML No sudah ada, isi sel yang kosong/NaN dengan fallback ID otomatis
+    _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
+    _fallback_key = (
+        "AML-" + _fallback_reg.fillna("UNKN") + "-" +
+        df_raw["Date"].dt.strftime("%Y%m%d").fillna("UNKN")
+    )
+    df_raw["AML No"] = df_raw["AML No"].replace(["", "NAN", "nan", "None"], np.nan).fillna(_fallback_key)
 if "AML No" not in df_util_current.columns and not df_util_current.empty:
     _fallback_reg_u = df_util_current["Registration"].astype(str) if "Registration" in df_util_current.columns else "UNKN"
     df_util_current["AML No"] = (
         "AML-" + _fallback_reg_u + "-" +
         df_util_current["Work (Date)"].dt.strftime("%Y%m%d").fillna("UNKN")
     )
+if "AML No" in df_raw.columns:
+    df_raw["AML No"] = df_raw["AML No"].astype(str).str.strip().str.upper()
+if "AML No" in df_util_current.columns and not df_util_current.empty:
+    df_util_current["AML No"] = df_util_current["AML No"].astype(str).str.strip().str.upper()
+if "AML No" in df_rep_current.columns and not df_rep_current.empty:
+    df_rep_current["AML No"] = df_rep_current["AML No"].astype(str).str.strip().str.upper()
 
 _rows_before_clean = len(df_raw)
 df_raw = df_raw.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
@@ -2219,7 +2234,7 @@ elif menu_selection == "Data Collection & Setup":
                 submitted_rep = st.form_submit_button("Save PIREP / MAREP Report", type="primary", use_container_width=True)
                 if submitted_rep:
                     new_r_row = pd.DataFrame([{
-                        "AML No": r_aml if r_aml else f"{r_reg}-MANUAL", "Date": pd.to_datetime(r_date),
+                        "AML No": r_aml if r_aml else f"AML-{r_reg}-{pd.to_datetime(r_date).strftime('%Y%m%d')}",
                         "Registration": r_reg, "ATA": int(r_ata),
                         "Note / Report": r_note if r_note else "No description provided.",
                         "Corrective Action": r_action if r_action else "Pending action.",
