@@ -540,6 +540,8 @@ def init_all_datasets():
     rng = np.random.default_rng(101)
     rows_ectm = []
     
+    # [UPGRADE ARMADA FULL 5 PESAWAT / 10 MESIN PT6A-34]
+    # Format: (Engine ID, T5 Drift, Ng Drift, Wf Drift, Base T5, Base Ng, Base Wf, Skenario)
     fleet_scenarios = [
         ("PK-OAM | LH (SN: PC-E101)", 0.28, -0.010, 0.45, 624.0, 91.50, 288.0, "WASH_RECOVERY"),
         ("PK-OAM | RH (SN: PC-E102)", 0.02, -0.001, 0.05, 625.5, 91.60, 290.5, "ISOLATED_SPIKE"),
@@ -547,6 +549,11 @@ def init_all_datasets():
         ("PK-OCH | RH (SN: PC-E104)", -0.15, -0.020, -0.60, 626.0, 91.55, 291.0, "PNEUMATIC_LEAK"),
         ("PK-OCG | LH (SN: PC-E105)", 0.12, -0.005, 0.25, 624.5, 91.50, 289.5, "ADVISORY_WATCH"),
         ("PK-OCG | RH (SN: PC-E106)", 0.01,  0.001, 0.02, 622.0, 91.70, 287.5, "NORMAL_OPTIMAL"),
+        # --> TAMBAHAN 2 PESAWAT BARU (PK-OCI & PK-OCF) <--
+        ("PK-OCI | LH (SN: PC-E107)", 0.03, -0.002, 0.08, 623.5, 91.65, 288.5, "NORMAL_OPTIMAL"),
+        ("PK-OCI | RH (SN: PC-E108)", 0.15, -0.008, 0.30, 624.8, 91.52, 289.0, "ADVISORY_WATCH"),
+        ("PK-OCF | LH (SN: PC-E109)", 0.02,  0.001, 0.04, 625.0, 91.58, 289.8, "NORMAL_OPTIMAL"),
+        ("PK-OCF | RH (SN: PC-E110)", 0.20, -0.012, 0.40, 626.2, 91.48, 290.2, "WASH_RECOVERY"),
     ]
     total_cycles = 60
     
@@ -645,6 +652,9 @@ def init_all_datasets():
             {"AML No": "OCH-2026-051", "Date": "2026-06-20", "Registration": "PK-OCH", "ATA": 72, "ATA_Desc": "72 - Engine", "Note / Report": "High T5 trend paired with Ng drop. Suspected CT vane erosion or bleed valve leak.", "Corrective Action": "Scheduled engine for mandatory borescope inspection. Replaced faulty compressor bleed valve assembly.", "Position": "LH", "P/N Off": "3100250-01", "P/N On": "3100250-01", "S/N Off": "BV-102", "S/N On": "BV-884"},
             {"AML No": "OCH-2026-036", "Date": "2026-06-05", "Registration": "PK-OCH", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "All engine parameters (Ng, ITT, Wf) reading slightly lower than baseline at cruise power.", "Corrective Action": "Inspected P3 pneumatic sensing line. Found minor air leak at FCU Bellows B-nut fitting. Re-sealed and leak tested SAT.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
             {"AML No": "OCG-2026-046", "Date": "2026-06-15", "Registration": "PK-OCG", "ATA": 79, "ATA_Desc": "79 - Engine Oil", "Note / Report": "Oil temperature slightly elevated by 3 deg C over the last 10 sectors.", "Corrective Action": "Inspected oil cooler matrix and cleaned external dust accumulation. Re-verified oil pressure relief valve setting.", "Position": "LH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            # --> TAMBAHAN LAPORAN DEFECT UNTUK PK-OCI & PK-OCF <--
+            {"AML No": "OCI-2026-018", "Date": "2026-06-18", "Registration": "PK-OCI", "ATA": 73, "ATA_Desc": "73 - Engine Fuel & Control", "Note / Report": "Minor Ng fluctuation (+/- 0.4%) observed during steady cruise power.", "Corrective Action": "Inspected FCU linkage and Py bleed air filter. Cleaned filter element and verified SAT on ground run.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
+            {"AML No": "OCF-2026-012", "Date": "2026-06-12", "Registration": "PK-OCF", "ATA": 71, "ATA_Desc": "71 - Powerplant General", "Note / Report": "Aircraft parked at HLP. Routine engine preservation run; T5 running 5 deg C above normal baseline.", "Corrective Action": "Performed Compressor Performance Recovery Wash prior to return-to-service line maintenance check.", "Position": "RH", "P/N Off": np.nan, "P/N On": np.nan, "S/N Off": np.nan, "S/N On": np.nan},
         ])
 
     df_rep = process_maintenance_reports(df_rep)
