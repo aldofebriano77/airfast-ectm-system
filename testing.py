@@ -1361,15 +1361,17 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
     </html>
     """
     body_part.attach(MIMEText(email_html, 'html'))
-    msg.attach(body_part)
-    
-    if pdf_bytes:
-        pdf_part = MIMEApplication(pdf_bytes, _subtype="pdf")
-        filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
-        pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
-        msg.attach(pdf_part)
 
-    # --- [TAMBAHKAN KODE INI: EMBED LOGO CID UNTUK HEADER HTML] ---
+    # [BUG FIX] Was: msg.attach(body_part) directly, with the CID logo
+    # attached separately as a sibling of body_part under multipart/mixed.
+    # cid: references inside HTML need their image to live in the SAME
+    # multipart/related container as the HTML for reliable inline rendering
+    # - a flat mixed structure works in lenient clients (Gmail) but risks a
+    # broken image icon or a duplicated visible attachment in stricter ones
+    # (notably Outlook desktop, which many corporate MCC recipients use).
+    related_part = MIMEMultipart("related")
+    related_part.attach(body_part)
+
     logo_file_path = "images.png"  # Menggunakan file logo yang sama dengan sidebar login
     if os.path.exists(logo_file_path):
         try:
@@ -1378,10 +1380,17 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                 # Menetapakan Content-ID agar bisa dipanggil oleh <img src="cid:airfast_logo_cid"> di HTML
                 logo_part.add_header('Content-ID', '<airfast_logo_cid>')
                 logo_part.add_header('Content-Disposition', 'inline', filename="airfast_logo.png")
-                msg.attach(logo_part)
+                related_part.attach(logo_part)
         except Exception as img_err:
             print(f"[EMAIL LOGO WARNING] Gagal menyisipkan logo CID: {img_err}")
-    # -----------------------------------------------------------------
+
+    msg.attach(related_part)
+    
+    if pdf_bytes:
+        pdf_part = MIMEApplication(pdf_bytes, _subtype="pdf")
+        filename = f"AIRFAST_EWO_{status_dict.get('reg_prefix', 'ENG')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        pdf_part.add_header('Content-Disposition', 'attachment', filename=filename)
+        msg.attach(pdf_part)
 
     # --- [POIN 1 & 6 FIX: Preserved Error Details & Reduced Timeout] ---
     try:
