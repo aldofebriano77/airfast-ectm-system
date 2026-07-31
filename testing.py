@@ -475,14 +475,19 @@ if not st.session_state.get("logged_in", False):
             with open(hero_path, "rb") as f_img:
                 b64_hero = base64.b64encode(f_img.read()).decode()
             
-            # [PENTING] Sengaja dirata-kirikan semua agar Streamlit Markdown 
-            # tidak menganggapnya sebagai "Code Block"
+            # [PENTING] Semua elemen HTML diratakan ke kiri agar tidak dianggap Code Block
             st.markdown(f"""
 <div style="border-radius: 16px; overflow: hidden; height: 520px; position: relative; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
 <img src="data:image/jpeg;base64,{b64_hero}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+
+<!-- Highlight/Gradient Gelap di bagian bawah tetap dipertahankan -->
 <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, rgba(0, 40, 77, 0.95) 0%, rgba(0, 40, 77, 0) 100%); padding: 40px 30px 30px 30px;">
-<h2 style="color: #FFFFFF; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.6);">Engineering the Future<br>of Fleet Reliability.</h2>
-<p style="color: #f0b73d; font-weight: 600; font-size: 0.95rem; margin-top: 8px; text-shadow: 1px 1px 3px rgba(0,0,0,0.6);">DHC-6 / PT6A-34 Engine Telemetry System</p>
+
+<!-- Teks diubah jadi Putih (#FFFFFF) dan diberi bayangan (text-shadow) agar sangat tajam -->
+<h2 style="color: #FFFFFF; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2; text-shadow: 0px 4px 10px rgba(0,0,0,0.7), 0px 1px 3px rgba(0,0,0,0.5);">Engineering the Future<br>of Fleet Reliability.</h2>
+
+<!-- Subtitle tetap Airfast Gold agar ada aksen korporat -->
+<p style="color: #f0b73d; font-weight: 600; font-size: 0.95rem; margin-top: 8px; text-shadow: 0px 2px 5px rgba(0,0,0,0.8);">DHC-6 / PT6A-34 Engine Telemetry System</p>
 </div>
 </div>
 """, unsafe_allow_html=True)
