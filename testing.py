@@ -411,62 +411,79 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
         st.session_state["filter_reg_kw"] = reg_filter
 
 if not st.session_state.get("logged_in", False):
+    # =========================================================================
+    # CSS SUPER INJECTION: Memaksa gaya secara mutlak agar tidak ditimpa Streamlit
+    # =========================================================================
     st.markdown("""
         <style>
-            /* 1. MENGHILANGKAN HEADER & GARIS HORIZONTAL ATAS */
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="collapsedControl"] { display: none !important; }
-            [data-testid="stHeader"] { display: none !important; }
-            
-            /* [FIX] Membunuh total kontainer pembungkus header agar garis atasnya lenyap */
-            div[data-testid="stElementContainer"]:has(.sticky-header-box),
-            div.element-container:has(.sticky-header-box) { 
+            /* 1. BERSIH-BERSIH: Hilangkan Sidebar, Header, dan Garis Atas */
+            [data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stHeader"] { 
                 display: none !important; 
             }
-            
-            /* Mengatur jarak lega dari atas layar */
-            .block-container { padding-top: 3.5rem !important; max-width: 1100px !important; }
-
-            /* 2. MENGEMBALIKAN KOTAK INPUT (EMAIL & PASSWORD) */
-            /* Menembak langsung elemen form agar tidak tertimpa bawaan Streamlit */
-            form div[data-baseweb="input"] {
-                background-color: #F8FAFC !important;
-                border: 1.5px solid #94A3B8 !important; /* Batas abu-abu kebiruan tegas */
-                border-radius: 6px !important;
-                box-shadow: inset 0 1px 3px rgba(0,0,0,0.05) !important;
-                padding: 2px 10px !important;
+            .sticky-header-box, div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) { 
+                display: none !important; 
+            }
+            .block-container { 
+                padding-top: 3.5rem !important; 
+                max-width: 1100px !important; 
             }
 
-            /* Efek menyala (glow) warna Navy saat diklik */
-            form div[data-baseweb="input"]:focus-within {
-                border-color: #003B6F !important;
-                box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.2) !important;
+            /* 2. PENYEJAJARAN (ALIGNMENT): Memaksa tinggi kontainer form sama dengan gambar (520px) */
+            /* Mengambil kontainer berbingkai bawaan Streamlit di kolom ke-2 */
+            [data-testid="column"]:nth-of-type(2) [data-testid="stVerticalBlockBorderWrapper"] {
+                height: 520px !important;
+                border-radius: 16px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
                 background-color: #FFFFFF !important;
+                box-shadow: 0 10px 25px rgba(0, 40, 77, 0.05) !important;
+            }
+
+            /* 3. KOTAK INPUT (EMAIL & PASSWORD): Memaksa muncul kotak abu-abu yang tegas */
+            /* Menargetkan elemen input Streamlit yang ada di dalam form */
+            [data-testid="stForm"] div[data-baseweb="input"] > div {
+                background-color: #F8FAFC !important;
+                border: 2px solid #CBD5E1 !important;
+                border-radius: 8px !important;
+                padding: 4px 10px !important;
             }
             
-            /* Memastikan teks ketikan berwarna hitam pekat */
-            form input {
+            /* Efek menyala saat user mengklik kotak (Focus) */
+            [data-testid="stForm"] div[data-baseweb="input"] > div:focus-within {
+                border-color: #003B6F !important;
+                background-color: #FFFFFF !important;
+                box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.15) !important;
+            }
+            
+            /* Warna teks ketikan hitam pekat */
+            [data-testid="stForm"] input {
                 color: #0F172A !important;
                 font-weight: 600 !important;
+                -webkit-text-fill-color: #0F172A !important;
+            }
+            
+            /* Warna placeholder */
+            [data-testid="stForm"] input::placeholder {
+                color: #94A3B8 !important;
+                -webkit-text-fill-color: #94A3B8 !important;
             }
         </style>
     """, unsafe_allow_html=True)
     
-    # Membuat Layout Split-Screen (Gambar Kiri 1.2 : Form Kanan 1)
+    # Membuat Layout Split-Screen
     col_img, col_form = st.columns([1.2, 1], gap="large")
     
-    # ================= SISI KIRI (GAMBAR HERO & BRANDING) =================
+    # --- SISI KIRI (GAMBAR HERO & BRANDING) ---
     with col_img:
         hero_path = "login_hero.jpg"
-        
         if os.path.exists(hero_path):
             import base64
             with open(hero_path, "rb") as f_img:
                 b64_hero = base64.b64encode(f_img.read()).decode()
             
-            # [FIX] Menetapkan tinggi statis 520px
             st.markdown(f"""
-            <div style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15); height: 100%; min-height: 520px; position: relative;">
+            <div style="border-radius: 16px; overflow: hidden; height: 520px; position: relative; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
                 <img src="data:image/jpeg;base64,{b64_hero}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
                 <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, #00284D 0%, rgba(0,40,77,0) 100%); padding: 40px 30px 30px 30px;">
                     <h2 style="color: #FFFFFF; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h2>
@@ -475,32 +492,17 @@ if not st.session_state.get("logged_in", False):
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Fallback jika gambar belum disiapkan
             st.markdown("""
-            <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 100%; min-height: 520px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
+            <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 520px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
                 <div style="width: 50px; height: 4px; background: #f0b73d; margin-bottom: 20px; border-radius: 2px;"></div>
                 <h1 style="color: #FFFFFF; font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h1>
-                <p style="color: #94A3B8; font-size: 1rem; line-height: 1.6; margin-top: 10px;">Advanced thermodynamic telemetry and FIM diagnostic integration for the AIRFAST DHC-6 Twin Otter powerplant operations.</p>
+                <p style="color: #94A3B8; font-size: 1rem; line-height: 1.6; margin-top: 10px;">Advanced thermodynamic telemetry and FIM diagnostic integration.</p>
             </div>
             """, unsafe_allow_html=True)
 
-    # ================= SISI KANAN (FORM LOGIN) =================
+    # --- SISI KANAN (FORM LOGIN) ---
     with col_form:
-        # [FIX] CSS Khusus untuk menyamakan tinggi kotak form dengan gambar,
-        # menyamakan radius sudut, dan menengahkan form secara vertikal (center).
-        st.markdown("""
-            <style>
-                [data-testid="stVerticalBlockBorderWrapper"] {
-                    min-height: 520px !important;
-                    border-radius: 16px !important;
-                    display: flex !important;
-                    flex-direction: column !important;
-                    justify-content: center !important;
-                    box-shadow: 0 10px 25px rgba(0, 40, 77, 0.05) !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
+        # Container ini otomatis dikendalikan tingginya jadi 520px oleh CSS di atas
         with st.container(border=True):
             logo_path = "images.png"  
             if os.path.exists(logo_path):
