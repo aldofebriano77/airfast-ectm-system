@@ -436,30 +436,38 @@ if not st.session_state.get("logged_in", False):
                 box-shadow: 0 10px 25px rgba(0, 40, 77, 0.05) !important;
             }
 
-            /* 3. PERMAINAN WARNA (IDE USER): Kotak Input dijadikan Abu-abu Soft */
-            /* Mewarnai paksa seluruh lapisan background elemen input Streamlit */
+            /* 3. PERMAINAN WARNA: Kotak Input dijadikan Abu-abu Soft */
             div[data-testid="stTextInput"] div[data-baseweb="base-input"],
             div[data-testid="stTextInput"] div[data-baseweb="input"],
             div[data-testid="stTextInput"] div[data-baseweb="input"] > div {
-                background-color: #F1F5F9 !important; /* Warna Abu-abu Kebiruan Muda */
-                border: none !important;              /* Matikan border default yang mengganggu */
+                background-color: #F1F5F9 !important;
+                border: none !important;
                 border-radius: 8px !important;
             }
-            
-            /* Efek Interaktif (Focus): Berubah putih dan bergaris Airfast Navy saat diklik */
             div[data-testid="stTextInput"] div[data-baseweb="input"] > div:focus-within {
                 background-color: #FFFFFF !important;
                 border: 1.5px solid #003B6F !important;
                 box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.15) !important;
             }
-            
-            /* Warna ketikan dan teks placeholder */
             div[data-testid="stTextInput"] input {
                 color: #0F172A !important;
                 font-weight: 600 !important;
             }
             div[data-testid="stTextInput"] input::placeholder {
                 color: #94A3B8 !important;
+            }
+
+            /* =========================================================
+               [FIX BARU] CLASS CSS KHUSUS UNTUK TEKS HERO IMAGE
+               Disimpan di sini agar !important tidak dihapus Streamlit
+               ========================================================= */
+            .hero-title-white {
+                color: #FFFFFF !important;
+                text-shadow: 0px 4px 10px rgba(0,0,0,0.7), 0px 1px 3px rgba(0,0,0,0.5) !important;
+            }
+            .hero-subtitle-gold {
+                color: #f0b73d !important;
+                text-shadow: 0px 2px 5px rgba(0,0,0,0.8) !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -475,15 +483,16 @@ if not st.session_state.get("logged_in", False):
             with open(hero_path, "rb") as f_img:
                 b64_hero = base64.b64encode(f_img.read()).decode()
             
+            # Memanggil CSS class yang sudah dibuat aman di atas
             st.markdown(f"""
 <div style="border-radius: 16px; overflow: hidden; height: 520px; position: relative; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
 <img src="data:image/jpeg;base64,{b64_hero}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
 <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, rgba(0, 40, 77, 0.95) 0%, rgba(0, 40, 77, 0) 100%); padding: 40px 30px 30px 30px;">
 
-<!-- [FIX] Tambahkan !important pada warna font agar mengalahkan CSS Global -->
-<h2 style="color: #FFFFFF !important; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2; text-shadow: 0px 4px 10px rgba(0,0,0,0.7), 0px 1px 3px rgba(0,0,0,0.5);">Engineering the Future<br>of Fleet Reliability.</h2>
+<h2 class="hero-title-white" style="font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h2>
 
-<p style="color: #f0b73d !important; font-weight: 600; font-size: 0.95rem; margin-top: 8px; text-shadow: 0px 2px 5px rgba(0,0,0,0.8);">DHC-6 / PT6A-34 Engine Telemetry System</p>
+<p class="hero-subtitle-gold" style="font-weight: 600; font-size: 0.95rem; margin-top: 8px;">DHC-6 / PT6A-34 Engine Telemetry System</p>
+
 </div>
 </div>
 """, unsafe_allow_html=True)
@@ -491,14 +500,13 @@ if not st.session_state.get("logged_in", False):
             st.markdown("""
 <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 520px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
 <div style="width: 50px; height: 4px; background: #f0b73d; margin-bottom: 20px; border-radius: 2px;"></div>
-<h1 style="color: #FFFFFF !important; font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h1>
+<h1 class="hero-title-white" style="font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h1>
 <p style="color: #94A3B8 !important; font-size: 1rem; line-height: 1.6; margin-top: 10px;">Advanced thermodynamic telemetry and FIM diagnostic integration for the AIRFAST DHC-6 Twin Otter powerplant operations.</p>
 </div>
 """, unsafe_allow_html=True)
 
     # ================= SISI KANAN (FORM LOGIN) =================
     with col_form:
-        # Container ini otomatis dikendalikan tingginya jadi 520px oleh CSS di atas
         with st.container(border=True):
             logo_path = "images.png"  
             if os.path.exists(logo_path):
