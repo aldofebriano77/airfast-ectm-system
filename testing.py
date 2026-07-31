@@ -413,14 +413,37 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
 if not st.session_state.get("logged_in", False):
     st.markdown("""
         <style>
+            /* 1. Menyembunyikan elemen bawaan Streamlit dan Header */
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
             [data-testid="stHeader"] { display: none !important; }
-            /* Menyembunyikan sticky header internal agar halaman login terasa seperti portal eksklusif */
             .sticky-header-box { display: none !important; }
-            
-            /* Penyesuaian padding khusus untuk halaman login agar lebih lapang */
             .block-container { padding-top: 4rem !important; max-width: 1100px !important; }
+
+            /* 2. FIX: Membuat Kotak Input Email & Password Terlihat Jelas */
+            div[data-testid="stTextInput"] div[data-baseweb="input"] > div {
+                background-color: #F8FAFC !important; /* Latar abu-abu sangat terang agar kontras dengan form putih */
+                border: 1px solid #CBD5E1 !important; /* Garis batas abu-abu tegas */
+                border-radius: 8px !important;
+                padding: 2px 10px !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+            
+            /* 3. FIX: Efek Interaktif saat Kolom Diklik (Focus) */
+            div[data-testid="stTextInput"] div[data-baseweb="input"] > div:focus-within {
+                border-color: #003B6F !important; /* Berubah jadi Navy saat diklik */
+                box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.15) !important; /* Efek glow Navy */
+                background-color: #FFFFFF !important;
+            }
+            
+            /* Memastikan teks yang diketik dan placeholder terlihat jelas */
+            div[data-testid="stTextInput"] input {
+                color: #0F172A !important;
+                font-weight: 600 !important;
+            }
+            div[data-testid="stTextInput"] input::placeholder {
+                color: #94A3B8 !important;
+            }
         </style>
     """, unsafe_allow_html=True)
     
