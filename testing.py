@@ -491,7 +491,7 @@ if not st.session_state.get("logged_in", False):
 
 <h2 class="hero-title-white" style="font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h2>
 
-<p class="hero-subtitle-gold" style="font-weight: 600; font-size: 0.95rem; margin-top: 8px;">DHC-6 / PT6A-34 Engine Telemetry System</p>
+<p class="hero-subtitle-gold" style="font-weight: 600; font-size: 0.95rem; margin-top: 8px;">Engine Condition Trend Monitoring Dashboard</p>
 
 </div>
 </div>
