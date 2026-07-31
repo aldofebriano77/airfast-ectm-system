@@ -413,36 +413,41 @@ def navigate_to_menu(menu_name: str, reg_filter: str = None):
 if not st.session_state.get("logged_in", False):
     st.markdown("""
         <style>
-            /* 1. Menyembunyikan elemen bawaan Streamlit dan Header */
+            /* 1. MENGHILANGKAN HEADER & GARIS HORIZONTAL ATAS */
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
             [data-testid="stHeader"] { display: none !important; }
-            .sticky-header-box { display: none !important; }
-            .block-container { padding-top: 4rem !important; max-width: 1100px !important; }
-
-            /* 2. FIX: Membuat Kotak Input Email & Password Terlihat Jelas */
-            div[data-testid="stTextInput"] div[data-baseweb="input"] > div {
-                background-color: #F8FAFC !important; /* Latar abu-abu sangat terang agar kontras dengan form putih */
-                border: 1px solid #CBD5E1 !important; /* Garis batas abu-abu tegas */
-                border-radius: 8px !important;
-                padding: 2px 10px !important;
-                transition: all 0.2s ease-in-out !important;
+            
+            /* [FIX] Membunuh total kontainer pembungkus header agar garis atasnya lenyap */
+            div[data-testid="stElementContainer"]:has(.sticky-header-box),
+            div.element-container:has(.sticky-header-box) { 
+                display: none !important; 
             }
             
-            /* 3. FIX: Efek Interaktif saat Kolom Diklik (Focus) */
-            div[data-testid="stTextInput"] div[data-baseweb="input"] > div:focus-within {
-                border-color: #003B6F !important; /* Berubah jadi Navy saat diklik */
-                box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.15) !important; /* Efek glow Navy */
+            /* Mengatur jarak lega dari atas layar */
+            .block-container { padding-top: 3.5rem !important; max-width: 1100px !important; }
+
+            /* 2. MENGEMBALIKAN KOTAK INPUT (EMAIL & PASSWORD) */
+            /* Menembak langsung elemen form agar tidak tertimpa bawaan Streamlit */
+            form div[data-baseweb="input"] {
+                background-color: #F8FAFC !important;
+                border: 1.5px solid #94A3B8 !important; /* Batas abu-abu kebiruan tegas */
+                border-radius: 6px !important;
+                box-shadow: inset 0 1px 3px rgba(0,0,0,0.05) !important;
+                padding: 2px 10px !important;
+            }
+
+            /* Efek menyala (glow) warna Navy saat diklik */
+            form div[data-baseweb="input"]:focus-within {
+                border-color: #003B6F !important;
+                box-shadow: 0 0 0 3px rgba(0, 59, 111, 0.2) !important;
                 background-color: #FFFFFF !important;
             }
             
-            /* Memastikan teks yang diketik dan placeholder terlihat jelas */
-            div[data-testid="stTextInput"] input {
+            /* Memastikan teks ketikan berwarna hitam pekat */
+            form input {
                 color: #0F172A !important;
                 font-weight: 600 !important;
-            }
-            div[data-testid="stTextInput"] input::placeholder {
-                color: #94A3B8 !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -452,18 +457,17 @@ if not st.session_state.get("logged_in", False):
     
     # ================= SISI KIRI (GAMBAR HERO & BRANDING) =================
     with col_img:
-        hero_path = "login_hero.jpg" # Pastikan kamu menyiapkan file gambar ini
+        hero_path = "login_hero.jpg"
         
         if os.path.exists(hero_path):
             import base64
             with open(hero_path, "rb") as f_img:
                 b64_hero = base64.b64encode(f_img.read()).decode()
             
-            # Memasukkan gambar dengan radius sudut dan bayangan halus
+            # [FIX] Menetapkan tinggi statis 520px
             st.markdown(f"""
-            <div style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15); height: 100%; min-height: 480px; position: relative;">
+            <div style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15); height: 100%; min-height: 520px; position: relative;">
                 <img src="data:image/jpeg;base64,{b64_hero}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
-                <!-- Gradient overlay untuk memastikan teks terbaca -->
                 <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, #00284D 0%, rgba(0,40,77,0) 100%); padding: 40px 30px 30px 30px;">
                     <h2 style="color: #FFFFFF; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h2>
                     <p style="color: #f0b73d; font-weight: 600; font-size: 0.95rem; margin-top: 8px;">DHC-6 / PT6A-34 Engine Telemetry System</p>
@@ -471,9 +475,9 @@ if not st.session_state.get("logged_in", False):
             </div>
             """, unsafe_allow_html=True)
         else:
-            # Fallback jika gambar belum disiapkan (Solid Navy Gradient Panel)
+            # Fallback jika gambar belum disiapkan
             st.markdown("""
-            <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 100%; min-height: 450px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
+            <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 100%; min-height: 520px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
                 <div style="width: 50px; height: 4px; background: #f0b73d; margin-bottom: 20px; border-radius: 2px;"></div>
                 <h1 style="color: #FFFFFF; font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h1>
                 <p style="color: #94A3B8; font-size: 1rem; line-height: 1.6; margin-top: 10px;">Advanced thermodynamic telemetry and FIM diagnostic integration for the AIRFAST DHC-6 Twin Otter powerplant operations.</p>
@@ -482,8 +486,20 @@ if not st.session_state.get("logged_in", False):
 
     # ================= SISI KANAN (FORM LOGIN) =================
     with col_form:
-        # Menambahkan spasi vertikal agar form rata tengah terhadap gambar
-        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+        # [FIX] CSS Khusus untuk menyamakan tinggi kotak form dengan gambar,
+        # menyamakan radius sudut, dan menengahkan form secara vertikal (center).
+        st.markdown("""
+            <style>
+                [data-testid="stVerticalBlockBorderWrapper"] {
+                    min-height: 520px !important;
+                    border-radius: 16px !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: center !important;
+                    box-shadow: 0 10px 25px rgba(0, 40, 77, 0.05) !important;
+                }
+            </style>
+        """, unsafe_allow_html=True)
         
         with st.container(border=True):
             logo_path = "images.png"  
@@ -492,12 +508,12 @@ if not st.session_state.get("logged_in", False):
                 with open(logo_path, "rb") as f_img:
                     b64_logo = base64.b64encode(f_img.read()).decode()
                 st.markdown(f"""
-                <div style="text-align: center; padding-top: 10px; padding-bottom: 10px;">
+                <div style="text-align: center; padding-top: 0px; padding-bottom: 10px;">
                     <img src="data:image/png;base64,{b64_logo}" style="width: 50%; max-width: 180px; height: auto;">
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown("<h2 style='text-align:center; color:#003B6F; padding-top:10px; margin:0;'>AIRFAST</h2>", unsafe_allow_html=True)
+                st.markdown("<h2 style='text-align:center; color:#003B6F; padding-top:0px; margin:0;'>AIRFAST</h2>", unsafe_allow_html=True)
             
             st.markdown("<hr style='margin: 0px 0px 16px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; font-weight:700; color:#0F172A; font-size:1.05rem; margin-bottom:2px;'>Authorization Portal</p>", unsafe_allow_html=True)
