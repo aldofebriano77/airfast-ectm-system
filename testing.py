@@ -416,31 +416,70 @@ if not st.session_state.get("logged_in", False):
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
             [data-testid="stHeader"] { display: none !important; }
+            /* Menyembunyikan sticky header internal agar halaman login terasa seperti portal eksklusif */
+            .sticky-header-box { display: none !important; }
+            
+            /* Penyesuaian padding khusus untuk halaman login agar lebih lapang */
+            .block-container { padding-top: 4rem !important; max-width: 1100px !important; }
         </style>
     """, unsafe_allow_html=True)
     
-    st.markdown("<br>" * 2, unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    # Membuat Layout Split-Screen (Gambar Kiri 1.2 : Form Kanan 1)
+    col_img, col_form = st.columns([1.2, 1], gap="large")
     
-    with col_l2:
+    # ================= SISI KIRI (GAMBAR HERO & BRANDING) =================
+    with col_img:
+        hero_path = "login_hero.jpg" # Pastikan kamu menyiapkan file gambar ini
+        
+        if os.path.exists(hero_path):
+            import base64
+            with open(hero_path, "rb") as f_img:
+                b64_hero = base64.b64encode(f_img.read()).decode()
+            
+            # Memasukkan gambar dengan radius sudut dan bayangan halus
+            st.markdown(f"""
+            <div style="border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15); height: 100%; min-height: 480px; position: relative;">
+                <img src="data:image/jpeg;base64,{b64_hero}" style="width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0;">
+                <!-- Gradient overlay untuk memastikan teks terbaca -->
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, #00284D 0%, rgba(0,40,77,0) 100%); padding: 40px 30px 30px 30px;">
+                    <h2 style="color: #FFFFFF; font-weight: 800; font-size: 1.8rem; margin: 0; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h2>
+                    <p style="color: #f0b73d; font-weight: 600; font-size: 0.95rem; margin-top: 8px;">DHC-6 / PT6A-34 Engine Telemetry System</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Fallback jika gambar belum disiapkan (Solid Navy Gradient Panel)
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #00284D 0%, #00488A 100%); padding: 40px; border-radius: 16px; height: 100%; min-height: 450px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 10px 25px rgba(0, 40, 77, 0.15);">
+                <div style="width: 50px; height: 4px; background: #f0b73d; margin-bottom: 20px; border-radius: 2px;"></div>
+                <h1 style="color: #FFFFFF; font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; line-height: 1.2;">Engineering the Future<br>of Fleet Reliability.</h1>
+                <p style="color: #94A3B8; font-size: 1rem; line-height: 1.6; margin-top: 10px;">Advanced thermodynamic telemetry and FIM diagnostic integration for the AIRFAST DHC-6 Twin Otter powerplant operations.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ================= SISI KANAN (FORM LOGIN) =================
+    with col_form:
+        # Menambahkan spasi vertikal agar form rata tengah terhadap gambar
+        st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+        
         with st.container(border=True):
             logo_path = "images.png"  
             if os.path.exists(logo_path):
                 import base64
                 with open(logo_path, "rb") as f_img:
                     b64_logo = base64.b64encode(f_img.read()).decode()
-                # [PRESISI MUTLAK] Bypass st.columns & st.image agar jarak atas dan bawah simetris sempurna
                 st.markdown(f"""
-                <div style="text-align: center; padding-top: 6px; padding-bottom: 14px;">
-                    <img src="data:image/png;base64,{b64_logo}" style="width: 50%; max-width: 200px; height: auto; display: inline-block;">
+                <div style="text-align: center; padding-top: 10px; padding-bottom: 10px;">
+                    <img src="data:image/png;base64,{b64_logo}" style="width: 50%; max-width: 180px; height: auto;">
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown("<h2 style='text-align:center; color:#003B6F; padding-top:6px; padding-bottom:14px; margin:0;'>AIRFAST INDONESIA</h2>", unsafe_allow_html=True)
+                st.markdown("<h2 style='text-align:center; color:#003B6F; padding-top:10px; margin:0;'>AIRFAST</h2>", unsafe_allow_html=True)
             
-            # Garis pembatas bawah duduk presisi tepat di bawah padding logo
             st.markdown("<hr style='margin: 0px 0px 16px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-weight:600; color:#334155; font-size:0.95rem; margin-top:-2px;'>Engine Condition Trend Monitoring Dashboard<br><span style='font-size:0.8rem; font-weight:400; color:#64748B;'>Please authenticate to access airworthiness telemetry and maintenance records.</span></p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; font-weight:700; color:#0F172A; font-size:1.05rem; margin-bottom:2px;'>Authorization Portal</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; font-weight:500; color:#64748B; font-size:0.85rem; margin-top:0px;'>Enter your corporate credentials to access airworthiness records.</p>", unsafe_allow_html=True)
+            st.write("")
 
             with st.form("fullscreen_login_form", clear_on_submit=False, border=False):
                 input_email = st.text_input("Corporate Email Address", placeholder="user@airfastindonesia.com").strip()
@@ -474,7 +513,7 @@ if not st.session_state.get("logged_in", False):
             
             st.markdown("<hr style='margin: 10px 0px 10px 0px; border: none; height: 1px; background: #E2E8F0;'>", unsafe_allow_html=True)
             st.caption("**Access Notice:** This is an internal access gate for the ECTM prototype, not a substitute "
-                       "for a production authentication/audit system. Do not reuse real corporate credentials here.")
+                       "for a production authentication/audit system. Do not reuse real credentials here.")
             
     st.stop()
 
