@@ -52,23 +52,26 @@ st.set_page_config(
 # EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 sticky_header_html = """
-<section class="sticky-header-box ectm-masthead">
-  <div class="ectm-masthead-inner">
-    <div class="ectm-brand-lockup" aria-hidden="true">
-      <svg viewBox="0 0 48 48" role="img">
-        <path d="M24 3 46 45H34L24 23 14 45H2Z" fill="#FFFFFF"/>
-        <path d="m24 18 7 15-7-5-7 5z" fill="#ECAF2E"/>
-      </svg>
-      <div><span>AIRFAST</span><small>TECHNICAL SERVICES</small></div>
+<div class="sticky-header-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">Engine Condition Trend Monitoring Dashboard</h1>
+            <p style="margin: 2px 0 0 0; padding: 0; font-size: 0.85rem; font-weight: 600; color: #475569;">PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>
+        </div>
+        <div style="text-align: right;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="180" height="40">
+              <g transform="translate(0, 2)">
+                <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
+                <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
+              </g>
+              <g transform="translate(52, 28)">
+                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
+                <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
+              </g>
+            </svg>
+        </div>
     </div>
-    <div class="ectm-title-group">
-      <p class="ectm-eyebrow">POWERPLANT HEALTH INTELLIGENCE</p>
-      <h1 class="ectm-title">Engine Condition Trend Monitoring</h1>
-      <p class="ectm-subtitle">DHC-6-400 Twin Otter &nbsp;•&nbsp; P&amp;WC PT6A-34 Fleet</p>
-    </div>
-    <div class="ectm-system-badge"><span></span> LIVE ANALYSIS<br><small>TECHNICAL SERVICES</small></div>
-  </div>
-</section>
+</div>
 """
 st.markdown(sticky_header_html, unsafe_allow_html=True)
 
@@ -361,7 +364,8 @@ st.markdown(
 # ======================================================================================
 # 3A. V5 EXECUTIVE UI/UX LAYER — visual-only overrides; analytics remain unchanged
 # ======================================================================================
-st.markdown(
+if False:  # UI/UX experiment disabled; preserves the original visual design.
+    st.markdown(
     """
 <style>
     :root {
