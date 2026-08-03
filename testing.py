@@ -52,26 +52,23 @@ st.set_page_config(
 # EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 sticky_header_html = """
-<div class="sticky-header-box">
-    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <div>
-            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">Engine Condition Trend Monitoring Dashboard</h1>
-            <p style="margin: 2px 0 0 0; padding: 0; font-size: 0.85rem; font-weight: 600; color: #475569;">PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>
-        </div>
-        <div style="text-align: right;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="180" height="40">
-              <g transform="translate(0, 2)">
-                <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
-                <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
-              </g>
-              <g transform="translate(52, 28)">
-                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="21" font-weight="800" fill="#003B6F" letter-spacing="1">AIRFAST</text>
-                <text x="92" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="0.5">TECHNICAL SERVICES</text>
-              </g>
-            </svg>
-        </div>
+<section class="sticky-header-box ectm-masthead">
+  <div class="ectm-masthead-inner">
+    <div class="ectm-brand-lockup" aria-hidden="true">
+      <svg viewBox="0 0 48 48" role="img">
+        <path d="M24 3 46 45H34L24 23 14 45H2Z" fill="#FFFFFF"/>
+        <path d="m24 18 7 15-7-5-7 5z" fill="#ECAF2E"/>
+      </svg>
+      <div><span>AIRFAST</span><small>TECHNICAL SERVICES</small></div>
     </div>
-</div>
+    <div class="ectm-title-group">
+      <p class="ectm-eyebrow">POWERPLANT HEALTH INTELLIGENCE</p>
+      <h1 class="ectm-title">Engine Condition Trend Monitoring</h1>
+      <p class="ectm-subtitle">DHC-6-400 Twin Otter &nbsp;•&nbsp; P&amp;WC PT6A-34 Fleet</p>
+    </div>
+    <div class="ectm-system-badge"><span></span> LIVE ANALYSIS<br><small>TECHNICAL SERVICES</small></div>
+  </div>
+</section>
 """
 st.markdown(sticky_header_html, unsafe_allow_html=True)
 
@@ -388,17 +385,32 @@ st.markdown(
     h2 { font-size: 1.38rem !important; }
     h3 { font-size: 1.02rem !important; letter-spacing: -.015em !important; }
 
-    /* The sticky masthead now reads as an application command bar. */
+    /* Full-bleed masthead: intentionally non-sticky so it never collides with
+       Streamlit's own toolbar or clips its title while scrolling. */
     div[data-testid="stElementContainer"]:has(.sticky-header-box),
     div.element-container:has(.sticky-header-box) {
-        margin-left: -2rem !important; margin-right: -2rem !important;
-        padding: .9rem 2rem !important; box-shadow: 0 8px 22px rgba(10, 38, 74, .06);
-        /* Streamlit's own toolbar occupies the top layer. Keep the masthead
-           below it, otherwise its title is hidden behind the toolbar. */
-        top: 3.75rem !important;
+        position: relative !important; top: auto !important; z-index: auto !important;
+        width: 100vw !important; max-width: 100vw !important;
+        margin-left: calc(50% - 50vw) !important; margin-right: calc(50% - 50vw) !important;
+        margin-bottom: .75rem !important; padding: 0 !important;
+        background: #002E5D !important; border: 0 !important; box-shadow: none !important;
     }
-    .sticky-header-box { max-width: 1560px; margin: 0 auto; }
-    .sticky-header-box p { letter-spacing: .015em; }
+    .ectm-masthead { background: linear-gradient(112deg, #001F43 0%, #003E76 56%, #075A9C 100%); border-bottom: 4px solid #ECAF2E; }
+    .ectm-masthead-inner {
+        max-width: 1560px; min-height: 128px; margin: 0 auto; padding: 1.35rem 2.4rem;
+        display: grid; grid-template-columns: 260px 1fr auto; gap: 2rem; align-items: center;
+    }
+    .ectm-brand-lockup { display: flex; gap: .65rem; align-items: center; color: #fff; }
+    .ectm-brand-lockup svg { width: 36px; height: 36px; flex: 0 0 auto; }
+    .ectm-brand-lockup span { display: block; color: #fff; font-size: 1.04rem; font-weight: 800; letter-spacing: .08em; line-height: 1; }
+    .ectm-brand-lockup small { display: block; margin-top: .24rem; color: #BFD4E9; font-size: .55rem; font-weight: 700; letter-spacing: .11em; }
+    .ectm-title-group { border-left: 1px solid rgba(255,255,255,.22); padding-left: 2rem; }
+    .ectm-eyebrow { margin: 0 0 .25rem; color: #ECAF2E !important; font-size: .63rem !important; font-weight: 800 !important; letter-spacing: .15em; }
+    h1.ectm-title { margin: 0 !important; color: #FFFFFF !important; font-size: clamp(1.5rem, 2.15vw, 2.28rem) !important; font-weight: 800 !important; line-height: 1.1; letter-spacing: -.04em !important; }
+    .ectm-subtitle { margin: .38rem 0 0 !important; color: #D8E6F3 !important; font-size: .82rem !important; font-weight: 600 !important; }
+    .ectm-system-badge { min-width: 135px; color: #fff; font-size: .68rem; font-weight: 800; line-height: 1.35; letter-spacing: .07em; text-align: left; }
+    .ectm-system-badge span { display: inline-block; width: 8px; height: 8px; margin-right: 6px; background: #47D07B; border-radius: 50%; box-shadow: 0 0 0 4px rgba(71,208,123,.14); }
+    .ectm-system-badge small { color: #AFC9E1; font-size: .55rem; font-weight: 700; letter-spacing: .08em; }
 
     /* Metric cards become scan-friendly, while keeping every existing metric intact. */
     div[data-testid="stMetric"] {
@@ -436,9 +448,10 @@ st.markdown(
     button:focus-visible, input:focus-visible, [role="tab"]:focus-visible { outline: 3px solid rgba(236,175,46,.62) !important; outline-offset: 2px; }
     @media (max-width: 900px) {
         .block-container { padding: .85rem 1rem 2rem !important; }
-        div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) { margin-left: -1rem !important; margin-right: -1rem !important; padding: .75rem 1rem !important; }
-        .sticky-header-box svg { display: none; }
-        .sticky-header-box h1 { font-size: 1.25rem !important; }
+        div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) { margin-left: calc(50% - 50vw) !important; margin-right: calc(50% - 50vw) !important; }
+        .ectm-masthead-inner { grid-template-columns: 1fr; gap: .7rem; min-height: auto; padding: 1rem 1.2rem 1.1rem; }
+        .ectm-title-group { border-left: 0; padding-left: 0; }
+        .ectm-system-badge { display: none; }
         div[data-testid="stMetric"] { min-height: 82px; padding: 12px !important; }
         div[data-testid="stTabs"] button[role="tab"] { padding: 7px 10px !important; font-size: .78rem !important; }
     }
