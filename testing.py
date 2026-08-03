@@ -255,9 +255,9 @@ st.markdown(
     /* ==========================================================================
        5. BADGES & HEATMAP CARDS (TIGHTER PROFILE)
        ========================================================================== */
-    .badge-red { background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
-    .badge-amber { background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
-    .badge-green { background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-red { background: #FCEBEB; color: #791F1F; border-radius: 999px; padding: 4px 14px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-amber { background: #FAEEDA; color: #633806; border-radius: 999px; padding: 4px 14px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-green { background: #EAF3DE; color: #27500A; border-radius: 999px; padding: 4px 14px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
     
     .heatmap-card {
         background: #FFFFFF; border: none; border-radius: 12px; padding: 14px; margin-bottom: 12px;
@@ -266,11 +266,15 @@ st.markdown(
     }
     .heatmap-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px -4px rgba(0, 40, 77, 0.1); }
     .heatmap-reg { font-size: 1.15rem; font-weight: 800; color: #00284D; letter-spacing: -0.02em; }
-    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; margin-top: 5px; font-size: 0.8rem; font-weight: 700; }
+    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 12px; border-radius: 999px; margin-top: 6px; font-size: 0.78rem; font-weight: 700; }
     
-    .hm-green { background: rgba(22, 163, 74, 0.06); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
-    .hm-amber { background: rgba(217, 119, 6, 0.06); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
-    .hm-red { background: rgba(220, 38, 38, 0.06); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
+    /* [UI/UX UPGRADE] Pastel pill badges - solid light fill + saturated dark
+       text (not a translucent overlay on white), matching the reference
+       card-based design the user asked to adapt. Colors kept aviation-tinted
+       rather than literal HR-SaaS pastel, to stay legible as a status signal. */
+    .hm-green { background: #EAF3DE; color: #27500A; }
+    .hm-amber { background: #FAEEDA; color: #633806; }
+    .hm-red { background: #FCEBEB; color: #791F1F; }
     
     .rec-card-box { background: #FFFFFF; border: none; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.04); }
     .rec-card-red { border-left: 5px solid #DC2626; }
@@ -2226,14 +2230,14 @@ if menu_selection == "Home (Fleet Matrix)":
             card_html = f"""<div class="heatmap-card" style="padding: 10px;">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
 <span class="heatmap-reg" style="margin-bottom:0px; font-size:0.95rem;">{reg}</span>
-<span style="background:#EFF4FA; color:#003B6F; font-size:0.65rem; font-weight:700; padding:2px 5px; border-radius:4px; border:1px solid #CBD5E1;">PT6A-34</span>
+<span style="background:#EFF4FA; color:#003B6F; font-size:0.65rem; font-weight:700; padding:2px 9px; border-radius:999px;">PT6A-34</span>
 </div>
 {visual_html}
-<div class="heatmap-row {get_hm_class(lh_stat)}" style="font-size:0.72rem; padding:4px 6px;">
-<span>#1 LH</span><b>{lh_stat}</b>
+<div class="heatmap-row {get_hm_class(lh_stat)}">
+<span style="display:flex; align-items:center; gap:6px;"><span style="width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block;"></span>#1 LH</span><b>{lh_stat}</b>
 </div>
-<div class="heatmap-row {get_hm_class(rh_stat)}" style="font-size:0.72rem; padding:4px 6px;">
-<span>#2 RH</span><b>{rh_stat}</b>
+<div class="heatmap-row {get_hm_class(rh_stat)}">
+<span style="display:flex; align-items:center; gap:6px;"><span style="width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block;"></span>#2 RH</span><b>{rh_stat}</b>
 </div>
 </div>"""
             st.markdown(card_html, unsafe_allow_html=True)
