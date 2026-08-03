@@ -393,6 +393,9 @@ st.markdown(
     div.element-container:has(.sticky-header-box) {
         margin-left: -2rem !important; margin-right: -2rem !important;
         padding: .9rem 2rem !important; box-shadow: 0 8px 22px rgba(10, 38, 74, .06);
+        /* Streamlit's own toolbar occupies the top layer. Keep the masthead
+           below it, otherwise its title is hidden behind the toolbar. */
+        top: 3.75rem !important;
     }
     .sticky-header-box { max-width: 1560px; margin: 0 auto; }
     .sticky-header-box p { letter-spacing: .015em; }
