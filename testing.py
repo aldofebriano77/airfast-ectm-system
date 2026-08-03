@@ -17,6 +17,7 @@ import os
 import re
 import smtplib
 import hashlib
+import html as html_lib
 import json 
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -2678,11 +2679,12 @@ elif menu_selection == "Logbook & Defect Correlator":
     def highlight_text(text, kw):
         if not isinstance(text, str) or not text:
             return "No description."
+        safe_text = html_lib.escape(text)
         if not kw:
-            return text
-        kw_clean = re.escape(kw.strip())
+            return safe_text
+        kw_clean = re.escape(html_lib.escape(kw.strip()))
         hl_style = 'background-color: #f0b73d; color: #003B6F; font-weight: 800; padding: 1px 6px; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'
-        return re.sub(r'\b(' + kw_clean + r')\b', r'<mark style="' + hl_style + r'">\1</mark>', text, flags=re.IGNORECASE)
+        return re.sub(r'\b(' + kw_clean + r')\b', r'<mark style="' + hl_style + r'">\1</mark>', safe_text, flags=re.IGNORECASE)
 
     if df_filtered.empty:
         st.info("No PIREP / MAREP reports found matching the selected filter criteria.")
