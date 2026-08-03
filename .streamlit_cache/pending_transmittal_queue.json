@@ -149,5 +149,36 @@
         ],
         "alert_key": "PK-OAM | LH (SN: PC-E301)_20261120_CRITICAL",
         "flight_date": "2026-11-20"
+    },
+    "PK-OAM | LH (SN: PC-E101)_20260731_153144": {
+        "failed_timestamp": "2026-07-31 15:31:44",
+        "engine_id": "PK-OAM | LH (SN: PC-E101)",
+        "status_dict": {
+            "health_level": "ADVISORY",
+            "status_label": "ADVISORY / WATCH",
+            "d_t5": 3.2658673594544325,
+            "d_ng": 0.1108651576006423,
+            "d_wf": 9.948856998917108,
+            "alarm_borescope_t5": false,
+            "alarm_borescope_ng": false,
+            "reg_prefix": "PK-OAM"
+        },
+        "report_body": "PT. AIRFAST INDONESIA - ECTM TECHNICAL ANALYSIS REPORT\nPowerplant Serial / Position: PK-OAM | LH (SN: PC-E101)\nDate Generated: 2026-07-31 15:31:34 | Latest Cycle: 2026-06-29\n-------------------------------------------------------------------------\nComputed Residuals: Delta T5: +3.3 degC | Delta Ng: +0.11 % | Delta Wf: +9.9 PPH\nSystem Status Classification: ADVISORY / WATCH | Predictive RUL: 922 Cycles (2027-05-01)\nRUL Confidence Note: Indicative only - assumes a constant (linear) degradation rate\n-------------------------------------------------------------------------\nMAINTENANCE DIRECTIVES & RECOMMENDATIONS:\n[FIM Table 101 (Statistical Control)] Advisory Watch | Statistical Baseline Trend Deviation\n>> Priority: ROUTINE OBSERVATION | Est. Downtime: 0 Hours (Operational)\n>> Thermodynamic Signature: 2.5-Sigma Noise Band Breach -> \u0394T5: +3.3\u00b0C | \u0394Ng: +0.11% | \u0394Wf: +9.9 PPH\nThermodynamic residuals have exceeded the 2.5-sigma statistical noise band of the installation baseline, although absolute values remain within OEM operational safety limits.\n\n**Line Engineering Directives:**\n1. Increase parameter logging frequency on subsequent flight cycles to monitor trend progression.\n2. Verify IOAT and Pressure Altitude transmitter calibration to rule out atmospheric normalization drift.\n3. No mechanical maintenance action required at this time; maintain advisory observation.\n",
+        "recipients": [
+            "aldofebriano77@gmail.com"
+        ],
+        "recommendations": [
+            {
+                "level": "amber",
+                "title": "Advisory Watch | Statistical Baseline Trend Deviation",
+                "fim_ref": "FIM Table 101 (Statistical Control)",
+                "priority": "ROUTINE OBSERVATION",
+                "downtime": "0 Hours (Operational)",
+                "signature": "2.5-Sigma Noise Band Breach -> \u0394T5: +3.3\u00b0C | \u0394Ng: +0.11% | \u0394Wf: +9.9 PPH",
+                "body": "Thermodynamic residuals have exceeded the 2.5-sigma statistical noise band of the installation baseline, although absolute values remain within OEM operational safety limits.\n\n**Line Engineering Directives:**\n1. Increase parameter logging frequency on subsequent flight cycles to monitor trend progression.\n2. Verify IOAT and Pressure Altitude transmitter calibration to rule out atmospheric normalization drift.\n3. No mechanical maintenance action required at this time; maintain advisory observation."
+            }
+        ],
+        "alert_key": null,
+        "flight_date": "2026-06-29"
     }
 }

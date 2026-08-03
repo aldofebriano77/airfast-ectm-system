@@ -65,8 +65,8 @@ sticky_header_html = """
                 <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
               </g>
               <g transform="translate(52, 28)">
-                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
-                <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
+                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="21" font-weight="800" fill="#003B6F" letter-spacing="1">AIRFAST</text>
+                <text x="92" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="11" font-weight="700" fill="#64748B" letter-spacing="0.5">TECHNICAL SERVICES</text>
               </g>
             </svg>
         </div>
@@ -356,6 +356,89 @@ st.markdown(
         font-weight: 600 !important;
     }
     input::placeholder { color: #64748B !important; opacity: 1 !important; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ======================================================================================
+# 3A. V5 EXECUTIVE UI/UX LAYER — visual-only overrides; analytics remain unchanged
+# ======================================================================================
+st.markdown(
+    """
+<style>
+    :root {
+        --airfast-navy: #002E5D;
+        --airfast-blue: #075A9C;
+        --airfast-gold: #ECAF2E;
+        --ink: #142033;
+        --muted: #607087;
+        --canvas: #F4F7FB;
+        --line: #DCE5F0;
+        --surface: #FFFFFF;
+    }
+
+    /* A calmer visual hierarchy: one canvas, one elevation system, readable density. */
+    [data-testid="stAppViewContainer"], [data-testid="stApp"], .main { background: var(--canvas) !important; }
+    .block-container { max-width: 1600px !important; padding: 1.15rem 2rem 2.6rem !important; }
+    [data-testid="stHeader"] { background: rgba(244,247,251,.84) !important; backdrop-filter: blur(14px); }
+    [data-testid="stToolbar"] { right: 1rem !important; }
+    h1, h2, h3 { color: var(--airfast-navy) !important; }
+    h1 { font-size: clamp(1.55rem, 2vw, 2.05rem) !important; letter-spacing: -.035em !important; }
+    h2 { font-size: 1.38rem !important; }
+    h3 { font-size: 1.02rem !important; letter-spacing: -.015em !important; }
+
+    /* The sticky masthead now reads as an application command bar. */
+    div[data-testid="stElementContainer"]:has(.sticky-header-box),
+    div.element-container:has(.sticky-header-box) {
+        margin-left: -2rem !important; margin-right: -2rem !important;
+        padding: .9rem 2rem !important; box-shadow: 0 8px 22px rgba(10, 38, 74, .06);
+    }
+    .sticky-header-box { max-width: 1560px; margin: 0 auto; }
+    .sticky-header-box p { letter-spacing: .015em; }
+
+    /* Metric cards become scan-friendly, while keeping every existing metric intact. */
+    div[data-testid="stMetric"] {
+        min-height: 98px; border: 1px solid var(--line) !important;
+        border-radius: 14px !important; box-shadow: 0 3px 12px rgba(22, 44, 77, .045) !important;
+        background: linear-gradient(135deg, #fff 0%, #FAFCFF 100%) !important;
+    }
+    div[data-testid="stMetric"]::before { height: 4px !important; background: linear-gradient(90deg, var(--airfast-navy), var(--airfast-gold)) !important; }
+    div[data-testid="stMetricValue"] > div { font-size: 1.62rem !important; }
+    div[data-testid="stMetricDelta"] { font-size: .72rem !important; font-weight: 700 !important; }
+
+    /* Consistent interaction language across controls. */
+    div[data-testid="stButton"] > button, div[data-testid="stDownloadButton"] > button {
+        min-height: 2.5rem; border-radius: 9px !important; font-weight: 750 !important;
+        transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease !important;
+    }
+    div[data-testid="stButton"] > button:hover, div[data-testid="stDownloadButton"] > button:hover {
+        transform: translateY(-1px); box-shadow: 0 7px 16px rgba(7, 45, 88, .12) !important;
+    }
+    div[data-testid="stButton"] > button[kind="primary"] { background: linear-gradient(135deg, #075A9C, #002E5D) !important; }
+    div[data-testid="stDownloadButton"] > button { border-color: #B9C9DB !important; }
+
+    /* Better navigation, tables and charts at operational viewing distance. */
+    [data-testid="stSidebar"] { box-shadow: 5px 0 26px rgba(0, 23, 50, .16) !important; }
+    [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { line-height: 1.5; }
+    div[data-testid="stTabs"] { background: rgba(255,255,255,.65); border: 1px solid var(--line); border-radius: 12px; padding: 4px 7px; }
+    div[data-testid="stTabs"] button[role="tab"] { border-radius: 8px !important; }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { box-shadow: inset 0 -3px 0 var(--airfast-gold); }
+    [data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: white; }
+    [data-testid="stPlotlyChart"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; padding: 3px; }
+    div[data-testid="stExpander"] { border-color: var(--line) !important; box-shadow: none !important; }
+    [data-testid="stAlert"] { border-radius: 10px !important; }
+
+    /* Visible keyboard focus and a genuinely usable compact-screen layout. */
+    button:focus-visible, input:focus-visible, [role="tab"]:focus-visible { outline: 3px solid rgba(236,175,46,.62) !important; outline-offset: 2px; }
+    @media (max-width: 900px) {
+        .block-container { padding: .85rem 1rem 2rem !important; }
+        div[data-testid="stElementContainer"]:has(.sticky-header-box), div.element-container:has(.sticky-header-box) { margin-left: -1rem !important; margin-right: -1rem !important; padding: .75rem 1rem !important; }
+        .sticky-header-box svg { display: none; }
+        .sticky-header-box h1 { font-size: 1.25rem !important; }
+        div[data-testid="stMetric"] { min-height: 82px; padding: 12px !important; }
+        div[data-testid="stTabs"] button[role="tab"] { padding: 7px 10px !important; font-size: .78rem !important; }
+    }
 </style>
 """,
     unsafe_allow_html=True,
