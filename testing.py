@@ -2487,7 +2487,7 @@ elif menu_selection == "Data Collection":
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Data Analysis",))
+        st.button("Analyze Data", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Data Analysis",))
 
 # ======================================================================================
 # 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH DYNAMIC TIME SLICER)
