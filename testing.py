@@ -2329,7 +2329,7 @@ elif menu_selection == "Data Collection":
         with col_up:
             up_ectm = st.file_uploader("Upload Engine Performance Logbook (.csv)", type=["csv"], key="up_ectm_file")
             if up_ectm is not None:
-                new_df = pd.read_csv(up_ectm)
+                new_df = pd.read_csv(up_ectm, on_bad_lines='skip')
                 missing, _ = validate_columns(new_df)
                 if not missing:
                     st.session_state["df_data"] = new_df
