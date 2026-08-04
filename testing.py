@@ -1835,13 +1835,21 @@ def generate_ewo_pdf(engine_id, status_label, status, recommendations):
     return b""
 
 # --- [SILENT BACKGROUND WATCHDOG TRIGGER ENGINE] ---
-# --- [SILENT BACKGROUND WATCHDOG TRIGGER ENGINE] ---
 def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: list = None, is_manual_trigger: bool = False):
     fresh_df = st.session_state["df_data"].copy()
     fresh_util = st.session_state["df_util"].copy()
     base_n = int(st.session_state.get("target_baseline_n", 6))
     use_corr = bool(st.session_state.get("target_use_correction", True))
-    
+
+    # --- FIX: Paksa konversi ke angka agar Watchdog tidak mencoba menghitung teks ---
+    cols_to_numeric = ["T5", "Ng", "Wf", "IOAT", "Press_Alt", "TQ", "Np", "Oil_Temp", "Oil_Press"]
+    for col in cols_to_numeric:
+        if col in fresh_df.columns:
+            if fresh_df[col].dtype == object:
+                fresh_df[col] = fresh_df[col].astype(str).str.replace(",", ".", regex=False)
+            fresh_df[col] = pd.to_numeric(fresh_df[col], errors="coerce")
+    # --------------------------------------------------------------------------------
+
     fresh_df["Date"] = safe_parse_dates(fresh_df["Date"])
     fresh_df = fresh_df.dropna(subset=REQUIRED_COLUMNS).sort_values("Date")
     
