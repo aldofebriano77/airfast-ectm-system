@@ -876,14 +876,20 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
     alerts = []
     if not df.empty:
         if "IOAT" in df.columns:
-            if (df["IOAT"] > 55.0).any() or (df["IOAT"] < -40.0).any():
+            # Paksa jadi angka, yang huruf/salah ketik otomatis jadi NaN
+            ioat_num = pd.to_numeric(df["IOAT"], errors="coerce")
+            if (ioat_num > 55.0).any() or (ioat_num < -40.0).any():
                 alerts.append("[PHYSICAL OUTLIER] IOAT exceeds standard operational atmospheric envelope (-40°C to +55°C).")
-        if "T5" in df.columns and (df["T5"] <= 0).any():
-            alerts.append("[SENSOR ERROR] T5 recorded at or below 0°C during engine operation.")
+        
+        if "T5" in df.columns:
+            t5_num = pd.to_numeric(df["T5"], errors="coerce")
+            if (t5_num <= 0).any():
+                alerts.append("[SENSOR ERROR] T5 recorded at or below 0°C during engine operation.")
         
         for col in ["T5", "Ng", "Wf"]:
             if col in df.columns and len(df) >= 3:
-                stuck_mask = (df[col].diff() == 0) & (df[col].diff().shift(-1) == 0)
+                col_num = pd.to_numeric(df[col], errors="coerce")
+                stuck_mask = (col_num.diff() == 0) & (col_num.diff().shift(-1) == 0)
                 if stuck_mask.any():
                     alerts.append(f"[SENSOR FREEZE SUSPECTED] Column '{col}' contains identical consecutive static values for 3+ cycles.")
     return alerts
