@@ -365,7 +365,7 @@ st.markdown(
 # ======================================================================================
 # 3A. V5 EXECUTIVE UI/UX LAYER — visual-only overrides; analytics remain unchanged
 # ======================================================================================
-if True:  # UI/UX experiment disabled; preserves the original visual design.
+if False:  # UI/UX experiment disabled; preserves the original visual design.
     st.markdown(
     """
 <style>
