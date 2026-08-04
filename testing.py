@@ -1989,7 +1989,7 @@ all_menus = [
     "Data Collection", 
     "Data Analysis", 
     "Logbook", 
-    "Recommendations & Notice Transmittal"
+    "Recommendations"
 ]
 
 allowed_menus = all_menus 
@@ -2723,7 +2723,7 @@ elif menu_selection == "Logbook":
 # ======================================================================================
 # 18. PAGE 5: RECOMMENDATIONS, EWO EXPORT & NOTICE TRANSMITTAL (WITH TIER 1 CARDS)
 # ======================================================================================
-elif menu_selection == "Recommendations & Notice Transmittal":
+elif menu_selection == "Recommendations":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Recommendations & Notice Transmittal</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | P&WC PT6A-34 FIM (Rev 75.0)</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
