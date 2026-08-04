@@ -469,7 +469,7 @@ if False:  # UI/UX experiment disabled; preserves the original visual design.
 # 4. SESSION STATE MANAGEMENT & CALLBACK HELPERS (AUTHENTICATION INTEGRATED)
 # ======================================================================================
 if "active_menu" not in st.session_state:
-    st.session_state["active_menu"] = "Home (Fleet Matrix)"
+    st.session_state["active_menu"] = "Overview"
 if "target_use_correction" not in st.session_state:
     st.session_state["target_use_correction"] = True
 if "target_baseline_n" not in st.session_state:
@@ -1965,13 +1965,13 @@ if st.sidebar.button("Logout", key="btn_logout_sidebar", use_container_width=Tru
     st.session_state["user_email"] = ""
     st.session_state["user_name"] = "Guest Viewer"
     st.session_state["user_role"] = "Guest / Viewer"
-    st.session_state["active_menu"] = "Home (Fleet Matrix)"
+    st.session_state["active_menu"] = "Overview"
     st.rerun()
 
 st.sidebar.markdown("---")
 
 all_menus = [
-    "Home (Fleet Matrix)", 
+    "Overview", 
     "Data Collection & Setup", 
     "Trend Analysis & RUL", 
     "Logbook & Defect Correlator", 
@@ -2130,7 +2130,7 @@ if run_watchdog_now:
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
 # ======================================================================================
-if menu_selection == "Home (Fleet Matrix)":
+if menu_selection == "Overview":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Fleet Matrix</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='color:#475569; font-size:1.0rem; font-weight:500; margin-top:0px;'>Technical Services & Fleet Maintenance | DHC-6 Twin Otter / PT6A-34</h3>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
