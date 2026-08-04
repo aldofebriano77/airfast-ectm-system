@@ -1972,9 +1972,9 @@ st.sidebar.markdown("---")
 
 all_menus = [
     "Overview", 
-    "Data Collection & Setup", 
-    "Trend Analysis & RUL", 
-    "Logbook & Defect Correlator", 
+    "Data Collection", 
+    "Data Analysis", 
+    "Logbook", 
     "Recommendations & Notice Transmittal"
 ]
 
@@ -2277,7 +2277,7 @@ if menu_selection == "Overview":
 # ======================================================================================
 # 15. PAGE 2: DATA COLLECTION & CONFIGURATION
 # ======================================================================================
-elif menu_selection == "Data Collection & Setup":
+elif menu_selection == "Data Collection":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Data Ingestion & System Setup</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Manage engine performance logbooks, airframe utilization files, and PIREP / MAREP defect reports.</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
@@ -2473,12 +2473,12 @@ elif menu_selection == "Data Collection & Setup":
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Trend Analysis & RUL",))
+        st.button("Execute ECTM Analysis & View Trends", type="primary", use_container_width=True, on_click=navigate_to_menu, args=("Data Analysis",))
 
 # ======================================================================================
 # 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH DYNAMIC TIME SLICER)
 # ======================================================================================
-elif menu_selection == "Trend Analysis & RUL":
+elif menu_selection == "Data Analysis":
     st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Thermodynamic Trend Analysis</h1>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | Condition-Corrected Residual Shifts</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
@@ -2573,7 +2573,7 @@ elif menu_selection == "Trend Analysis & RUL":
             "Cross-Check Logbook Defect Correlator", 
             use_container_width=True,
             on_click=navigate_to_menu,
-            args=("Logbook & Defect Correlator", status["reg_prefix"])
+            args=("Logbook", status["reg_prefix"])
         )
 
     st.markdown("---")
@@ -2583,8 +2583,8 @@ elif menu_selection == "Trend Analysis & RUL":
 # ======================================================================================
 # 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR (WITH 3-WAY RELATIONAL SSOT)
 # ======================================================================================
-elif menu_selection == "Logbook & Defect Correlator":
-    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Logbook & Defect Correlator</h1>", unsafe_allow_html=True)
+elif menu_selection == "Logbook":
+    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Maintenance Logbook</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Cross-reference PIREP / MAREP defect notes and component replacement history against engine performance trends.</p>", unsafe_allow_html=True)
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
