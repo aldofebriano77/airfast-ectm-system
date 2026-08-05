@@ -196,7 +196,7 @@ st.markdown(
     div[data-testid="stExpander"] summary { font-weight: 700 !important; color: #003B6F !important; padding: 10px 14px !important; }
 
     /* ==========================================================================
-       4. SIDEBAR & BUTTONS (COMPACT PILL NAV)
+       4. SIDEBAR & BUTTONS (COMPACT PILL NAV - 100% WIDTH FIX)
        ========================================================================== */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #00284D 0%, #00172D 100%) !important; 
@@ -206,34 +206,52 @@ st.markdown(
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] div, [data-testid="stSidebar"] b { color: #F1F5F9 !important; }
     
-    [data-testid="stSidebar"] div[role="radiogroup"],
-    [data-testid="stSidebar"] div[role="radiogroup"] > div {
+    /* [KUNCI FIX]: Memaksa container utama radio untuk stretch 100% */
+    [data-testid="stSidebar"] [data-testid="stRadio"] { width: 100% !important; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] { 
+        width: 100% !important; 
+        align-items: stretch !important; 
+        gap: 4px !important;
+    }
+    
+    /* Menetralkan label luar */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] { 
+        width: 100% !important; 
+        background: transparent !important;
+    }
+    
+    /* Kotak bagian DALAM (ini yang sebenarnya diwarnai oleh Streamlit) */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] > div {
         width: 100% !important;
+        padding: 10px 16px !important;
+        border-radius: 8px !important;
+        transition: all 0.2s ease !important;
+        box-sizing: border-box !important;
     }
-
-    [data-testid="stSidebar"] div[role="radiogroup"] label {
-        display: flex !important; /* [KUNCI] Memaksa kotak menutupi seluruh ruang kosong */
-        align-items: center !important;
-        width: 100% !important;
-        padding: 10px 16px !important; 
-        margin-bottom: 4px !important;
-        background: transparent !important; 
-        border: none !important;
-        cursor: pointer; 
-        transition: all 0.2s ease; 
-        border-radius: 8px !important; 
+    
+    /* Efek hover (kursor diarahkan) merentang full layar */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]:hover > div {
+        background-color: rgba(255, 255, 255, 0.06) !important; 
+        transform: translateX(3px);
     }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
-        background-color: rgba(255, 255, 255, 0.06) !important; transform: translateX(3px);
-    }
-    [data-testid="stSidebar"] div[role="radiogroup"] p {
+    
+    /* Warna dan ukuran teks Menu */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] p {
         font-size: 0.88rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
     }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
+    
+    /* State saat menu aktif/dipilih merentang full layar dengan efek gold */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] > div {
         background: linear-gradient(90deg, rgba(240, 183, 61, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
         box-shadow: inset 3px 0 0 #f0b73d !important;
     }
-    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800 !important; }
+    
+    /* Teks menu aktif menjadi putih pekat */
+    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] p { 
+        color: #FFFFFF !important; font-weight: 800 !important; 
+    }
+    
+    /* Sembunyikan lingkaran bulat (radio button circle default dari Streamlit) */
     [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] { display: none !important; }
 
     div[data-testid="stButton"] > button[kind="primary"] {
