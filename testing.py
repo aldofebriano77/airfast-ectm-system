@@ -2254,7 +2254,26 @@ if menu_selection == "Overview":
         col_idx += 1
 
     df_fleet_matrix = pd.DataFrame(fleet_summary_data)
-    st.dataframe(df_fleet_matrix, use_container_width=True, hide_index=True)
+
+    # 1. Fungsi pewarnaan status
+    def highlight_status(val):
+        status = str(val).strip().upper()
+        if status == 'NORMAL':
+            return 'background-color: #d1e7dd; color: #0f5132; font-weight: bold;'
+        elif status == 'ADVISORY':
+            return 'background-color: #fff3cd; color: #664d03; font-weight: bold;'
+        elif status == 'CRITICAL':
+            return 'background-color: #f8d7da; color: #842029; font-weight: bold;'
+        return ''
+
+    # 2. Terapkan fungsi ke kolom 'Status'
+    try:
+        styled_df = df_fleet_matrix.style.map(highlight_status, subset=['Status'])
+    except AttributeError:
+        styled_df = df_fleet_matrix.style.applymap(highlight_status, subset=['Status'])
+
+    # 3. Tampilkan dataframe yang sudah diwarnai
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
     
     st.markdown("---")
     if not df_util_current.empty:
