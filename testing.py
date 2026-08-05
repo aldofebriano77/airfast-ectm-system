@@ -215,43 +215,22 @@ st.markdown(
     }
     
     /* Menetralkan label luar */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] { 
-        width: 100% !important; 
-        background: transparent !important;
+    [data-testid="stSidebar"] div[role="radiogroup"] > label {
+        padding: 10px 16px !important; margin-bottom: 4px !important;
+        background: transparent !important; border: none !important;
+        cursor: pointer; transition: all 0.2s ease; width: 100%; border-radius: 8px !important;
     }
-    
-    /* Kotak bagian DALAM (ini yang sebenarnya diwarnai oleh Streamlit) */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] > div {
-        width: 100% !important;
-        padding: 10px 16px !important;
-        border-radius: 8px !important;
-        transition: all 0.2s ease !important;
-        box-sizing: border-box !important;
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        background-color: rgba(255, 255, 255, 0.06) !important; transform: translateX(3px);
     }
-    
-    /* Efek hover (kursor diarahkan) merentang full layar */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]:hover > div {
-        background-color: rgba(255, 255, 255, 0.06) !important; 
-        transform: translateX(3px);
-    }
-    
-    /* Warna dan ukuran teks Menu */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"] p {
+    [data-testid="stSidebar"] div[role="radiogroup"] p {
         font-size: 0.88rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
     }
-    
-    /* State saat menu aktif/dipilih merentang full layar dengan efek gold */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] > div {
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
         background: linear-gradient(90deg, rgba(240, 183, 61, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
         box-shadow: inset 3px 0 0 #f0b73d !important;
     }
-    
-    /* Teks menu aktif menjadi putih pekat */
-    [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] p { 
-        color: #FFFFFF !important; font-weight: 800 !important; 
-    }
-    
-    /* Sembunyikan lingkaran bulat (radio button circle default dari Streamlit) */
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800 !important; }
     [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] { display: none !important; }
 
     div[data-testid="stButton"] > button[kind="primary"] {
