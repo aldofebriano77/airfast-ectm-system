@@ -206,10 +206,22 @@ st.markdown(
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] div, [data-testid="stSidebar"] b { color: #F1F5F9 !important; }
     
-    [data-testid="stSidebar"] div[role="radiogroup"] > label {
-        padding: 10px 16px !important; margin-bottom: 4px !important;
-        background: transparent !important; border: none !important;
-        cursor: pointer; transition: all 0.2s ease; width: 100%; border-radius: 8px !important;
+    [data-testid="stSidebar"] div[role="radiogroup"],
+    [data-testid="stSidebar"] div[role="radiogroup"] > div {
+        width: 100% !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label {
+        display: flex !important; /* [KUNCI] Memaksa kotak menutupi seluruh ruang kosong */
+        align-items: center !important;
+        width: 100% !important;
+        padding: 10px 16px !important; 
+        margin-bottom: 4px !important;
+        background: transparent !important; 
+        border: none !important;
+        cursor: pointer; 
+        transition: all 0.2s ease; 
+        border-radius: 8px !important; 
     }
     [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
         background-color: rgba(255, 255, 255, 0.06) !important; transform: translateX(3px);
