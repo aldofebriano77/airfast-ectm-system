@@ -2358,6 +2358,58 @@ elif menu_selection == "Data Collection":
                     
                     st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
                     st.rerun()
+                    
+    # --- FITUR BARU: AUTO-CONVERTER RAW MRO DATA ---
+        with st.expander("Auto-Convert Raw System Export (#1 LH & #2 RH)", expanded=False):
+            st.caption("Upload raw Excel exports from the trend monitoring box to automatically clean, map, and ingest the data into the enterprise format.")
+            
+            c_raw1, c_raw2 = st.columns(2)
+            with c_raw1:
+                raw_lh = st.file_uploader("Upload Engine #1 (LH) .xlsx", type=["xlsx"], key="raw_lh")
+            with c_raw2:
+                raw_rh = st.file_uploader("Upload Engine #2 (RH) .xlsx", type=["xlsx"], key="raw_rh")
+                
+            if st.button("Convert & Ingest Data", type="primary", use_container_width=True):
+                if raw_lh and raw_rh:
+                    try:
+                        df_lh = pd.read_excel(raw_lh)
+                        df_rh = pd.read_excel(raw_rh)
+                        
+                        map_lh = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
+                        map_rh = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
+
+                        df1_clean = df_lh[list(map_lh.keys())].rename(columns=map_lh).copy()
+                        
+                        # Ambil otomatis registrasi dari nama file (misal: "#1 OAM.xlsx" -> "OAM" -> "PK-OAM")
+                        reg_id = raw_lh.name.split(" ")[1].split(".")[0] if " " in raw_lh.name else "PK-OAM"
+                        if not reg_id.startswith("PK-"): reg_id = f"PK-{reg_id}"
+                        
+                        df1_clean['Engine'] = f'{reg_id} | LH'
+                        
+                        df2_clean = df_rh[list(map_rh.keys())].rename(columns=map_rh).copy()
+                        df2_clean['Engine'] = f'{reg_id} | RH'
+                        
+                        df_final = pd.concat([df1_clean, df2_clean], ignore_index=True)
+                        df_final['Date'] = pd.to_datetime(df_final['Date']).dt.strftime('%Y-%m-%d')
+                        df_final['AML No'] = df_final['Date'].apply(lambda x: f"AML-{reg_id}-{x.replace('-', '')}")
+                        
+                        cols = ["AML No", "Date", "Engine", "Press_Alt", "IOAT", "IAS", "TQ", "Np", "T5", "Ng", "Wf", "Oil_Temp", "Oil_Press"]
+                        df_final = df_final[cols].sort_values(by=['Date', 'Engine'])
+                        
+                        # Gabungkan dengan master data yang sudah ada di memori
+                        st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
+                        st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last")
+                        
+                        # Pindai otomatis mesin yang baru disubmit dengan watchdog
+                        execute_silent_watchdog(engines_to_scan=[f'{reg_id} | LH', f'{reg_id} | RH'])
+                        
+                        st.success(f"Successfully converted and ingested {len(df_final)} rows for {reg_id}!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to process files. Please ensure they are the correct raw export format. Error: {e}")
+                else:
+                    st.warning("Please upload both Engine #1 and Engine #2 files to proceed.")
+        # -----------------------------------------------
 
         col_up, col_dl = st.columns([3, 1])
         with col_up:
