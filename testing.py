@@ -205,15 +205,7 @@ st.markdown(
     [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
     [data-testid="stSidebar"] div, [data-testid="stSidebar"] b { color: #F1F5F9 !important; }
-    
-    /* [KUNCI FIX]: Memaksa container utama radio untuk stretch 100% */
-    [data-testid="stSidebar"] [data-testid="stRadio"] { width: 100% !important; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] { 
-        width: 100% !important; 
-        align-items: stretch !important; 
-        gap: 4px !important;
-    }
-    
+      
     /* Menetralkan label luar */
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
         padding: 10px 16px !important; margin-bottom: 4px !important;
