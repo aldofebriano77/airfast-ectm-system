@@ -50,31 +50,26 @@ st.set_page_config(
 )
 
 # ======================================================================================
-# EXECUTIVE DASHBOARD HEADER (V5 MASTHEAD)
+# EXECUTIVE DASHBOARD HEADER (STICKY TOP & COMPACT LOGO)
 # ======================================================================================
 sticky_header_html = """
-<div class="ectm-masthead">
-    <div class="ectm-masthead-inner">
-        <div class="ectm-brand-lockup">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="45" height="45">
+<div class="sticky-header-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <h1 style="margin: 0; padding: 0; font-size: 1.6rem !important; color: #003B6F; font-weight: 800; letter-spacing: -0.02em;">Engine Condition Trend Monitoring Dashboard</h1>
+            <p style="margin: 2px 0 0 0; padding: 0; font-size: 0.85rem; font-weight: 600; color: #475569;">PT. AIRFAST Indonesia | DHC-6 / P&WC PT6A-34 Engine Telemetry</p>
+        </div>
+        <div style="text-align: right;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 45" width="180" height="40">
               <g transform="translate(0, 2)">
-                <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#FFFFFF"/>
-                <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#ECAF2E"/>
+                <path d="M 20 2 L 40 42 L 30 42 L 20 20 L 10 42 L 0 42 Z" fill="#003B6F"/>
+                <path d="M 20 15 L 28 32 L 20 24 L 12 32 Z" fill="#F0B73D"/>
+              </g>
+              <g transform="translate(52, 28)">
+                <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="800" fill="#003B6F" letter-spacing="1">ALDO</text>
+                <text x="65" y="0" font-family="'Plus Jakarta Sans', 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#64748B" letter-spacing="1">AEROSPACE</text>
               </g>
             </svg>
-            <div>
-                <span>AIRFAST</span>
-                <small>INDONESIA</small>
-            </div>
-        </div>
-        <div class="ectm-title-group">
-            <p class="ectm-eyebrow">TECHNICAL SERVICES DIVISION</p>
-            <h1 class="ectm-title">Engine Condition Trend Monitoring</h1>
-            <p class="ectm-subtitle">DHC-6 Twin Otter / P&WC PT6A-34 Fleet Telemetry</p>
-        </div>
-        <div class="ectm-system-badge">
-            <span></span>SYSTEM ACTIVE<br>
-            <small>VERSION 5.0 (MVP)</small>
         </div>
     </div>
 </div>
@@ -120,11 +115,266 @@ SLATE_MUTED = "#64748B"
 # ======================================================================================
 # 3. ULTRA-MODERN AVIATION SAAS STYLING (TIER 1 UI/UX OVERHAUL & ZERO-WASTE SPACE)
 # ======================================================================================
+st.markdown(
+    """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-font-smoothing: antialiased; }
+
+    /* [PEMANGKASAN RUANG KOSONG] Memaksimalkan lebar layar dan memangkas padding atas/bawah */
+    .block-container {
+        padding-top: 1.2rem !important;
+        padding-bottom: 1.5rem !important;
+        padding-left: 2.2rem !important;
+        padding-right: 2.2rem !important;
+        max-width: 98% !important;
+    }
+    
+    [data-testid="stAppViewContainer"], [data-testid="stApp"], .main {
+        background-color: #F8FAFC !important; color: #0F172A !important;
+    }
+    [data-testid="stHeader"] { background-color: transparent !important; }
+    
+    /* Tipografi yang Lebih Padat & Bersih */
+    h1, h2, h3, h4 { color: #00284D !important; font-weight: 800 !important; letter-spacing: -0.03em !important; margin-top: 0rem !important; }
+    h1 { font-size: 1.85rem !important; }
+    h2 { font-size: 1.35rem !important; }
+    h3 { font-size: 1.1rem !important; font-weight: 700 !important; }
+
+    /* ==========================================================================
+       1. MODERN SEGMENTED TABS (MENGGANTIKAN TAB KAKU STREAMLIT)
+       ========================================================================== */
+    div[data-testid="stTabs"] button[role="tab"] {
+        background-color: transparent !important; border: none !important;
+        border-radius: 8px 8px 0 0 !important; font-weight: 700 !important;
+        padding: 8px 18px !important; color: #64748B !important;
+        font-size: 0.9rem !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"]:hover {
+        color: #003B6F !important; background-color: rgba(0, 59, 111, 0.03) !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        color: #003B6F !important; border-bottom: 3px solid #f0b73d !important;
+        background-color: rgba(0, 59, 111, 0.05) !important;
+    }
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: transparent !important; }
+
+    /* ==========================================================================
+       2. COMPACT METRIC CARDS WITH HOVER LIFT
+       ========================================================================== */
+    div[data-testid="stMetric"] {
+        background: #FFFFFF !important; border: none !important;
+        border-radius: 12px !important; padding: 14px 18px !important;
+        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.04), 0 0 2px 1px rgba(0, 40, 77, 0.02) !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; position: relative; overflow: hidden;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px); box-shadow: 0 8px 20px -4px rgba(0, 40, 77, 0.08) !important;
+    }
+    div[data-testid="stMetric"]::before {
+        content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%);
+    }
+    div[data-testid="stMetricLabel"] > label > p {
+        color: #64748B !important; font-weight: 700 !important; font-size: 0.74rem !important;
+        text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0px !important;
+    }
+    div[data-testid="stMetricValue"] > div { 
+        color: #0F172A !important; font-weight: 800 !important; font-size: 1.5rem !important; 
+        letter-spacing: -0.02em; margin-top: 2px;
+    }
+
+    /* ==========================================================================
+       3. INTERACTIVE EXPANDER & CONTAINER CARDS
+       ========================================================================== */
+    div[data-testid="stExpander"] {
+        border: 1px solid #E2E8F0 !important; border-radius: 10px !important;
+        background: #FFFFFF !important; box-shadow: 0 2px 6px rgba(0,0,0,0.02) !important;
+        overflow: hidden !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stExpander"]:hover { border-color: #CBD5E1 !important; }
+    div[data-testid="stExpander"] summary { font-weight: 700 !important; color: #003B6F !important; padding: 10px 14px !important; }
+
+    /* ==========================================================================
+       4. SIDEBAR & BUTTONS (COMPACT PILL NAV - 100% WIDTH FIX)
+       ========================================================================== */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #00284D 0%, #00172D 100%) !important; 
+        border-right: none !important; box-shadow: 4px 0 20px rgba(0, 0, 0, 0.12);
+    }
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, 
+    [data-testid="stSidebar"] div, [data-testid="stSidebar"] b { color: #F1F5F9 !important; }
+    
+    /* [KUNCI FIX]: Memaksa container utama radio untuk stretch 100% */
+    [data-testid="stSidebar"] [data-testid="stRadio"] { width: 100% !important; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] { 
+        width: 100% !important; 
+        align-items: stretch !important; 
+        gap: 4px !important;
+    }
+    
+    /* Menetralkan label luar */
+    [data-testid="stSidebar"] div[role="radiogroup"] > label {
+        padding: 10px 16px !important; margin-bottom: 4px !important;
+        background: transparent !important; border: none !important;
+        cursor: pointer; transition: all 0.2s ease; width: 100%; border-radius: 8px !important;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        background-color: rgba(255, 255, 255, 0.06) !important; transform: translateX(3px);
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] p {
+        font-size: 0.88rem !important; font-weight: 600 !important; color: #94A3B8 !important; margin: 0 !important;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
+        background: linear-gradient(90deg, rgba(240, 183, 61, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+        box-shadow: inset 3px 0 0 #f0b73d !important;
+    }
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; font-weight: 800 !important; }
+    [data-testid="stSidebar"] div[data-baseweb="radio"] div[role="radio"] { display: none !important; }
+
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, #003B6F 0%, #00284D 100%) !important; 
+        color: #FFFFFF !important; font-weight: 700 !important; font-size: 0.88rem !important;
+        border-radius: 8px !important; padding: 10px 20px !important; border: none !important; 
+        box-shadow: 0 4px 10px rgba(0, 59, 111, 0.2) !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stButton"] > button[kind="primary"]:hover {
+        transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0, 59, 111, 0.3) !important;
+        background: linear-gradient(135deg, #00488A 0%, #00305C 100%) !important; color: #f0b73d !important;
+    }
+
+    div[data-testid="stDownloadButton"] > button, div[data-testid="stButton"] > button[kind="secondary"] {
+        background: #FFFFFF !important; color: #003B6F !important; font-weight: 700 !important; 
+        font-size: 0.85rem !important; border-radius: 8px !important; border: 1px solid #E2E8F0 !important; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important; transition: all 0.2s ease !important;
+    }
+    div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        background: #F8FAFC !important; border-color: #003B6F !important; transform: translateY(-1px);
+    }
+
+    div[data-testid="stButton"] > button.red-logout-btn {
+        background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%) !important; color: #FFFFFF !important; 
+        border: none !important; font-weight: 700 !important; border-radius: 8px !important;
+    }
+    div[data-testid="stButton"] > button.red-logout-btn:hover {
+        background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%) !important; transform: translateY(-1px);
+    }
+
+    /* ==========================================================================
+       5. BADGES & HEATMAP CARDS (TIGHTER PROFILE)
+       ========================================================================== */
+    .badge-red { background: rgba(220, 38, 38, 0.08); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-amber { background: rgba(217, 119, 6, 0.08); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    .badge-green { background: rgba(22, 163, 74, 0.08); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.2); border-radius: 20px; padding: 4px 12px; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; display: inline-block; }
+    
+    .heatmap-card {
+        background: #FFFFFF; border: none; border-radius: 12px; padding: 14px; margin-bottom: 12px;
+        box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.05), 0 0 2px 1px rgba(0, 40, 77, 0.02);
+        transition: all 0.2s ease;
+    }
+    .heatmap-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px -4px rgba(0, 40, 77, 0.1); }
+    .heatmap-reg { font-size: 1.15rem; font-weight: 800; color: #00284D; letter-spacing: -0.02em; }
+    .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; margin-top: 5px; font-size: 0.8rem; font-weight: 700; }
+    
+    .hm-green { background: rgba(22, 163, 74, 0.06); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
+    .hm-amber { background: rgba(217, 119, 6, 0.06); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
+    .hm-red { background: rgba(220, 38, 38, 0.06); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
+    
+    .rec-card-box { background: #FFFFFF; border: none; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 4px 15px -2px rgba(0, 40, 77, 0.04); }
+    .rec-card-red { border-left: 5px solid #DC2626; }
+    .rec-card-amber { border-left: 5px solid #D97706; }
+    .rec-card-green { border-left: 5px solid #16A34A; }
+    .rec-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F1F5F9; padding-bottom: 10px; margin-bottom: 12px; }
+    .rec-title { font-size: 1.08rem; font-weight: 800; color: #00284D; }
+
+    .rul-box { 
+        background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); border: none; border-left: 4px solid #f0b73d;
+        padding: 14px 16px; border-radius: 10px; margin-top: 8px; margin-bottom: 8px; box-shadow: 0 4px 12px -2px rgba(0, 40, 77, 0.04);
+    }
+    .rul-title { font-size: 0.74rem; font-weight: 800; color: #64748B; text-transform: uppercase; letter-spacing: 0.06em; }
+    .rul-val { font-size: 1.25rem; font-weight: 800; color: #00284D; margin-top: 2px; }
+    .rul-sub { font-size: 0.78rem; font-weight: 600; color: #64748B; margin-top: 2px; }
+
+    .fim-ref { display: inline-block; background: #F1F5F9; color: #334155; border-radius: 4px; padding: 2px 8px; font-size: 0.72rem; font-weight: 700; margin-left: 6px; }
+    
+    div[data-testid="stElementContainer"]:has(.sticky-header-box),
+    div.element-container:has(.sticky-header-box) {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 9999 !important;
+        background: rgba(248, 250, 252, 0.88) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.9) !important;
+        padding-top: 15px !important;
+        padding-bottom: 14px !important; /* Tetap aman agar teks 'y', 'g', 'p' tidak kepotong */
+        margin-bottom: -18px !important; /* [KUNCI]: Menetralkan flex-gap Streamlit agar judul tertarik naik */
+    }
+    
+    /* Memaksa kontainer judul tepat di bawah header untuk merapat ke atas */
+    div[data-testid="stElementContainer"]:has(.sticky-header-box) + div[data-testid="stElementContainer"],
+    div.element-container:has(.sticky-header-box) + div.element-container {
+        margin-top: -8px !important;
+        padding-top: 0px !important;
+    }
+
+    hr { border: none !important; height: 1px !important; background: #E2E8F0 !important; margin: 16px 0 !important; }
+    .gold-bar { height: 3px; width: 40px; background: linear-gradient(90deg, #003B6F 0%, #f0b73d 100%); border-radius: 4px; margin-top: -4px; margin-bottom: 16px; }
+    
+    /* ==========================================================================
+       6. FORM INPUTS & DROPDOWNS (BULLETPROOF CONTRAST OVERRIDE)
+       ========================================================================== */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    div[data-testid="stTextInput"] div[data-baseweb="input"] > div,
+    div[data-testid="stNumberInput"] div[data-baseweb="input"] > div,
+    div[data-testid="stDateInput"] div[data-baseweb="input"] > div,
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"] > input {
+        background-color: #FFFFFF !important;
+        border-top: 2px solid #334155 !important;    /* Slate-700: Garis gelap tegas */
+        border-right: 2px solid #334155 !important;
+        border-bottom: 2px solid #334155 !important;
+        border-left: 2px solid #334155 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 10px rgba(0, 40, 77, 0.08) !important; /* Shadow lebih tebal */
+        color: #0F172A !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    /* Efek saat kursor diarahkan (Hover / Focus) berubah jadi Airfast Navy + Gold Glow */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover,
+    div[data-testid="stTextInput"] div[data-baseweb="input"] > div:hover,
+    div[data-baseweb="select"] > div:hover,
+    div[data-baseweb="input"] > div:hover,
+    div[data-baseweb="select"] > div:focus-within,
+    div[data-baseweb="input"] > div:focus-within {
+        border-top-color: #003B6F !important;
+        border-right-color: #003B6F !important;
+        border-bottom-color: #003B6F !important;
+        border-left-color: #003B6F !important;
+        box-shadow: 0 0 0 3px rgba(240, 183, 61, 0.3) !important; /* Sorotan emas */
+    }
+    
+    /* Memastikan teks pilihan & ketikan selalu hitam pekat terbaca jelas */
+    div[data-baseweb="select"] span, 
+    div[data-baseweb="select"] div, 
+    input[type="text"], input[type="number"] {
+        color: #0F172A !important;
+        font-weight: 600 !important;
+    }
+    input::placeholder { color: #64748B !important; opacity: 1 !important; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 # ======================================================================================
 # 3A. V5 EXECUTIVE UI/UX LAYER — visual-only overrides; analytics remain unchanged
 # ======================================================================================
-if True:  # UI/UX experiment disabled; preserves the original visual design.
+if False:  # UI/UX experiment disabled; preserves the original visual design.
     st.markdown(
     """
 <style>
