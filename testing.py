@@ -849,13 +849,34 @@ def init_all_datasets():
     df_rep = process_maintenance_reports(df_rep)
     return df_ectm, df_util, df_rep, util_is_real, rep_is_real
 
-if "df_data" not in st.session_state or "df_util" not in st.session_state or "df_rep" not in st.session_state:
-    e_df, u_df, r_df, u_is_real, r_is_real = init_all_datasets()
-    st.session_state["df_data"] = e_df
-    st.session_state["df_util"] = u_df
-    st.session_state["df_rep"] = r_df
-    st.session_state["util_is_real"] = u_is_real
-    st.session_state["rep_is_real"] = r_is_real
+# --- SISTEM BASIS DATA PERMANEN (SUSTAINABLE STORAGE) ---
+DB_DIR = ".airfast_db"
+os.makedirs(DB_DIR, exist_ok=True)
+ECTM_DB_PATH = os.path.join(DB_DIR, "ectm_master.csv")
+UTIL_DB_PATH = os.path.join(DB_DIR, "util_master.csv")
+REP_DB_PATH = os.path.join(DB_DIR, "rep_master.csv")
+
+def save_ectm_db(): st.session_state["df_data"].to_csv(ECTM_DB_PATH, index=False)
+def save_util_db(): st.session_state["df_util"].to_csv(UTIL_DB_PATH, index=False)
+def save_rep_db(): st.session_state["df_rep"].to_csv(REP_DB_PATH, index=False)
+
+if "df_data" not in st.session_state:
+    if os.path.exists(ECTM_DB_PATH):
+        st.session_state["df_data"] = pd.read_csv(ECTM_DB_PATH)
+        st.session_state["df_util"] = pd.read_csv(UTIL_DB_PATH) if os.path.exists(UTIL_DB_PATH) else pd.DataFrame()
+        st.session_state["df_rep"] = pd.read_csv(REP_DB_PATH) if os.path.exists(REP_DB_PATH) else pd.DataFrame()
+        st.session_state["util_is_real"] = not st.session_state["df_util"].empty
+        st.session_state["rep_is_real"] = not st.session_state["df_rep"].empty
+    else:
+        e_df, u_df, r_df, u_is_real, r_is_real = init_all_datasets()
+        st.session_state["df_data"] = e_df
+        st.session_state["df_util"] = u_df
+        st.session_state["df_rep"] = r_df
+        st.session_state["util_is_real"] = u_is_real
+        st.session_state["rep_is_real"] = r_is_real
+        save_ectm_db()
+        save_util_db()
+        save_rep_db()
 
 def csv_template() -> bytes:
     cols = ["AML No"] + REQUIRED_COLUMNS + [c for c in OPTIONAL_COLUMNS if c not in REQUIRED_COLUMNS and c != "AML No"]
@@ -916,17 +937,25 @@ def apply_correction_model(model: dict, df: pd.DataFrame) -> np.ndarray:
     X = np.column_stack([np.ones(len(X)), X])
     return X @ model["coef"]
 
+def determine_optimal_baseline(df_engine, min_cycles=15, max_cycles=30):
+    """Mencari rentang kalibrasi terbaik untuk mencegah alarm palsu"""
+    if len(df_engine) < min_cycles: return max(2, len(df_engine))
+    n = min_cycles
+    while n <= min(max_cycles, len(df_engine)):
+        df_sub = df_engine.iloc[:n]
+        if df_sub["Press_Alt"].std(ddof=0) > 500 and df_sub["IOAT"].std(ddof=0) > 2.0:
+            return n
+        n += 1
+    return min(max_cycles, len(df_engine))
+
 @st.cache_data(show_spinner=False)
-def compute_engine_trend(df_engine: pd.DataFrame, baseline_n: int, use_correction: bool):
+def compute_engine_trend(df_engine: pd.DataFrame, use_correction: bool = True):
     df_engine = df_engine.sort_values("Date").reset_index(drop=True)
-    
-    # [PATCH HOLE 1] Mencegah crash akibat sel kosong (NaN) pada sensor IOAT/Alt/TQ/Np
     corr_cols_present = [c for c in CORRECTION_CANDIDATES if c in df_engine.columns]
     if corr_cols_present:
         df_engine[corr_cols_present] = df_engine[corr_cols_present].ffill().bfill().fillna(0.0)
         
-    n = max(2, min(baseline_n, len(df_engine)))
-    # ... (sisa kode ke bawah tetap sama persis)
+    n = determine_optimal_baseline(df_engine) # OTOMATIS MENCARI BASELINE
     df_baseline = df_engine.iloc[:n]
     predictors = [c for c in CORRECTION_CANDIDATES if c in df_engine.columns] if use_correction else []
     models = {}
@@ -2117,7 +2146,7 @@ if len(df_engine) < 2:
     st.warning(f"Powerplant {selected_engine} contains only {len(df_engine)} logged flight cycle(s). Minimum of 2 cycles required for trend regression.")
     st.stop()
 
-df_engine = compute_engine_trend(df_engine, int(baseline_n_input), use_correction)
+df_engine = compute_engine_trend(df_engine, use_correction)
 status = build_status(df_engine, df_util_current)
 recommendations = generate_recommendations(df_engine, status)
 
@@ -2161,7 +2190,7 @@ if menu_selection == "Overview":
     for eng in engines_available:
         df_sub = df_raw[df_raw["Engine"] == eng].copy()
         if len(df_sub) >= 2:
-            df_sub_proc = compute_engine_trend(df_sub, int(baseline_n_input), use_correction)
+            df_sub_proc = compute_engine_trend(df_sub, use_correction)
             st_sub = build_status(df_sub_proc, df_util_current)
             stat_lbl = "CRITICAL" if st_sub["health_level"] == EngineHealth.CRITICAL else ("ADVISORY" if st_sub["health_level"] == EngineHealth.ADVISORY else "NORMAL")
             rul_val = st_sub["rul_cycles"]
@@ -2319,124 +2348,60 @@ elif menu_selection == "Data Collection":
     tab_ectm, tab_util, tab_rep = st.tabs(["1. Engine Performance Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. PIREP / MAREP (.xlsx)"])
     
     with tab_ectm:
-        with st.expander("Add Daily Engine Performance Record (Manual Entry)", expanded=False):
-            st.caption("Log daily engine telemetry directly from pilot flight logbook without uploading a CSV.")
-            with st.form("form_manual_ectm", clear_on_submit=True):
-                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-                with col_f1:
-                    m_aml = st.text_input("AML No (Relational Key)", placeholder="e.g., OAM-2026-015").upper()
-                    m_date = st.date_input("Flight Date", value=datetime.now())
-                    m_eng = st.selectbox("Powerplant ID", engines_available)
-                    m_alt = st.number_input("Press Alt (Ft)", min_value=0, max_value=25000, value=10000, step=500)
-                with col_f2:
-                    m_ioat = st.number_input("IOAT (°C)", min_value=-40.0, max_value=55.0, value=15.0, step=0.5)
-                    m_ias = st.number_input("IAS (Knots)", min_value=0.0, max_value=200.0, value=135.0, step=1.0)
-                    m_tq = st.number_input("Torque (TQ %)", min_value=0.0, max_value=100.0, value=42.0, step=0.5)
-                with col_f3:
-                    m_np = st.number_input("Prop Speed (Np %)", min_value=0, max_value=100, value=75, step=1)
-                    m_t5 = st.number_input("T5 / ITT (°C)", min_value=300.0, max_value=850.0, value=624.0, step=0.5)
-                    m_ng = st.number_input("Gas Gen (Ng %)", min_value=50.0, max_value=105.0, value=91.50, step=0.1)
-                with col_f4:
-                    m_wf = st.number_input("Fuel Flow (Wf PPH)", min_value=100.0, max_value=500.0, value=288.0, step=1.0)
-                    m_otemp = st.number_input("Oil Temp (°C)", min_value=10.0, max_value=110.0, value=72.0, step=0.5)
-                    m_opress = st.number_input("Oil Press (PSI)", min_value=40.0, max_value=120.0, value=91.0, step=0.5)
-                
-                submitted_ectm = st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True)
-                if submitted_ectm:
-                    _m_reg_fallback = str(m_eng).split("|")[0].strip()
-                    new_row = pd.DataFrame([{
-                        "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
-                        "Date": pd.to_datetime(m_date), "Engine": m_eng, "Press_Alt": float(m_alt),
-                        "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
-                        "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
-                        "Oil_Temp": float(m_otemp), "Oil_Press": float(m_opress)
-                    }])
-                    st.session_state["df_data"] = pd.concat([st.session_state["df_data"], new_row], ignore_index=True)
-                    
-                    # [SILENT BACKGROUND WATCHDOG] Pindai otomatis mesin yang baru disubmit
-                    execute_silent_watchdog(engines_to_scan=[m_eng])
-                    
-                    st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
-                    st.rerun()
-                    
-    # --- FITUR BARU: AUTO-CONVERTER RAW MRO DATA ---
-        with st.expander("Auto-Convert Raw System Export (#1 LH & #2 RH)", expanded=False):
-            st.caption("Upload raw Excel exports from the trend monitoring box to automatically clean, map, and ingest the data into the enterprise format.")
-            
-            c_raw1, c_raw2 = st.columns(2)
-            with c_raw1:
-                raw_lh = st.file_uploader("Upload Engine #1 (LH) .xlsx", type=["xlsx"], key="raw_lh")
-            with c_raw2:
-                raw_rh = st.file_uploader("Upload Engine #2 (RH) .xlsx", type=["xlsx"], key="raw_rh")
-                
-            if st.button("Convert & Ingest Data", type="primary", use_container_width=True):
-                if raw_lh and raw_rh:
-                    try:
-                        df_lh = pd.read_excel(raw_lh)
-                        df_rh = pd.read_excel(raw_rh)
-                        
-                        map_lh = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
-                        map_rh = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
-
-                        df1_clean = df_lh[list(map_lh.keys())].rename(columns=map_lh).copy()
-                        
-                        # Ambil otomatis registrasi dari nama file (misal: "#1 OAM.xlsx" -> "OAM" -> "PK-OAM")
-                        reg_id = raw_lh.name.split(" ")[1].split(".")[0] if " " in raw_lh.name else "PK-OAM"
-                        if not reg_id.startswith("PK-"): reg_id = f"PK-{reg_id}"
-                        
-                        df1_clean['Engine'] = f'{reg_id} | LH'
-                        
-                        df2_clean = df_rh[list(map_rh.keys())].rename(columns=map_rh).copy()
-                        df2_clean['Engine'] = f'{reg_id} | RH'
-                        
-                        df_final = pd.concat([df1_clean, df2_clean], ignore_index=True)
-                        df_final['Date'] = pd.to_datetime(df_final['Date']).dt.strftime('%Y-%m-%d')
-                        df_final['AML No'] = df_final['Date'].apply(lambda x: f"AML-{reg_id}-{x.replace('-', '')}")
-                        
-                        cols = ["AML No", "Date", "Engine", "Press_Alt", "IOAT", "IAS", "TQ", "Np", "T5", "Ng", "Wf", "Oil_Temp", "Oil_Press"]
-                        df_final = df_final[cols].sort_values(by=['Date', 'Engine'])
-                        
-                        # Gabungkan dengan master data yang sudah ada di memori
-                        st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
-                        st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last")
-                        
-                        # Pindai otomatis mesin yang baru disubmit dengan watchdog
-                        execute_silent_watchdog(engines_to_scan=[f'{reg_id} | LH', f'{reg_id} | RH'])
-                        
-                        st.success(f"Successfully converted and ingested {len(df_final)} rows for {reg_id}!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to process files. Please ensure they are the correct raw export format. Error: {e}")
-                else:
-                    st.warning("Please upload both Engine #1 and Engine #2 files to proceed.")
-        # -----------------------------------------------
-
-        col_up, col_dl = st.columns([3, 1])
-        with col_up:
-            up_ectm = st.file_uploader("Upload Engine Performance Logbook (.csv)", type=["csv"], key="up_ectm_file")
-            if up_ectm is not None:
-                new_df = pd.read_csv(up_ectm, on_bad_lines='skip')
-                missing, _ = validate_columns(new_df)
-                if not missing:
-                    st.session_state["df_data"] = new_df
-                    
-                    # [SILENT BACKGROUND WATCHDOG] Pindai otomatis seluruh armada setelah ingest CSV baru
-                    execute_silent_watchdog()
-                    
-                    st.success("Engine Performance Logbook ingested successfully.")
-                    st.rerun()
-        with col_dl:
-            st.write("")
-            st.write("")
-            st.download_button("Download CSV Template", data=csv_template(), file_name="AIRFAST_ECTM_Template.csv", mime="text/csv", use_container_width=True)
+        st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#003B6F;'>⚡ Server Directory Auto-Sync (Fleet MRO Integration)</p>", unsafe_allow_html=True)
+        st.caption("One-click synchronization. The system will automatically scan the local `data/` directory, extract all raw #1 and #2 aircraft engine Excel exports, map thermodynamic parameters, and build the persistent database.")
         
-        audit_alerts = run_data_quality_audit(st.session_state["df_data"])
-        if audit_alerts:
-            with st.expander("Data Quality Audit Alerts Detected (Click to expand)", expanded=True):
-                for alert in audit_alerts:
-                    st.warning(alert)
-
-        st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True, key="ed_ectm_ui")
+        if st.button("🔄 Sync All Fleet Data from Local Server", type="primary", use_container_width=True):
+            data_dir = "data" 
+            if not os.path.exists(data_dir):
+                st.error(f"Directory '{data_dir}' not found in the project folder!")
+            else:
+                import os
+                import re
+                
+                raw_files = [f for f in os.listdir(data_dir) if f.endswith('.xlsx') and ('#1' in f or '#2' in f)]
+                
+                if not raw_files:
+                    st.warning(f"No raw MRO files (#1 or #2) found in the '{data_dir}' folder.")
+                else:
+                    new_data_frames = []
+                    with st.spinner(f"Scanning and extracting {len(raw_files)} raw MRO files from local storage..."):
+                        for filename in raw_files:
+                            filepath = os.path.join(data_dir, filename)
+                            df_raw_file = pd.read_excel(filepath)
+                            
+                            match = re.search(r'(O[A-Z]{2})', filename.upper())
+                            reg_id = f"PK-{match.group(1)}" if match else "UNKNOWN"
+                            
+                            if 'DateTime (1)' in df_raw_file.columns:
+                                m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
+                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
+                                df_mapped['Engine'] = f'{reg_id} | LH'
+                                new_data_frames.append(df_mapped)
+                            elif 'DateTime (2)' in df_raw_file.columns:
+                                m = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
+                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
+                                df_mapped['Engine'] = f'{reg_id} | RH'
+                                new_data_frames.append(df_mapped)
+                    
+                    if new_data_frames:
+                        df_final = pd.concat(new_data_frames, ignore_index=True)
+                        df_final['Date'] = pd.to_datetime(df_final['Date']).dt.strftime('%Y-%m-%d')
+                        if "AML No" not in df_final.columns:
+                            df_final['AML No'] = df_final.apply(lambda row: f"AML-{str(row['Engine']).split('|')[0].strip()}-{str(row['Date']).replace('-', '')}", axis=1)
+                        
+                        st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
+                        st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last").sort_values("Date")
+                        
+                        save_ectm_db() 
+                        execute_silent_watchdog() 
+                        st.success(f"Sync complete! {len(df_final)} thermodynamic points securely ingested from local storage.")
+                        st.rerun()
+                        
+        st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True)
+        if st.button("Save Manual Edits to Database"):
+            save_ectm_db()
+            st.success("Manual edits saved to database!")
 
     with tab_util:
         with st.expander("Add Daily Flight Utilization Record (Manual Entry)", expanded=False):
@@ -2541,14 +2506,11 @@ elif menu_selection == "Data Collection":
         
         def sync_config():
             if "ui_sel_eng" in st.session_state: st.session_state["target_engine"] = st.session_state["ui_sel_eng"]
-            if "ui_sel_base" in st.session_state: st.session_state["target_baseline_n"] = st.session_state["ui_sel_base"]
             if "ui_sel_corr" in st.session_state: st.session_state["target_use_correction"] = st.session_state["ui_sel_corr"]
 
         with col_set1:
             curr_idx = engines_available.index(st.session_state["target_engine"]) if st.session_state["target_engine"] in engines_available else 0
             st.selectbox("Target Powerplant (Position)", engines_available, index=curr_idx, key="ui_sel_eng", on_change=sync_config)
-        with col_set2:
-            st.number_input("Reference Baseline Cycles", min_value=2, max_value=20, step=1, value=int(st.session_state["target_baseline_n"]), key="ui_sel_base", on_change=sync_config)
         with col_set3:
             st.write("") 
             st.write("")
