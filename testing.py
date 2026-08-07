@@ -823,7 +823,7 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
 # 7. THERMODYNAMIC LEAST-SQUARES REGRESSION & ADAPTIVE NOISE BANDING
 # ======================================================================================
 def fit_correction_model(df_baseline: pd.DataFrame, predictors: list, target: str):
-    usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 1e-6]
+    usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 0.5]
     if len(usable) == 0 or len(df_baseline) < len(usable) + 2:
         mean_val = df_baseline[target].mean() if not df_baseline.empty else 0.0
         return {"mode": "mean", "predictors": [], "coef": np.array([mean_val]), "downgraded": True}
@@ -2694,17 +2694,19 @@ elif menu_selection == "Logbook":
                 rh_t5 = f"{rh_row['Delta_T5'].values[0]:+.1f}°C" if not rh_row.empty and "Delta_T5" in rh_row.columns else "N/A"
                 
                 # Tarik data jam terbang dari file Utilization
-                u_match = df_util_current[
-                    (df_util_current["AML No"] == aml_val) &
-                    (df_util_current.get("Registration", sel_reg) == sel_reg)
-                ] if "AML No" in df_util_current.columns else pd.DataFrame()
-                fh_val = f"{u_match['FH'].values[0]} FH / {u_match['FC'].values[0]} FC" if not u_match.empty else "N/A"
+                u_match = pd.DataFrame()
+                if not df_util_current.empty and "Work (Date)" in df_util_current.columns:
+                    mask_u_aml = df_util_current["AML No"] == aml_val
+                    mask_u_date = (df_util_current.get("Registration", "") == sel_reg) & (df_util_current["Work (Date)"].dt.strftime("%Y-%m-%d") == dt_str)
+                    u_match = df_util_current[mask_u_aml | mask_u_date]
+                fh_val = f"{u_match['FH'].values[0]:.1f} FH / {u_match['FC'].values[0]:.0f} FC" if not u_match.empty else "N/A"
                 
-                # Tarik laporan kerusakan dari file PIREP/MAREP
-                r_match = df_rep_current[
-                    (df_rep_current["AML No"] == aml_val) &
-                    (df_rep_current.get("Registration", sel_reg) == sel_reg)
-                ]
+                # Evaluasi PIREP/MAREP
+                r_match = pd.DataFrame()
+                if not df_rep_current.empty and "Date" in df_rep_current.columns:
+                    mask_r_aml = df_rep_current["AML No"] == aml_val
+                    mask_r_date = (df_rep_current.get("Registration", "") == sel_reg) & (df_rep_current["Date"].dt.strftime("%Y-%m-%d") == dt_str)
+                    r_match = df_rep_current[mask_r_aml | mask_r_date]
                 rep_val = f"[{r_match['ATA_Desc'].values[0]}] {r_match['Corrective Action'].values[0][:45]}..." if not r_match.empty else "Normal Operations (No Defect Logged)"
                 
                 sync_rows.append({
