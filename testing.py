@@ -1951,12 +1951,6 @@ st.sidebar.markdown("""
 # ======================================================================================
 df_raw = st.session_state["df_data"].copy()
 df_raw = st.session_state["df_data"].copy()
-# [HARD RESET SEMENTARA] Hapus semua baris mesin yang memiliki kata "(SN:" 
-# Baris ini berfungsi membunuh sisa-sisa data fiktif yang masih mengendap di database lokal
-if not df_raw.empty:
-    df_raw = df_raw[~df_raw["Engine"].astype(str).str.contains(r"\(SN:")]
-    st.session_state["df_data"] = df_raw # Simpan kembali versi bersihnya ke memori
-    save_ectm_db() # Timpa file CSV di .airfast_db dengan data yang sudah bersih
 df_util_current = st.session_state["df_util"].copy()
 df_rep_current = st.session_state["df_rep"].copy()
 
