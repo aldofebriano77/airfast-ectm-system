@@ -740,9 +740,28 @@ ECTM_DB_PATH = os.path.join(DB_DIR, "ectm_master.csv")
 UTIL_DB_PATH = os.path.join(DB_DIR, "util_master.csv")
 REP_DB_PATH = os.path.join(DB_DIR, "rep_master.csv")
 
+def _sanitize_for_csv(df: pd.DataFrame) -> pd.DataFrame:
+    """[BUG FIX] CSV formula injection guard. "Note / Report" and
+    "Corrective Action" are free-text fields any logged-in user - including
+    Guest, since manual entry is intentionally open to everyone - can
+    populate. If a cell's text starts with =, +, -, or @, Excel/Sheets will
+    interpret it as a formula the instant this CSV is opened directly (e.g.
+    for a manual backup/audit), which can silently execute unintended
+    lookups or, in older Excel versions, external commands via DDE. This is
+    the same underlying risk as the stored-XSS fix applied earlier to the
+    Logbook page's HTML rendering - same free-text source, different output
+    surface (spreadsheet instead of browser)."""
+    df = df.copy()
+    risky_prefixes = ("=", "+", "-", "@")
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].apply(
+            lambda v: f"'{v}" if isinstance(v, str) and v.startswith(risky_prefixes) else v
+        )
+    return df
+
 def save_ectm_db(): st.session_state["df_data"].to_csv(ECTM_DB_PATH, index=False)
 def save_util_db(): st.session_state["df_util"].to_csv(UTIL_DB_PATH, index=False)
-def save_rep_db(): st.session_state["df_rep"].to_csv(REP_DB_PATH, index=False)
+def save_rep_db(): _sanitize_for_csv(st.session_state["df_rep"]).to_csv(REP_DB_PATH, index=False)
 
 if "df_data" not in st.session_state:
     if os.path.exists(ECTM_DB_PATH):
