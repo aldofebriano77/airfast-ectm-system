@@ -726,11 +726,11 @@ def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
     return df_rep.sort_values('Date', ascending=False) if 'Date' in df_rep.columns else df_rep
 
 def init_all_datasets():
-    # Mengembalikan DataFrame kosong murni (Tanpa data fiktif)
+    # Mengembalikan DataFrame kosong murni (Tanpa data fiktif/simulasi)
     df_ectm = pd.DataFrame(columns=["AML No", "Date", "Engine", "Press_Alt", "IOAT", "IAS", "TQ", "Np", "T5", "Ng", "Wf", "Oil_Temp", "Oil_Press"])
     df_util = pd.DataFrame(columns=["AML No", "Registration", "Work (Date)", "FH", "FC", "Block Hours", "From", "To"])
     df_rep = pd.DataFrame(columns=["AML No", "Date", "Registration", "ATA", "ATA_Desc", "Note / Report", "Corrective Action", "Position", "P/N Off", "P/N On", "S/N Off", "S/N On"])
-    
+
     return df_ectm, df_util, df_rep, False, False
 
 # --- SISTEM BASIS DATA PERMANEN (SUSTAINABLE STORAGE) ---
@@ -1950,6 +1950,13 @@ st.sidebar.markdown("""
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
 # ======================================================================================
 df_raw = st.session_state["df_data"].copy()
+df_raw = st.session_state["df_data"].copy()
+# [HARD RESET SEMENTARA] Hapus semua baris mesin yang memiliki kata "(SN:" 
+# Baris ini berfungsi membunuh sisa-sisa data fiktif yang masih mengendap di database lokal
+if not df_raw.empty:
+    df_raw = df_raw[~df_raw["Engine"].astype(str).str.contains(r"\(SN:")]
+    st.session_state["df_data"] = df_raw # Simpan kembali versi bersihnya ke memori
+    save_ectm_db() # Timpa file CSV di .airfast_db dengan data yang sudah bersih
 df_util_current = st.session_state["df_util"].copy()
 df_rep_current = st.session_state["df_rep"].copy()
 
