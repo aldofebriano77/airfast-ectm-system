@@ -1956,8 +1956,12 @@ st.sidebar.markdown("""
 df_raw = st.session_state["df_data"].copy()
 df_util_current = st.session_state["df_util"].copy()
 df_rep_current = st.session_state["df_rep"].copy()
+
+# [ENTERPRISE FIX] Pastikan kolom kalender dari CSV dibaca kembali sebagai objek Datetime
 if not df_util_current.empty and "Work (Date)" in df_util_current.columns:
     df_util_current["Work (Date)"] = safe_parse_dates(df_util_current["Work (Date)"])
+if not df_rep_current.empty and "Date" in df_rep_current.columns:
+    df_rep_current["Date"] = safe_parse_dates(df_rep_current["Date"])
 
 missing_required, available_correction = validate_columns(df_raw)
 if missing_required:
@@ -2730,7 +2734,8 @@ elif menu_selection == "Logbook":
             with st.container(border=True):
                 c_head1, c_head2, c_head3 = st.columns([2, 1, 1])
                 c_head1.markdown(f"**AML No:** `{row.get('AML No', 'N/A')}` | **ATA:** `{row.get('ATA_Desc', 'N/A')}`")
-                c_head2.markdown(f"**Date:** `{row['Date'].strftime('%Y-%m-%d') if pd.notnull(row['Date']) else 'N/A'}`")
+                safe_dt = pd.to_datetime(row['Date'], errors='coerce')
+                c_head2.markdown(f"**Date:** `{safe_dt.strftime('%Y-%m-%d') if pd.notnull(safe_dt) else 'N/A'}`")
                 c_head3.markdown(f"**Position:** `{row.get('Position', 'General')}`")
                 
                 note_text = highlight_text(str(row.get('Note / Report', 'No description.')), search_kw)
