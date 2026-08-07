@@ -974,7 +974,8 @@ def compute_engine_trend(df_engine: pd.DataFrame, use_correction: bool = True):
     
     noise = {t: max(df_engine.loc[: n - 1, f"Delta_{t}"].std(ddof=0), 1e-6) for t in ["T5", "Ng", "Wf"]}
     for t in ["T5", "Ng", "Wf"]:
-        rolling_std = df_engine[f"Delta_{t}"].rolling(window=TREND_WINDOW, min_periods=n).std()
+        rolling_window = max(TREND_WINDOW, n)
+        rolling_std = df_engine[f"Delta_{t}"].rolling(window=rolling_window, min_periods=2).std()
         df_engine[f"Adaptive_Sigma_{t}"] = rolling_std.fillna(noise[t]).clip(lower=noise[t], upper=noise[t] * 3)
 
     df_engine.attrs["models"] = models
@@ -1908,7 +1909,7 @@ def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: lis
     for eng_id in scan_list:
         df_check = fresh_df[fresh_df["Engine"] == eng_id].copy()
         if len(df_check) >= 2:
-            df_check_proc = compute_engine_trend(df_check, base_n, use_corr)
+            df_check_proc = compute_engine_trend(df_check, use_corr)
             st_check = build_status(df_check_proc, fresh_util)
             
             if st_check["health_level"] == EngineHealth.CRITICAL:
