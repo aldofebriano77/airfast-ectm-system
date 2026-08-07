@@ -1954,9 +1954,10 @@ st.sidebar.markdown("""
 # 13. GLOBAL DATA PROCESSING & PERSISTENT STATE SYNC
 # ======================================================================================
 df_raw = st.session_state["df_data"].copy()
-df_raw = st.session_state["df_data"].copy()
 df_util_current = st.session_state["df_util"].copy()
 df_rep_current = st.session_state["df_rep"].copy()
+if not df_util_current.empty and "Work (Date)" in df_util_current.columns:
+    df_util_current["Work (Date)"] = safe_parse_dates(df_util_current["Work (Date)"])
 
 missing_required, available_correction = validate_columns(df_raw)
 if missing_required:
@@ -2244,7 +2245,8 @@ elif menu_selection == "Data Collection":
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 with col_f1:
                     m_aml = st.text_input("AML No (Relational Key)", placeholder="e.g., OAM-2026-015").upper()
-                    m_date = st.date_input("Flight Date", value=datetime.now())
+                    m_date = st.date_input("Flight Date", value=datetime.now().date())
+                    m_time = st.time_input("Flight Time (Local)", value=datetime.now().time())
                     m_eng = st.selectbox("Powerplant ID", engines_available)
                     m_alt = st.number_input("Press Alt (Ft)", min_value=0, max_value=25000, value=10000, step=500)
                 with col_f2:
@@ -2262,9 +2264,10 @@ elif menu_selection == "Data Collection":
                 
                 if st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True):
                     _m_reg_fallback = str(m_eng).split("|")[0].strip()
+                    flight_dt = datetime.combine(m_date, m_time) # Gabungkan tanggal & jam untuk presisi MRO
                     new_row = pd.DataFrame([{
-                        "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
-                        "Date": pd.to_datetime(m_date).strftime('%Y-%m-%d'),
+                        "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{flight_dt.strftime('%Y%m%d%H%M')}",
+                        "Date": flight_dt.strftime('%Y-%m-%d %H:%M:%S'),
                         "Engine": m_eng, "Press_Alt": float(m_alt),
                         "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
                         "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
