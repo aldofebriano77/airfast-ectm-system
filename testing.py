@@ -2292,10 +2292,21 @@ elif menu_selection == "Data Collection":
                 import os
                 import re
                 
-                raw_files = [f for f in os.listdir(data_dir) if f.endswith('.xlsx') and ('#1' in f or '#2' in f)]
+                # [BUG FIX] Was: ('#1' in f or '#2' in f) - only matched a
+                # literal '#1'/'#2' naming convention. Real Airfast export
+                # batches use "_1_XXX.xlsx" / "_2_XXX.xlsx" (underscore, not
+                # hash), so this filter matched ZERO files against real data.
+                # Now accepts both conventions; the actual engine-slot
+                # assignment is still decided by column content below
+                # (checking for 'DateTime (1)' vs 'DateTime (2)'), not by
+                # filename, so this is just a loose prefilter.
+                raw_files = [
+                    f for f in os.listdir(data_dir)
+                    if f.endswith('.xlsx') and re.search(r'(#|_)[12](_|\.)', f)
+                ]
                 
                 if not raw_files:
-                    st.warning(f"No raw MRO files (#1 or #2) found in the '{data_dir}' folder.")
+                    st.warning(f"No raw MRO files (accepted patterns: '#1'/'#2' or '_1_'/'_2_') found in the '{data_dir}' folder.")
                 else:
                     new_data_frames = []
                     with st.spinner(f"Scanning and extracting {len(raw_files)} raw MRO files from local storage..."):
@@ -2308,20 +2319,62 @@ elif menu_selection == "Data Collection":
                             
                             if 'DateTime (1)' in df_raw_file.columns:
                                 m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
+                                # [BUG FIX] Filter out rows Airfast's own export
+                                # already flagged as IS PREFERRED='N' (not a
+                                # representative reading) - these were
+                                # previously included in the trend pool
+                                # unfiltered, silently letting known-bad
+                                # readings feed the baseline/regression.
+                                if 'IS PREFERRED (1)' in df_raw_file.columns:
+                                    df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (1)'] != 'N']
                                 df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
                                 df_mapped['Engine'] = f'{reg_id} | LH'
                                 new_data_frames.append(df_mapped)
                             elif 'DateTime (2)' in df_raw_file.columns:
                                 m = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
+                                if 'IS PREFERRED (2)' in df_raw_file.columns:
+                                    df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (2)'] != 'N']
                                 df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
                                 df_mapped['Engine'] = f'{reg_id} | RH'
                                 new_data_frames.append(df_mapped)
                     
                     if new_data_frames:
                         df_final = pd.concat(new_data_frames, ignore_index=True)
-                        df_final['Date'] = pd.to_datetime(df_final['Date']).dt.strftime('%Y-%m-%d')
+                        # [BUG FIX] Was pd.to_datetime(...) with no error
+                        # handling - a single malformed timestamp anywhere
+                        # across any of the 10 files would throw and abort
+                        # the ENTIRE batch sync. Now invalid rows are dropped
+                        # individually instead of crashing the whole import.
+                        df_final['Date'] = pd.to_datetime(df_final['Date'], errors='coerce')
+                        _rows_before = len(df_final)
+                        df_final = df_final.dropna(subset=['Date'])
+                        if len(df_final) < _rows_before:
+                            st.warning(f"{_rows_before - len(df_final)} row(s) skipped due to unreadable timestamps.")
+                        df_final['Date'] = df_final['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
                         if "AML No" not in df_final.columns:
-                            df_final['AML No'] = df_final.apply(lambda row: f"AML-{str(row['Engine']).split('|')[0].strip()}-{str(row['Date']).replace('-', '')}", axis=1)
+                            # [BUG FIX] Fallback key previously used DATE ONLY
+                            # (registration + calendar date). Real fleet data
+                            # confirms multiple flights/readings CAN occur on
+                            # the same calendar date (e.g. 13 same-day rows
+                            # found in PK-OCG's own history) - those would
+                            # collide into one AML No and get merged/lost in
+                            # the SSOT correlator. Now includes time-of-day
+                            # (HHMMSS) to keep same-day readings distinct.
+                            #
+                            # NOTE: LH and RH deliberately SHARE the same key
+                            # per flight event (registration + exact
+                            # timestamp, no engine suffix) - confirmed against
+                            # real data that LH/RH readings are captured as a
+                            # paired snapshot at the identical DateTime, and
+                            # the correlator's groupby("AML No") on the
+                            # Logbook page depends on both engines' rows
+                            # landing in the same group so it can split them
+                            # back into LH/RH columns side by side.
+                            df_final['AML No'] = df_final.apply(
+                                lambda row: f"AML-{str(row['Engine']).split('|')[0].strip()}-"
+                                            f"{str(row['Date'])[:19].replace('-', '').replace(':', '').replace(' ', '')}",
+                                axis=1
+                            )
                         
                         st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
                         st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last").sort_values("Date")
