@@ -789,8 +789,8 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
         
         if "T5" in df.columns:
             t5_num = pd.to_numeric(df["T5"], errors="coerce")
-            if (t5_num <= 0).any():
-                alerts.append("[SENSOR ERROR] T5 recorded at or below 0°C during engine operation.")
+            if (t5_num <= 200).any():
+                alerts.append("[SENSOR ERROR] T5 recorded below minimum operating temperature (200°C) during active flight.")
         
         for col in ["T5", "Ng", "Wf"]:
             if col in df.columns and len(df) >= 3:
@@ -921,6 +921,10 @@ def get_aircraft_utilization_rate(reg: str, df_util: pd.DataFrame):
     if len(df_reg) < 5: return 2.5
     date_min, date_max = df_reg['Work (Date)'].min(), df_reg['Work (Date)'].max()
     days = max(1, (date_max - date_min).days)
+    # [PENGAMAN LOGIKA]: Mencegah pembagian terlalu kecil jika data < 3 hari
+    if days < 3: 
+        return 2.5 
+    
     total_fc = df_reg['FC'].sum()
     return max(0.5, total_fc / days)
 
@@ -2418,7 +2422,7 @@ elif menu_selection == "Data Analysis":
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if df_engine.attrs.get("regression_downgraded", False):
-        st.warning("**Mathematical Warning:** Reference Baseline Cycles terpilih tidak cukup untuk menjalankan regresi multivariabel penuh pada parameter atmosfer. Normalisasi sementara diatur ke mode Rata-Rata (Arithmetic Mean). Disarankan menaikkan Baseline Cycles ke minimal **6 siklus** di menu Setup.")
+        st.warning("**Mathematical Warning:** Rentang kalibrasi logbook yang diunggah belum memiliki variasi atmosfer (Suhu & Ketinggian) yang memadai untuk regresi termodinamika multivariabel. Kalkulasi sementara diturunkan ke mode *Arithmetic Mean*. Disarankan untuk melakukan 'Auto-Sync' data MRO tambahan agar akurasi prediksi baseline menjadi optimal.")
 
     col_chart, col_status = st.columns([2.8, 1.2])
     with col_chart:
