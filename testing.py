@@ -2238,6 +2238,49 @@ elif menu_selection == "Data Collection":
     tab_ectm, tab_util, tab_rep = st.tabs(["1. Engine Performance Logbook (.csv)", "2. Flight Utilization (.xlsx)", "3. PIREP / MAREP (.xlsx)"])
     
     with tab_ectm:
+        with st.expander("Add Daily Engine Performance Record (Manual Entry)", expanded=False):
+            st.caption("Log daily engine telemetry directly from pilot flight logbook without uploading a CSV.")
+            with st.form("form_manual_ectm", clear_on_submit=True):
+                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+                with col_f1:
+                    m_aml = st.text_input("AML No (Relational Key)", placeholder="e.g., OAM-2026-015").upper()
+                    m_date = st.date_input("Flight Date", value=datetime.now())
+                    m_eng = st.selectbox("Powerplant ID", engines_available)
+                    m_alt = st.number_input("Press Alt (Ft)", min_value=0, max_value=25000, value=10000, step=500)
+                with col_f2:
+                    m_ioat = st.number_input("IOAT (°C)", min_value=-40.0, max_value=55.0, value=15.0, step=0.5)
+                    m_ias = st.number_input("IAS (Knots)", min_value=0.0, max_value=200.0, value=135.0, step=1.0)
+                    m_tq = st.number_input("Torque (TQ %)", min_value=0.0, max_value=100.0, value=42.0, step=0.5)
+                with col_f3:
+                    m_np = st.number_input("Prop Speed (Np %)", min_value=0, max_value=100, value=75, step=1)
+                    m_t5 = st.number_input("T5 / ITT (°C)", min_value=300.0, max_value=850.0, value=624.0, step=0.5)
+                    m_ng = st.number_input("Gas Gen (Ng %)", min_value=50.0, max_value=105.0, value=91.50, step=0.1)
+                with col_f4:
+                    m_wf = st.number_input("Fuel Flow (Wf PPH)", min_value=100.0, max_value=500.0, value=288.0, step=1.0)
+                    m_otemp = st.number_input("Oil Temp (°C)", min_value=10.0, max_value=110.0, value=72.0, step=0.5)
+                    m_opress = st.number_input("Oil Press (PSI)", min_value=40.0, max_value=120.0, value=91.0, step=0.5)
+                
+                if st.form_submit_button("Save Daily Performance Record", type="primary", use_container_width=True):
+                    _m_reg_fallback = str(m_eng).split("|")[0].strip()
+                    new_row = pd.DataFrame([{
+                        "AML No": m_aml if m_aml else f"AML-{_m_reg_fallback}-{pd.to_datetime(m_date).strftime('%Y%m%d')}",
+                        "Date": pd.to_datetime(m_date).strftime('%Y-%m-%d'),
+                        "Engine": m_eng, "Press_Alt": float(m_alt),
+                        "IOAT": float(m_ioat), "IAS": float(m_ias), "TQ": float(m_tq), "Np": int(m_np),
+                        "T5": float(m_t5), "Ng": float(m_ng), "Wf": float(m_wf),
+                        "Oil_Temp": float(m_otemp), "Oil_Press": float(m_opress)
+                    }])
+                    
+                    # Gabungkan data, hapus duplikat (jika ada input ganda di hari yang sama), dan simpan permanen
+                    st.session_state["df_data"] = pd.concat([st.session_state["df_data"], new_row], ignore_index=True)
+                    st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last").sort_values("Date")
+                    
+                    save_ectm_db()
+                    execute_silent_watchdog(engines_to_scan=[m_eng]) # Pindai anomali otomatis
+                    
+                    st.success(f"Successfully logged daily performance telemetry for {m_eng}!")
+                    st.rerun()
+                    
         st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#003B6F;'>⚡ Server Directory Auto-Sync (Fleet MRO Integration)</p>", unsafe_allow_html=True)
         st.caption("One-click synchronization. The system will automatically scan the local `data/` directory, extract all raw #1 and #2 aircraft engine Excel exports, map thermodynamic parameters, and build the persistent database.")
         
