@@ -2343,39 +2343,45 @@ elif menu_selection == "Data Collection":
                 import os
                 import re
                 
-                # [BUG FIX] Was: ('#1' in f or '#2' in f) - only matched a
-                # literal '#1'/'#2' naming convention. Real Airfast export
-                # batches use "_1_XXX.xlsx" / "_2_XXX.xlsx" (underscore, not
-                # hash), so this filter matched ZERO files against real data.
-                # Now accepts both conventions; the actual engine-slot
-                # assignment is still decided by column content below
-                # (checking for 'DateTime (1)' vs 'DateTime (2)'), not by
-                # filename, so this is just a loose prefilter.
-                raw_files = [
+                # Ambil SEMUA file Excel di folder data (Abaikan file temporer)
+                all_excel_files = [
                     f for f in os.listdir(data_dir)
-                    if f.endswith('.xlsx') and not f.startswith('~')
+                    if f.endswith(('.xlsx', '.xls')) and not f.startswith('~')
                 ]
                 
-                if not raw_files:
-                    st.warning(f"Tidak ada file Excel (.xlsx) yang ditemukan di dalam folder '{data_dir}'. Pastikan file raw MRO diletakkan di sana.")
+                if not all_excel_files:
+                    st.warning(f"Tidak ada file Excel yang ditemukan di folder '{data_dir}'.")
                 else:
                     new_data_frames = []
-                    with st.spinner(f"Scanning and extracting {len(raw_files)} raw MRO files from local storage..."):
-                        for filename in raw_files:
+                    with st.spinner(f"Enterprise Sync: Menarik {len(all_excel_files)} file dari local storage..."):
+                        for filename in all_excel_files:
                             filepath = os.path.join(data_dir, filename)
                             df_raw_file = pd.read_excel(filepath)
                             
+                            # --- 1. DETEKSI FLIGHT UTILIZATION ---
+                            if 'utilization' in filename.lower() or ('FH' in df_raw_file.columns and 'FC' in df_raw_file.columns):
+                                if 'Work (Date)' in df_raw_file.columns and 'Registration' in df_raw_file.columns:
+                                    df_raw_file['Work (Date)'] = safe_parse_dates(df_raw_file['Work (Date)'])
+                                    df_u_clean = df_raw_file.dropna(subset=['Registration', 'Work (Date)'])
+                                    st.session_state["df_util"] = pd.concat([st.session_state["df_util"], df_u_clean], ignore_index=True)
+                                    st.session_state["df_util"] = st.session_state["df_util"].drop_duplicates(subset=["Registration", "Work (Date)", "FH", "FC"], keep="last")
+                                    st.session_state["util_is_real"] = True
+                                continue 
+                            
+                            # --- 2. DETEKSI PIREP / MAREP (LOGBOOK KERUSAKAN) ---
+                            if 'maintenance' in filename.lower() or 'pirep' in filename.lower() or 'report' in filename.lower() or ('ATA' in df_raw_file.columns and 'Corrective Action' in df_raw_file.columns):
+                                df_r_clean = process_maintenance_reports(df_raw_file)
+                                st.session_state["df_rep"] = pd.concat([st.session_state["df_rep"], df_r_clean], ignore_index=True)
+                                st.session_state["df_rep"] = st.session_state["df_rep"].drop_duplicates(subset=["Registration", "Date", "ATA", "Note / Report"], keep="last")
+                                st.session_state["rep_is_real"] = True
+                                continue 
+                            
+                            # --- 3. DETEKSI ENGINE TELEMETRY (ECTM) ---
                             match = re.search(r'(O[A-Z]{2})', filename.upper())
                             reg_id = f"PK-{match.group(1)}" if match else "UNKNOWN"
                             
                             if 'DateTime (1)' in df_raw_file.columns:
                                 m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
-                                # [BUG FIX] Filter out rows Airfast's own export
-                                # already flagged as IS PREFERRED='N' (not a
-                                # representative reading) - these were
-                                # previously included in the trend pool
-                                # unfiltered, silently letting known-bad
-                                # readings feed the baseline/regression.
                                 if 'IS PREFERRED (1)' in df_raw_file.columns:
                                     df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (1)'] != 'N']
                                 df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
@@ -2389,51 +2395,29 @@ elif menu_selection == "Data Collection":
                                 df_mapped['Engine'] = f'{reg_id} | RH'
                                 new_data_frames.append(df_mapped)
                     
+                    # Simpan Engine Telemetry
                     if new_data_frames:
                         df_final = pd.concat(new_data_frames, ignore_index=True)
-                        # [BUG FIX] Was pd.to_datetime(...) with no error
-                        # handling - a single malformed timestamp anywhere
-                        # across any of the 10 files would throw and abort
-                        # the ENTIRE batch sync. Now invalid rows are dropped
-                        # individually instead of crashing the whole import.
                         df_final['Date'] = pd.to_datetime(df_final['Date'], errors='coerce')
-                        _rows_before = len(df_final)
                         df_final = df_final.dropna(subset=['Date'])
-                        if len(df_final) < _rows_before:
-                            st.warning(f"{_rows_before - len(df_final)} row(s) skipped due to unreadable timestamps.")
                         df_final['Date'] = df_final['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
                         if "AML No" not in df_final.columns:
-                            # [BUG FIX] Fallback key previously used DATE ONLY
-                            # (registration + calendar date). Real fleet data
-                            # confirms multiple flights/readings CAN occur on
-                            # the same calendar date (e.g. 13 same-day rows
-                            # found in PK-OCG's own history) - those would
-                            # collide into one AML No and get merged/lost in
-                            # the SSOT correlator. Now includes time-of-day
-                            # (HHMMSS) to keep same-day readings distinct.
-                            #
-                            # NOTE: LH and RH deliberately SHARE the same key
-                            # per flight event (registration + exact
-                            # timestamp, no engine suffix) - confirmed against
-                            # real data that LH/RH readings are captured as a
-                            # paired snapshot at the identical DateTime, and
-                            # the correlator's groupby("AML No") on the
-                            # Logbook page depends on both engines' rows
-                            # landing in the same group so it can split them
-                            # back into LH/RH columns side by side.
                             df_final['AML No'] = df_final.apply(
                                 lambda row: f"AML-{str(row['Engine']).split('|')[0].strip()}-"
                                             f"{str(row['Date'])[:19].replace('-', '').replace(':', '').replace(' ', '')}",
                                 axis=1
                             )
-                        
                         st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
                         st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last").sort_values("Date")
-                        
-                        save_ectm_db() 
-                        execute_silent_watchdog() 
-                        st.success(f"Sync complete! {len(df_final)} thermodynamic points securely ingested from local storage.")
-                        st.rerun()
+                    
+                    # Simpan Permanen ke .airfast_db
+                    save_ectm_db() 
+                    save_util_db()
+                    save_rep_db()
+                    
+                    execute_silent_watchdog() 
+                    st.success("Enterprise Sync Complete! Data Mesin, Utilisasi, dan Logbook berhasil diperbarui.")
+                    st.rerun()
                         
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True)
         if st.button("Save Manual Edits to Database"):
