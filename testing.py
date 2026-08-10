@@ -2064,7 +2064,7 @@ if not engines_available:
     engines_available = ["NO DATA"]
     if menu_selection != "Data Collection":
         st.warning("⚠️ **Database Telemetri Kosong.** Silakan buka menu **Data Collection** di samping dan klik tombol biru 'Sync All Fleet Data' atau lakukan input manual.")
-        st.stop() # Hanya hentikan aplikasi jika user memaksa buka halaman analisis
+        st.stop()
 
 if st.session_state["target_engine"] not in engines_available:
     st.session_state["target_engine"] = engines_available[0]
@@ -2075,13 +2075,13 @@ baseline_n_input = st.session_state.get("target_baseline_n", 6)
 
 df_engine = df_raw[df_raw["Engine"] == selected_engine].copy()
 
-# Inisialisasi default aman untuk mencegah error Key
-status = {"reg_prefix": "PK-OAM"} 
+# Inisialisasi default aman untuk mencegah error saat kosong
+status = {"reg_prefix": "PK-OAM", "status_label": "N/A", "health_level": EngineHealth.NORMAL} 
 recommendations = []
 
 if len(df_engine) < 2:
     if menu_selection != "Data Collection":
-        st.warning(f"⚠️ Powerplant {selected_engine} memiliki kurang dari 2 data historis. Silakan tambahkan data penerbangan di menu **Data Collection**.")
+        st.warning(f"⚠️ Powerplant {selected_engine} memiliki kurang dari 2 data historis. Silakan tambahkan data di menu **Data Collection**.")
         st.stop()
 else:
     # Hanya jalankan kalkulasi termodinamika rumit jika datanya ada
