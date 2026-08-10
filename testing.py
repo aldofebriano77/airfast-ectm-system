@@ -2058,25 +2058,36 @@ if _rows_dropped > 0:
     )
 
 engines_available = sorted(df_raw["Engine"].dropna().unique().tolist())
+
+# [ENTERPRISE FIX] Cegah Deadlock UI jika database benar-benar kosong
 if not engines_available:
-    st.error("Data Processing Error: No valid powerplant identifiers ('Engine') located within dataset.")
-    st.stop()
+    engines_available = ["NO DATA"]
+    if menu_selection != "Data Collection":
+        st.warning("⚠️ **Database Telemetri Kosong.** Silakan buka menu **Data Collection** di samping dan klik tombol biru 'Sync All Fleet Data' atau lakukan input manual.")
+        st.stop() # Hanya hentikan aplikasi jika user memaksa buka halaman analisis
 
 if st.session_state["target_engine"] not in engines_available:
     st.session_state["target_engine"] = engines_available[0]
 
 selected_engine = st.session_state["target_engine"]
 use_correction = st.session_state["target_use_correction"]
-baseline_n_input = st.session_state["target_baseline_n"]
+baseline_n_input = st.session_state.get("target_baseline_n", 6)
 
 df_engine = df_raw[df_raw["Engine"] == selected_engine].copy()
-if len(df_engine) < 2:
-    st.warning(f"Powerplant {selected_engine} contains only {len(df_engine)} logged flight cycle(s). Minimum of 2 cycles required for trend regression.")
-    st.stop()
 
-df_engine = compute_engine_trend(df_engine, use_correction)
-status = build_status(df_engine, df_util_current)
-recommendations = generate_recommendations(df_engine, status)
+# Inisialisasi default aman untuk mencegah error Key
+status = {"reg_prefix": "PK-OAM"} 
+recommendations = []
+
+if len(df_engine) < 2:
+    if menu_selection != "Data Collection":
+        st.warning(f"⚠️ Powerplant {selected_engine} memiliki kurang dari 2 data historis. Silakan tambahkan data penerbangan di menu **Data Collection**.")
+        st.stop()
+else:
+    # Hanya jalankan kalkulasi termodinamika rumit jika datanya ada
+    df_engine = compute_engine_trend(df_engine, use_correction)
+    status = build_status(df_engine, df_util_current)
+    recommendations = generate_recommendations(df_engine, status)
 
 # ======================================================================================
 # FLEET WATCHDOG - MANUAL SCAN (SINGLE SOURCE OF TRUTH TRIGGER)
