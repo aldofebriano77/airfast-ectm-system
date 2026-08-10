@@ -2353,11 +2353,11 @@ elif menu_selection == "Data Collection":
                 # filename, so this is just a loose prefilter.
                 raw_files = [
                     f for f in os.listdir(data_dir)
-                    if f.endswith('.xlsx') and re.search(r'(#|_)[12](_|\.)', f)
+                    if f.endswith('.xlsx') and not f.startswith('~')
                 ]
                 
                 if not raw_files:
-                    st.warning(f"No raw MRO files (accepted patterns: '#1'/'#2' or '_1_'/'_2_') found in the '{data_dir}' folder.")
+                    st.warning(f"Tidak ada file Excel (.xlsx) yang ditemukan di dalam folder '{data_dir}'. Pastikan file raw MRO diletakkan di sana.")
                 else:
                     new_data_frames = []
                     with st.spinner(f"Scanning and extracting {len(raw_files)} raw MRO files from local storage..."):
