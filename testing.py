@@ -823,7 +823,19 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
 # 7. THERMODYNAMIC LEAST-SQUARES REGRESSION & ADAPTIVE NOISE BANDING
 # ======================================================================================
 def fit_correction_model(df_baseline: pd.DataFrame, predictors: list, target: str):
-    usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 0.5]
+    # [BUG FIX] Was raised to > 0.5 - an absolute cutoff in each predictor's
+    # own raw units. IOAT (degC) and Press_Alt (feet) naturally have large
+    # variance and always clear this bar, but TQ and Np are both
+    # percentage-scale and governed close to a setpoint, so their natural
+    # cycle-to-cycle std is small even when genuinely informative for the
+    # correction model. Verified against all 10 real Airfast engine files at
+    # baseline_n = 3/6/10 (the realistic range around the default of 6): TQ
+    # and/or Np were silently dropped EVERY time, for EVERY aircraft - not
+    # an edge case, a fleet-wide methodology regression. The 1e-6 threshold
+    # exists only to guard against a singular/ill-conditioned regression
+    # matrix from a truly-constant column, not to filter "low-signal"
+    # predictors by an arbitrary absolute magnitude.
+    usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 1e-6]
     if len(usable) == 0 or len(df_baseline) < len(usable) + 2:
         mean_val = df_baseline[target].mean() if not df_baseline.empty else 0.0
         return {"mode": "mean", "predictors": [], "coef": np.array([mean_val]), "downgraded": True}
