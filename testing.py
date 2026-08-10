@@ -679,7 +679,7 @@ def safe_parse_dates(series: pd.Series) -> pd.Series:
     if remaining_mask.any():
         fallback = pd.to_datetime(series[remaining_mask], format="mixed", dayfirst=True, errors="coerce")
         parsed = parsed.mask(remaining_mask, fallback)
-    return parsed
+    return pd.to_datetime(parsed, errors="coerce")
 
 def process_maintenance_reports(df_rep: pd.DataFrame) -> pd.DataFrame:
     if df_rep.empty:
@@ -2018,27 +2018,29 @@ df_raw["Date"] = safe_parse_dates(df_raw["Date"])
 # AML field is left blank (both very likely in normal daily use). Fix:
 # include the registration/engine identity in the fallback key so it stays
 # unique per aircraft, not just per date.
-# --- KODE BARU (Pengaman Sel Kosong / NaN) ---
+# --- KODE BARU (Pengaman Sel Kosong / NaN & Type Guard) ---
 if "AML No" not in df_raw.columns:
     _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
     df_raw["AML No"] = (
-        "AML-" + _fallback_reg.fillna("UNKN") + "-" +
-        df_raw["Date"].dt.strftime("%Y%m%d").fillna("UNKN")
+        "AML-" + _fallback_reg.fillna("UNKN").astype(str) + "-" +
+        pd.to_datetime(df_raw["Date"], errors="coerce").dt.strftime("%Y%m%d").fillna("UNKN").astype(str)
     )
 else:
     # Jika kolom AML No sudah ada, isi sel yang kosong/NaN dengan fallback ID otomatis
     _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
     _fallback_key = (
-        "AML-" + _fallback_reg.fillna("UNKN") + "-" +
-        df_raw["Date"].dt.strftime("%Y%m%d").fillna("UNKN")
+        "AML-" + _fallback_reg.fillna("UNKN").astype(str) + "-" +
+        pd.to_datetime(df_raw["Date"], errors="coerce").dt.strftime("%Y%m%d").fillna("UNKN").astype(str)
     )
     df_raw["AML No"] = df_raw["AML No"].replace(["", "NAN", "nan", "None"], np.nan).fillna(_fallback_key)
+    
 if "AML No" not in df_util_current.columns and not df_util_current.empty:
     _fallback_reg_u = df_util_current["Registration"].astype(str) if "Registration" in df_util_current.columns else "UNKN"
     df_util_current["AML No"] = (
         "AML-" + _fallback_reg_u + "-" +
-        df_util_current["Work (Date)"].dt.strftime("%Y%m%d").fillna("UNKN")
+        pd.to_datetime(df_util_current.get("Work (Date)"), errors="coerce").dt.strftime("%Y%m%d").fillna("UNKN").astype(str)
     )
+    
 if "AML No" in df_raw.columns:
     df_raw["AML No"] = df_raw["AML No"].astype(str).str.strip().str.upper()
 if "AML No" in df_util_current.columns and not df_util_current.empty:
