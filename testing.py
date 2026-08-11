@@ -2478,112 +2478,6 @@ if menu_selection == "Overview":
         f"LLP coverage: **{df_llp_all['Engine Key'].nunique() if not df_llp_all.empty else 0}/{len(engines_available)} engines**"
     )
 
-    # ==================================================================================
-    # LLP FLEET WATCH — MAINTENANCE PLANNING SNAPSHOT
-    # ==================================================================================
-    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>LLP Fleet Maintenance Watch</h3>", unsafe_allow_html=True)
-    st.caption(
-        "Fleet-level LLP visibility is kept separate from ECTM health status. "
-        "No 'due soon' threshold is inferred; Remaining and source-data availability are shown directly."
-    )
-
-    _fleet_llp_rows = []
-    for _eng in engines_available:
-        _llp_sub = (
-            df_llp_all[df_llp_all["Engine Key"].astype(str).str.upper() == str(_eng).upper()].copy()
-            if not df_llp_all.empty else pd.DataFrame()
-        )
-
-        _reg = str(_eng).split("|")[0].strip().upper()
-        _pos = str(_eng).split("|")[1].strip().upper() if "|" in str(_eng) else ""
-        _overdue = int((_llp_sub["Life Status"] == "OVERDUE").sum()) if not _llp_sub.empty else 0
-
-        _fh = pd.to_numeric(
-            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FH", "Remaining"],
-            errors="coerce",
-        ) if not _llp_sub.empty else pd.Series(dtype=float)
-        _fc = pd.to_numeric(
-            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FC", "Remaining"],
-            errors="coerce",
-        ) if not _llp_sub.empty else pd.Series(dtype=float)
-
-        _due = (
-            _llp_sub["Estimated Due Date"].dropna().min()
-            if not _llp_sub.empty and _llp_sub["Estimated Due Date"].notna().any()
-            else pd.NaT
-        )
-
-        _registration_ok = True
-        _profile_ok = True
-        if not _llp_sub.empty:
-            _installed = set(_llp_sub["Installed At"].astype(str).str.upper().str.strip())
-            _profiles = set(_llp_sub["Current Profile"].astype(str).str.upper().str.strip())
-            _registration_ok = not _installed or _reg in _installed
-            _profile_ok = not _profiles or all("DHC-6 SERIES 400" in x for x in _profiles)
-
-        if _llp_sub.empty:
-            _source_state = "NO LLP DATA"
-        elif not _registration_ok or not _profile_ok:
-            _source_state = "SOURCE CHECK"
-        else:
-            _source_state = "AVAILABLE"
-
-        _fleet_llp_rows.append({
-            "Powerplant": _eng,
-            "LLP Components": int(len(_llp_sub)),
-            "Overdue": _overdue,
-            "Lowest Remaining FH": f"{_fh.min():,.1f} FH" if not _fh.dropna().empty else "—",
-            "Lowest Remaining FC": f"{_fc.min():,.0f} FC" if not _fc.dropna().empty else "—",
-            "Earliest Estimated Due": _due.strftime("%d %b %Y") if pd.notna(_due) else "—",
-            "Source": _source_state,
-        })
-
-    _fleet_llp = pd.DataFrame(_fleet_llp_rows)
-    _fleet_llp_components = int(_fleet_llp["LLP Components"].sum()) if not _fleet_llp.empty else 0
-    _fleet_llp_overdue = int(_fleet_llp["Overdue"].sum()) if not _fleet_llp.empty else 0
-    _fleet_llp_available = int((_fleet_llp["Source"] == "AVAILABLE").sum()) if not _fleet_llp.empty else 0
-    _fleet_llp_source_check = int((_fleet_llp["Source"] == "SOURCE CHECK").sum()) if not _fleet_llp.empty else 0
-    _fleet_llp_missing = int((_fleet_llp["Source"] == "NO LLP DATA").sum()) if not _fleet_llp.empty else 0
-
-    w1, w2, w3, w4 = st.columns(4)
-    w1.metric("LLP Components", _fleet_llp_components)
-    w2.metric("Overdue", _fleet_llp_overdue)
-    w3.metric("Engines with LLP Data", f"{_fleet_llp_available}/{len(engines_available)}")
-    w4.metric("Source Checks", _fleet_llp_source_check + _fleet_llp_missing)
-
-    if _fleet_llp_overdue > 0:
-        st.warning(
-            f"**{_fleet_llp_overdue} LLP component(s) have no remaining life according to the source workbook.** "
-            "Review the component-level LLP record."
-        )
-    elif _fleet_llp_source_check > 0 or _fleet_llp_missing > 0:
-        st.info(
-            f"LLP data coverage requires review: **{_fleet_llp_source_check} source discrepancy engine(s)** "
-            f"and **{_fleet_llp_missing} engine(s) without an LLP sheet**. "
-            "These do not change ECTM health status."
-        )
-    else:
-        st.success(
-            f"LLP fleet mapping available for **{_fleet_llp_available}/{len(engines_available)} engines** "
-            "with no overdue component reported."
-        )
-
-    st.dataframe(
-        _fleet_llp,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Powerplant": st.column_config.TextColumn("Powerplant", width="medium"),
-            "LLP Components": st.column_config.NumberColumn("LLP Components", width="small"),
-            "Overdue": st.column_config.NumberColumn("Overdue", width="small"),
-            "Lowest Remaining FH": st.column_config.TextColumn("Lowest Remaining FH", width="medium"),
-            "Lowest Remaining FC": st.column_config.TextColumn("Lowest Remaining FC", width="medium"),
-            "Earliest Estimated Due": st.column_config.TextColumn("Earliest Estimated Due", width="medium"),
-            "Source": st.column_config.TextColumn("Source", width="medium"),
-        },
-    )
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
     
@@ -2691,6 +2585,114 @@ if menu_selection == "Overview":
             st.dataframe(limited_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
+
+    # ==================================================================================
+    # LLP FLEET WATCH — MAINTENANCE PLANNING SNAPSHOT
+    # ==================================================================================
+    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>LLP Fleet Maintenance Watch</h3>", unsafe_allow_html=True)
+    st.caption(
+        "Fleet-level LLP visibility is kept separate from ECTM health status. "
+        "No 'due soon' threshold is inferred; Remaining and source-data availability are shown directly."
+    )
+
+    _fleet_llp_rows = []
+    for _eng in engines_available:
+        _llp_sub = (
+            df_llp_all[df_llp_all["Engine Key"].astype(str).str.upper() == str(_eng).upper()].copy()
+            if not df_llp_all.empty else pd.DataFrame()
+        )
+
+        _reg = str(_eng).split("|")[0].strip().upper()
+        _pos = str(_eng).split("|")[1].strip().upper() if "|" in str(_eng) else ""
+        _overdue = int((_llp_sub["Life Status"] == "OVERDUE").sum()) if not _llp_sub.empty else 0
+
+        _fh = pd.to_numeric(
+            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FH", "Remaining"],
+            errors="coerce",
+        ) if not _llp_sub.empty else pd.Series(dtype=float)
+        _fc = pd.to_numeric(
+            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FC", "Remaining"],
+            errors="coerce",
+        ) if not _llp_sub.empty else pd.Series(dtype=float)
+
+        _due = (
+            _llp_sub["Estimated Due Date"].dropna().min()
+            if not _llp_sub.empty and _llp_sub["Estimated Due Date"].notna().any()
+            else pd.NaT
+        )
+
+        _registration_ok = True
+        _profile_ok = True
+        if not _llp_sub.empty:
+            _installed = set(_llp_sub["Installed At"].astype(str).str.upper().str.strip())
+            _profiles = set(_llp_sub["Current Profile"].astype(str).str.upper().str.strip())
+            _registration_ok = not _installed or _reg in _installed
+            _profile_ok = not _profiles or all("DHC-6 SERIES 400" in x for x in _profiles)
+
+        if _llp_sub.empty:
+            _source_state = "NO LLP DATA"
+        elif not _registration_ok or not _profile_ok:
+            _source_state = "SOURCE CHECK"
+        else:
+            _source_state = "AVAILABLE"
+
+        _fleet_llp_rows.append({
+            "Powerplant": _eng,
+            "LLP Components": int(len(_llp_sub)),
+            "Overdue": _overdue,
+            "Lowest Remaining FH": f"{_fh.min():,.1f} FH" if not _fh.dropna().empty else "—",
+            "Lowest Remaining FC": f"{_fc.min():,.0f} FC" if not _fc.dropna().empty else "—",
+            "Earliest Estimated Due": _due.strftime("%d %b %Y") if pd.notna(_due) else "—",
+            "Source": _source_state,
+        })
+
+    _fleet_llp = pd.DataFrame(_fleet_llp_rows)
+    _fleet_llp_components = int(_fleet_llp["LLP Components"].sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_overdue = int(_fleet_llp["Overdue"].sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_available = int((_fleet_llp["Source"] == "AVAILABLE").sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_source_check = int((_fleet_llp["Source"] == "SOURCE CHECK").sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_missing = int((_fleet_llp["Source"] == "NO LLP DATA").sum()) if not _fleet_llp.empty else 0
+
+    w1, w2, w3, w4 = st.columns(4)
+    w1.metric("LLP Components", _fleet_llp_components)
+    w2.metric("Overdue", _fleet_llp_overdue)
+    w3.metric("Engines with LLP Data", f"{_fleet_llp_available}/{len(engines_available)}")
+    w4.metric("Source Checks", _fleet_llp_source_check + _fleet_llp_missing)
+
+    if _fleet_llp_overdue > 0:
+        st.warning(
+            f"**{_fleet_llp_overdue} LLP component(s) have no remaining life according to the source workbook.** "
+            "Review the component-level LLP record."
+        )
+    elif _fleet_llp_source_check > 0 or _fleet_llp_missing > 0:
+        st.info(
+            f"LLP data coverage requires review: **{_fleet_llp_source_check} source discrepancy engine(s)** "
+            f"and **{_fleet_llp_missing} engine(s) without an LLP sheet**. "
+            "These do not change ECTM health status."
+        )
+    else:
+        st.success(
+            f"LLP fleet mapping available for **{_fleet_llp_available}/{len(engines_available)} engines** "
+            "with no overdue component reported."
+        )
+
+    st.dataframe(
+        _fleet_llp,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Powerplant": st.column_config.TextColumn("Powerplant", width="medium"),
+            "LLP Components": st.column_config.NumberColumn("LLP Components", width="small"),
+            "Overdue": st.column_config.NumberColumn("Overdue", width="small"),
+            "Lowest Remaining FH": st.column_config.TextColumn("Lowest Remaining FH", width="medium"),
+            "Lowest Remaining FC": st.column_config.TextColumn("Lowest Remaining FC", width="medium"),
+            "Earliest Estimated Due": st.column_config.TextColumn("Earliest Estimated Due", width="medium"),
+            "Source": st.column_config.TextColumn("Source", width="medium"),
+        },
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     if not df_util_current.empty:
         st.markdown("<h3 style='color:#003B6F; margin-bottom:2px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
         min_u_date = df_util_current['Work (Date)'].min().strftime('%d %b %Y')
