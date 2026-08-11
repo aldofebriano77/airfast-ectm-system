@@ -2377,15 +2377,30 @@ if menu_selection == "Overview":
             if reg_id not in aircraft_map: aircraft_map[reg_id] = {}
             aircraft_map[reg_id][pos] = stat_lbl
 
-    # [UI/UX UPGRADE] Kartu Metrik dipindahkan ke atas agar eksekutif langsung melihat kesimpulan angka
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Active Fleet Engines", len(engines_available))
-    c2.metric("Logbook Utilization Rows", len(df_util_current) if not df_util_current.empty else "0 (Sim)")
-    c3.metric("Defect Reports (PIREP / MAREP)", len(df_rep_current) if not df_rep_current.empty else "0 (Sim)")
+    # [UX] Fleet command summary: status first, supporting data second.
+    normal_count = sum(1 for item in fleet_summary_data if item["Status"] == "NORMAL")
+    advisory_count = sum(1 for item in fleet_summary_data if item["Status"] == "ADVISORY")
     critical_count = sum(1 for item in fleet_summary_data if item["Status"] == "CRITICAL")
-    c4.metric("Fleet Alert Status", f"{critical_count} CRITICAL" if critical_count > 0 else "NORMAL")
-    
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Engines Monitored", len(engines_available))
+    k2.metric("NORMAL", normal_count)
+    k3.metric("ADVISORY", advisory_count)
+    k4.metric("CRITICAL", critical_count)
+    k5.metric("PIREP / MAREP", len(df_rep_current) if not df_rep_current.empty else "0")
+
+    _sync_result = st.session_state.get("_auto_sync_last_result", {})
+    _sync_files = _sync_result.get("files", 0)
+    _sync_label = "Auto-sync active" if _sync_result else "Database loaded"
+    st.caption(
+        f"Data status: **{_sync_label}** · "
+        f"Source workbooks detected: **{_sync_files}** · "
+        f"Telemetry records: **{len(df_raw):,}** · "
+        f"Utilization records: **{len(df_util_current):,}**"
+    )
+
     st.markdown("<br>", unsafe_allow_html=True)
+
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
     
     dhc6_svg_blueprint = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="110" style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF4FA 100%); border: 1px solid #CBD5E1; border-radius: 6px; padding: 4px; margin-bottom: 8px;">
@@ -2446,7 +2461,13 @@ if menu_selection == "Overview":
 <div class="heatmap-row {get_hm_class(rh_stat)}" style="font-size:0.72rem; padding:4px 6px;">
 <span>#2 RH</span><b>{rh_stat}</b>
 </div>
-</div>"""
+ </div>
+ <div style="margin-top:6px; font-size:0.68rem; color:#64748B; line-height:1.35;">
+   {("ECTM assessment limited — see engine detail." if any(
+       x["Powerplant Serial / Position"] in [f"{reg} | LH", f"{reg} | RH"]
+       and x["ECTM Confidence"] != "HIGH" for x in fleet_summary_data
+   ) else "ECTM reference assessment available.")}
+ </div>"""
             st.markdown(card_html, unsafe_allow_html=True)
         col_idx += 1
 
@@ -2463,15 +2484,28 @@ if menu_selection == "Overview":
             return 'background-color: #f8d7da; color: #842029; font-weight: bold;'
         return ''
 
-    # 2. Terapkan fungsi ke kolom 'Status'
-    try:
-        styled_df = df_fleet_matrix.style.map(highlight_status, subset=['Status'])
-    except AttributeError:
-        styled_df = df_fleet_matrix.style.applymap(highlight_status, subset=['Status'])
+    # Main overview table: keep only fast-scan fields.
+    overview_cols = [
+        "Powerplant Serial / Position", "Status", "ECTM Confidence",
+        "Latest Δ T5", "T5 Slope", "Latest Δ Ng", "Predictive RUL (Borescope)"
+    ]
+    overview_cols = [c for c in overview_cols if c in df_fleet_matrix.columns]
+    df_overview = df_fleet_matrix[overview_cols].copy()
 
-    # 3. Tampilkan dataframe yang sudah diwarnai
+    try:
+        styled_df = df_overview.style.map(highlight_status, subset=["Status"])
+    except AttributeError:
+        styled_df = df_overview.style.applymap(highlight_status, subset=["Status"])
+
     st.dataframe(styled_df, use_container_width=True, hide_index=True)
-    
+
+    limited_df = df_fleet_matrix[
+        df_fleet_matrix["ECTM Confidence"].astype(str).str.startswith("LOW")
+    ][["Powerplant Serial / Position", "Status", "ECTM Confidence", "Monitoring Note"]].copy()
+    if not limited_df.empty:
+        with st.expander(f"ECTM Assessment Notes — {len(limited_df)} engine(s) with limited assessment"):
+            st.dataframe(limited_df, use_container_width=True, hide_index=True)
+
     st.markdown("---")
     if not df_util_current.empty:
         st.markdown("<h3 style='color:#003B6F; margin-bottom:2px;'>Airframe Utilization Summary (Total FH / FC)</h3>", unsafe_allow_html=True)
@@ -2832,7 +2866,8 @@ elif menu_selection == "Data Analysis":
         """, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.caption("Diagnostic Event Flags:")
+        st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>ECTM Diagnostic Flags</h4>", unsafe_allow_html=True)
+        st.caption("These flags explain the ECTM assessment and do not replace the Engine Health Status.")
         if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift")
         if status["sustained_t5"]: st.write("▪ Sustained upward T5 degradation")
         if status["alarm_wash"]: st.write("▪ ITT +10°C wash limit exceeded")
@@ -2990,7 +3025,7 @@ elif menu_selection == "Recommendations":
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     overall_status_label = status["status_label"]
-    st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **System Classification:** **{overall_status_label}**")
+    st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **Engine Health Status:** **{overall_status_label}**")
     st.markdown("<br>", unsafe_allow_html=True)
 
     # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)
@@ -3048,7 +3083,7 @@ elif menu_selection == "Recommendations":
         f"Date Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Latest Cycle: {status['latest']['Date'].strftime('%Y-%m-%d')}",
         "-------------------------------------------------------------------------",
         f"Computed Residuals: Delta T5: {status['d_t5']:+.1f} degC | Delta Ng: {status['d_ng']:+.2f} % | Delta Wf: {status['d_wf']:+.1f} PPH",
-        f"Engine Health Status: {overall_status_label} | ECTM ECTM Confidence: {status['model_confidence']}",
+        f"Engine Health Status: {overall_status_label} | ECTM Confidence: {status['model_confidence']}",
         f"ECTM Confidence Reason: {status['confidence_reason']}",
         f"Predictive RUL: {'NOT ASSESSED — ECTM CONFIDENCE LOW' if status['model_confidence'] != 'HIGH' else str(status['rul_cycles']) + ' Cycles (' + str(status['proj_date']) + ')'}",
         f"RUL Confidence: {status['rul_confidence']}",
