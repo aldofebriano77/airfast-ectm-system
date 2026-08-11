@@ -1141,7 +1141,7 @@ def get_aircraft_utilization_rate(reg: str, df_util: pd.DataFrame):
     return max(0.5, total_fc / days)
 
 # ======================================================================================
-# 9. DIAGNOSTIC CLASSIFICATION & FIM DIRECTIVE GENERATION (SSOT ENGINE)
+# 9. ENGINE HEALTH CLASSIFICATION & FIM DIRECTIVE GENERATION (SSOT ENGINE)
 # ======================================================================================
 def classify_direction(value, shift_band):
     if value > shift_band: return "UP"
@@ -1157,16 +1157,16 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     # Model confidence is diagnostic metadata, not engine-health status.
     if confidence!="HIGH":
         health_level=EngineHealth.NORMAL
-        status_label="NORMAL TREND"
+        status_label="NORMAL"
     elif row_status=="CRITICAL":
         health_level=EngineHealth.CRITICAL
-        status_label="CRITICAL / ABNORMAL"
+        status_label="CRITICAL"
     elif row_status=="ADVISORY":
         health_level=EngineHealth.ADVISORY
-        status_label="ADVISORY / WATCH"
+        status_label="ADVISORY"
     else:
         health_level=EngineHealth.NORMAL
-        status_label="NORMAL TREND"
+        status_label="NORMAL"
 
     shift_t5=classify_direction(d_t5,SHIFT_T5_C) if np.isfinite(d_t5) else "NORMAL"
     shift_ng=classify_direction(d_ng,SHIFT_NG_PCT) if np.isfinite(d_ng) else "NORMAL"
@@ -1342,7 +1342,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
         if status["health_level"] == EngineHealth.ADVISORY:
             recs.append(dict(
                 level="amber", 
-                title="Advisory Watch | Statistical Baseline Trend Deviation", 
+                title="Advisory Monitoring | Statistical Baseline Trend Deviation", 
                 fim_ref="FIM Table 101 (Statistical Control)",
                 priority="ROUTINE OBSERVATION",
                 downtime="0 Hours (Operational)",
@@ -1560,16 +1560,16 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
         return True
 
     if health == EngineHealth.CRITICAL:
-        intro_text = (f"URGENT AIRWORTHINESS ADVISORY: An abnormal thermodynamic parameter shift (CRITICAL BREACH) has been confirmed on Powerplant {engine_id}.\n"
+        intro_text = (f"ECTM CRITICAL ALERT: An abnormal thermodynamic parameter shift (CRITICAL BREACH) has been confirmed on Powerplant {engine_id}.\n"
                       f"Trigger Source: {trigger_type}\n"
-                      "Please immediately review the powerplant condition and execute the OEM FIM directives below:")
-        subject_prefix = "[URGENT - CRITICAL BREACH]"
+                      "Please review the powerplant condition and the applicable OEM FIM directives below:")
+        subject_prefix = "[ECTM - CRITICAL]"
         header_bg = "#DC2626"
     elif health == EngineHealth.ADVISORY:
-        intro_text = (f"ADVISORY WATCH NOTICE: A statistical baseline deviation has been detected on Powerplant {engine_id}.\n"
+        intro_text = (f"ECTM ADVISORY: A statistical baseline deviation has been detected on Powerplant {engine_id}.\n"
                       f"Trigger Source: {trigger_type}\n"
                       "Please review the computed residuals and increase telemetry logging frequency:")
-        subject_prefix = "[ADVISORY - WATCH]"
+        subject_prefix = "[ECTM - ADVISORY]"
         header_bg = "#D97706"
     else:
         intro_text = (f"ROUTINE EVALUATION: Powerplant {engine_id} is operating within normal OEM thermodynamic tolerances.\n"
@@ -2045,7 +2045,7 @@ def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: lis
                         f"Latest Logbook Timestamp : {flight_dt_str}",
                         f"Computed Residual Vector  : \u0394T5 = {st_check['d_t5']:+.1f} \u00b0C | \u0394Ng = {st_check['d_ng']:+.2f} % | \u0394Wf = {st_check['d_wf']:+.1f} PPH",
                         f"Predictive RUL Remaining  : {st_check['rul_cycles']} Flight Cycles ({st_check['proj_date']})",
-                        f"RUL Linear Confidence     : {st_check['rul_confidence']}",
+                        f"RUL Confidence            : {st_check['rul_confidence']}",
                         "-------------------------------------------------------------------------",
                         "IMMEDIATE MAINTENANCE DIRECTIVES REQUIRED:",
                     ]
@@ -2409,7 +2409,7 @@ if menu_selection == "Overview":
                 if st_val == "CRITICAL": return "hm-red"
                 if st_val == "ADVISORY": return "hm-amber"
                 if st_val == "NORMAL": return "hm-green"
-                return "hm-gray"  # LOW CONFIDENCE or any unrecognized value - fail-safe, not fail-green
+                return "hm-gray"  # Unrecognized health status - fail-safe, not fail-green
 
             # Sistem otomatis mencari foto pesawat berdasarkan registrasi
             img_candidates = [
@@ -2784,11 +2784,11 @@ elif menu_selection == "Data Analysis":
     with col_status:
         st.markdown("<h3 style='margin-bottom:6px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
         if status["health_level"] == EngineHealth.CRITICAL:
-            st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
+            st.markdown("<span class='badge-red'>CRITICAL</span>", unsafe_allow_html=True)
         elif status["health_level"] == EngineHealth.ADVISORY:
-            st.markdown("<span class='badge-amber'>ADVISORY / WATCH</span>", unsafe_allow_html=True)
+            st.markdown("<span class='badge-amber'>ADVISORY</span>", unsafe_allow_html=True)
         else:
-            st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
+            st.markdown("<span class='badge-green'>NORMAL</span>", unsafe_allow_html=True)
 
         if status["model_confidence"] != "HIGH":
             reason = status.get("confidence_reason", "ECTM assessment confidence is limited.")
@@ -2796,7 +2796,7 @@ elif menu_selection == "Data Analysis":
                 f"<div style='margin-top:8px;padding:9px 12px;border-left:4px solid #D97706;"
                 f"background:#FFF7ED;border-radius:0 6px 6px 0;color:#7C2D12;font-size:0.82rem;'>"
                 f"<b>ECTM Assessment Limited</b><br>"
-                f"<span style='color:#92400E;'>Model Confidence: LOW</span><br>"
+                f"<span style='color:#92400E;'>ECTM Confidence: LOW</span><br>"
                 f"{reason}<br>"
                 f"<span style='color:#64748B;'>This does not indicate an Advisory or Critical engine condition.</span>"
                 f"</div>",
@@ -3048,10 +3048,10 @@ elif menu_selection == "Recommendations":
         f"Date Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Latest Cycle: {status['latest']['Date'].strftime('%Y-%m-%d')}",
         "-------------------------------------------------------------------------",
         f"Computed Residuals: Delta T5: {status['d_t5']:+.1f} degC | Delta Ng: {status['d_ng']:+.2f} % | Delta Wf: {status['d_wf']:+.1f} PPH",
-        f"System Status Classification: {overall_status_label} | ECTM Model Confidence: {status['model_confidence']}",
+        f"Engine Health Status: {overall_status_label} | ECTM ECTM Confidence: {status['model_confidence']}",
         f"ECTM Confidence Reason: {status['confidence_reason']}",
         f"Predictive RUL: {'NOT ASSESSED — ECTM CONFIDENCE LOW' if status['model_confidence'] != 'HIGH' else str(status['rul_cycles']) + ' Cycles (' + str(status['proj_date']) + ')'}",
-        f"RUL Confidence Note: {status['rul_confidence']}",
+        f"RUL Confidence: {status['rul_confidence']}",
         "-------------------------------------------------------------------------",
         "MAINTENANCE DIRECTIVES & RECOMMENDATIONS:",
     ]
