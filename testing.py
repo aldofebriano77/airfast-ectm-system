@@ -2768,8 +2768,14 @@ elif menu_selection == "Data Collection":
 # 16. PAGE 3: TREND ANALYSIS & PREDICTIVE RUL (WITH DYNAMIC TIME SLICER)
 # ======================================================================================
 elif menu_selection == "Data Analysis":
-    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Thermodynamic Trend Analysis</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> | Condition-Corrected Residual Shifts</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#003B6F; margin-bottom:2px;'>Engine Detail & Trend Analysis</h1>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color:#475569; font-size:0.95rem; font-weight:500; margin-top:0px;'>"
+        f"Active Powerplant: <b style='color:#003B6F; background:#EFF4FA; padding:2px 8px; "
+        f"border-radius:4px; border:1px solid #CBD5E1;'>{selected_engine}</b> "
+        f"| Condition-Corrected Residual Assessment</p>",
+        unsafe_allow_html=True
+    )
     st.markdown("<div class='gold-bar'></div>", unsafe_allow_html=True)
 
     if df_engine.attrs.get("regression_downgraded", False):
@@ -2816,13 +2822,28 @@ elif menu_selection == "Data Analysis":
             with cc3: st.plotly_chart(make_raw_vs_predicted(df_engine, "Wf", "PPH", "#B54708"), use_container_width=True)
 
     with col_status:
-        st.markdown("<h3 style='margin-bottom:6px; color:#003B6F;'>Powerplant Status</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-bottom:6px; color:#003B6F;'>Engine Health Status</h3>", unsafe_allow_html=True)
         if status["health_level"] == EngineHealth.CRITICAL:
             st.markdown("<span class='badge-red'>CRITICAL</span>", unsafe_allow_html=True)
         elif status["health_level"] == EngineHealth.ADVISORY:
             st.markdown("<span class='badge-amber'>ADVISORY</span>", unsafe_allow_html=True)
         else:
             st.markdown("<span class='badge-green'>NORMAL</span>", unsafe_allow_html=True)
+
+        # Compact "why" summary: explain the classification without replacing the detailed flags below.
+        if status["health_level"] == EngineHealth.CRITICAL:
+            _why_status = "Persistent ECTM/FIM-level deviation detected."
+        elif status["health_level"] == EngineHealth.ADVISORY:
+            _why_status = "ECTM monitoring threshold or early-warning condition detected."
+        else:
+            _why_status = "No valid ECTM Advisory or Critical condition declared."
+
+        st.markdown(
+            f"<div style='margin-top:9px;padding:9px 11px;background:#F8FAFC;"
+            f"border:1px solid #E2E8F0;border-radius:7px;font-size:0.80rem;color:#475569;'>"
+            f"<b style='color:#334155;'>Assessment Summary</b><br>{_why_status}</div>",
+            unsafe_allow_html=True
+        )
 
         if status["model_confidence"] != "HIGH":
             reason = status.get("confidence_reason", "ECTM assessment confidence is limited.")
@@ -2868,8 +2889,8 @@ elif menu_selection == "Data Analysis":
         st.markdown("---")
         st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>ECTM Diagnostic Flags</h4>", unsafe_allow_html=True)
         st.caption("These flags explain the ECTM assessment and do not replace the Engine Health Status.")
-        if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift")
-        if status["sustained_t5"]: st.write("▪ Sustained upward T5 degradation")
+        if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift detected")
+        if status["sustained_t5"]: st.write("▪ Sustained upward T5 trend detected")
         if status["alarm_wash"]: st.write("▪ ITT +10°C wash limit exceeded")
         if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]: st.write("▪ OEM borescope limit breached")
         if not (status["isolated_t5"] or status["isolated_ng"] or status["sustained_t5"] or status["alarm_wash"] or status["alarm_borescope_t5"] or status["alarm_borescope_ng"]):
@@ -2884,8 +2905,14 @@ elif menu_selection == "Data Analysis":
         )
 
     st.markdown("---")
-    show_cols = [c for c in ["AML No", "Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
-    st.dataframe(df_engine[show_cols].sort_values("Date", ascending=False), use_container_width=True, height=220)
+    with st.expander("View Raw Flight Observations", expanded=False):
+        st.caption("Raw telemetry is provided for investigation and traceability; the ECTM assessment above remains the primary interpretation layer.")
+        show_cols = [c for c in ["AML No", "Date", "Engine", "T5", "Delta_T5", "Ng", "Delta_Ng", "Wf", "Delta_Wf_pct"] if c in df_engine.columns]
+        st.dataframe(
+            df_engine[show_cols].sort_values("Date", ascending=False),
+            use_container_width=True,
+            height=260
+        )
     
 # ======================================================================================
 # 17. PAGE 4: LOGBOOK & DEFECT CORRELATOR (WITH 3-WAY RELATIONAL SSOT)
