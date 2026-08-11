@@ -30,6 +30,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import plotly.express as px
+import ectm_v5_5_core as ectm54
 
 try:
     from fpdf import FPDF
@@ -81,6 +82,7 @@ st.markdown(sticky_header_html, unsafe_allow_html=True)
 # Source: PT6A-34 Fault Isolation Manual, P/N 3021242, Rev 75.0
 # ======================================================================================
 class EngineHealth(Enum):
+    LOW_CONFIDENCE = 0
     NORMAL = 1
     ADVISORY = 2
     CRITICAL = 3
@@ -105,7 +107,7 @@ CONTROL_SIGMA = 2.5
 REQUIRED_COLUMNS = ["Date", "Engine", "T5", "Ng", "Wf"]
 FLEET_REGISTRATIONS = ["PK-OAM", "PK-OCH", "PK-OCG", "PK-OCI", "PK-OCF"]
 CORRECTION_CANDIDATES = ["IOAT", "Press_Alt", "TQ", "Np"]
-OPTIONAL_COLUMNS = ["AML No"] + CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press", "Event_Name", "Reference", "dNg_AIRFAST", "dITT_AIRFAST", "dWf_AIRFAST"]
+OPTIONAL_COLUMNS = ["AML No"] + CORRECTION_CANDIDATES + ["IAS", "Oil_Temp", "Oil_Press"]
 
 NAVY = "#003B6F"
 GOLD = "#f0b73d"
@@ -270,6 +272,7 @@ st.markdown(
     .heatmap-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; margin-top: 5px; font-size: 0.8rem; font-weight: 700; }
     
     .hm-green { background: rgba(22, 163, 74, 0.06); color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
+    .hm-gray { background: rgba(100, 116, 139, 0.08); color: #475569; border: 1px solid rgba(100, 116, 139, 0.2); }
     .hm-amber { background: rgba(217, 119, 6, 0.06); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
     .hm-red { background: rgba(220, 38, 38, 0.06); color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
     
@@ -798,228 +801,85 @@ def validate_columns(df: pd.DataFrame):
 # 6. AUTOMATED DATA QUALITY AUDIT MODULE
 # ======================================================================================
 def run_data_quality_audit(df: pd.DataFrame) -> list:
-    """Data-quality gate. OEM operating-limit references are used only for screening;
-    an out-of-limit observation is quarantined from model fitting, not automatically
-    diagnosed as an engine fault."""
     alerts = []
-    if df.empty:
-        return alerts
-    d = df.copy()
-    numeric_limits = {
-        "IOAT": (-40.0, 55.0),
-        "T5": (0.0, 790.0),
-        "Ng": (0.0, 101.6),
-        "Np": (0.0, 96.0),
-        "Wf": (0.0, np.inf),
-        "TQ": (0.0, 100.0),
-    }
-    for col, (lo, hi) in numeric_limits.items():
-        if col not in d.columns:
-            continue
-        x = pd.to_numeric(d[col], errors="coerce")
-        bad = x.notna() & ((x < lo) | (x > hi))
-        if bad.any():
-            alerts.append(f"[DATA QUALITY] {col}: {int(bad.sum())} observation(s) outside configured physical screening range ({lo:g} to {hi:g}).")
-    for col in ["T5", "Ng", "Wf"]:
-        if col in d.columns:
-            x = pd.to_numeric(d[col], errors="coerce")
-            if x.isna().any():
-                alerts.append(f"[DATA QUALITY] {col}: {int(x.isna().sum())} non-numeric/missing observation(s); excluded from ECTM model fitting.")
-    if "Event_Name" in d.columns:
-        n_events = d["Event_Name"].fillna("UNKNOWN").astype(str).nunique()
-        if n_events > 1:
-            alerts.append(f"[EVENT SEGMENTATION] {n_events} Event Name categories detected. ECTM correction is evaluated within one event regime at a time.")
+    if not df.empty:
+        if "IOAT" in df.columns:
+            # Paksa jadi angka, yang huruf/salah ketik otomatis jadi NaN
+            ioat_num = pd.to_numeric(df["IOAT"], errors="coerce")
+            if (ioat_num > 55.0).any() or (ioat_num < -40.0).any():
+                alerts.append("[PHYSICAL OUTLIER] IOAT exceeds standard operational atmospheric envelope (-40°C to +55°C).")
+        
+        if "T5" in df.columns:
+            t5_num = pd.to_numeric(df["T5"], errors="coerce")
+            if (t5_num <= 200).any():
+                alerts.append("[SENSOR ERROR] T5 recorded below minimum operating temperature (200°C) during active flight.")
+        
+        for col in ["T5", "Ng", "Wf"]:
+            if col in df.columns and len(df) >= 3:
+                col_num = pd.to_numeric(df[col], errors="coerce")
+                stuck_mask = (col_num.diff() == 0) & (col_num.diff().shift(-1) == 0)
+                if stuck_mask.any():
+                    alerts.append(f"[SENSOR FREEZE SUSPECTED] Column '{col}' contains identical consecutive static values for 3+ cycles.")
     return alerts
 
 # ======================================================================================
-# 7. ECTM V5 CORE: QUALITY GATE -> EVENT SEGMENTATION -> REFERENCE BASELINE -> MODEL
-#    -> APPLICABILITY DOMAIN -> RESIDUAL -> CONTROL BAND
+# 7. THERMODYNAMIC LEAST-SQUARES REGRESSION & ADAPTIVE NOISE BANDING
 # ======================================================================================
-ECTM_BASELINE_MIN = 15
-ECTM_BASELINE_TARGET = 30
-ECTM_MAX_CONDITION_NUMBER = 1e4
-ECTM_PHYSICAL_LIMITS = {
-    "IOAT": (-40.0, 55.0),
-    "T5": (0.0, 790.0),
-    "Ng": (0.0, 101.6),
-    "Np": (0.0, 96.0),
-    "Wf": (0.0, np.inf),
-    "TQ": (0.0, 100.0),
-}
+def fit_correction_model(df_baseline: pd.DataFrame, predictors: list, target: str):
+    # [BUG FIX] Was raised to > 0.5 - an absolute cutoff in each predictor's
+    # own raw units. IOAT (degC) and Press_Alt (feet) naturally have large
+    # variance and always clear this bar, but TQ and Np are both
+    # percentage-scale and governed close to a setpoint, so their natural
+    # cycle-to-cycle std is small even when genuinely informative for the
+    # correction model. Verified against all 10 real Airfast engine files at
+    # baseline_n = 3/6/10 (the realistic range around the default of 6): TQ
+    # and/or Np were silently dropped EVERY time, for EVERY aircraft - not
+    # an edge case, a fleet-wide methodology regression. The 1e-6 threshold
+    # exists only to guard against a singular/ill-conditioned regression
+    # matrix from a truly-constant column, not to filter "low-signal"
+    # predictors by an arbitrary absolute magnitude.
+    usable = [p for p in predictors if df_baseline[p].std(ddof=0) > 1e-6]
+    if len(usable) == 0 or len(df_baseline) < len(usable) + 2:
+        mean_val = df_baseline[target].mean() if not df_baseline.empty else 0.0
+        return {"mode": "mean", "predictors": [], "coef": np.array([mean_val]), "downgraded": True}
+    X = df_baseline[usable].astype(float).values
+    X = np.column_stack([np.ones(len(X)), X])
+    y = df_baseline[target].astype(float).values
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    return {"mode": "regression", "predictors": usable, "coef": coef, "downgraded": False}
 
-def _ectm_quality_mask(df_engine: pd.DataFrame) -> pd.Series:
-    mask = pd.Series(True, index=df_engine.index)
-    for col, (lo, hi) in ECTM_PHYSICAL_LIMITS.items():
-        if col not in df_engine.columns:
-            continue
-        x = pd.to_numeric(df_engine[col], errors="coerce")
-        mask &= x.notna()
-        mask &= ~((x < lo) | (x > hi))
-    for col in ["T5", "Ng", "Wf"]:
-        if col in df_engine.columns:
-            mask &= pd.to_numeric(df_engine[col], errors="coerce").notna()
-    return mask
-
-def _ectm_select_event(df_engine: pd.DataFrame) -> str:
-    if "Event_Name" not in df_engine.columns or df_engine["Event_Name"].dropna().empty:
-        return "ALL_EVENTS"
-    return str(df_engine["Event_Name"].dropna().iloc[-1])
-
-def _ectm_fit_model(df_baseline: pd.DataFrame, predictors: list, target: str) -> dict:
-    cols = [p for p in predictors if p in df_baseline.columns]
-    work = df_baseline.dropna(subset=cols + [target]).copy()
-    if len(work) < max(ECTM_BASELINE_MIN, len(cols) + 3):
-        mean_val = float(work[target].mean()) if not work.empty else np.nan
-        return {"mode": "mean", "predictors": [], "coef": np.array([mean_val]),
-                "downgraded": True, "reason": "insufficient_complete_reference_data", "n": len(work)}
-    X = work[cols].astype(float).to_numpy()
-    y = work[target].astype(float).to_numpy()
-    mu = X.mean(axis=0)
-    sd = X.std(axis=0, ddof=0)
-    keep = sd > 1e-12
-    cols = [c for c, k in zip(cols, keep) if k]
-    X = X[:, keep]
-    sd = sd[keep]
-    mu = mu[keep]
-    if len(cols) == 0 or len(work) < len(cols) + 3:
-        return {"mode": "mean", "predictors": [], "coef": np.array([float(y.mean())]),
-                "downgraded": True, "reason": "no_variable_predictor", "n": len(work)}
-    Xs = (X - mu) / sd
-    A = np.column_stack([np.ones(len(Xs)), Xs])
-    rank = np.linalg.matrix_rank(A)
-    cond = float(np.linalg.cond(A)) if rank == A.shape[1] else np.inf
-    if rank < A.shape[1] or not np.isfinite(cond) or cond > ECTM_MAX_CONDITION_NUMBER:
-        return {"mode": "mean", "predictors": [], "coef": np.array([float(y.mean())]),
-                "downgraded": True, "reason": "ill_conditioned_reference_model",
-                "condition_number": cond, "n": len(work)}
-    coef, *_ = np.linalg.lstsq(A, y, rcond=None)
-    fitted = A @ coef
-    residual = y - fitted
-    ss_res = float(np.sum(residual ** 2))
-    ss_tot = float(np.sum((y - y.mean()) ** 2))
-    r2 = (1.0 - ss_res / ss_tot) if ss_tot > 1e-12 else np.nan
-    return {
-        "mode": "regression", "predictors": cols, "coef": coef, "mu": mu, "sd": sd,
-        "downgraded": False, "n": len(work), "rank": rank, "condition_number": cond,
-        "r2": r2, "baseline_min": work[cols].min().to_dict(),
-        "baseline_max": work[cols].max().to_dict()
-    }
-
-def _ectm_apply_model(model: dict, df: pd.DataFrame) -> np.ndarray:
+def apply_correction_model(model: dict, df: pd.DataFrame) -> np.ndarray:
     if model["mode"] == "mean":
-        return np.full(len(df), model["coef"][0], dtype=float)
-    X = df[model["predictors"]].astype(float).to_numpy()
-    return model["coef"][0] + ((X - model["mu"]) / model["sd"]) @ model["coef"][1:]
+        return np.full(len(df), model["coef"][0])
+    X = df[model["predictors"]].astype(float).values
+    X = np.column_stack([np.ones(len(X)), X])
+    return X @ model["coef"]
 
-def _ectm_domain_mask(model: dict, df: pd.DataFrame) -> pd.Series:
-    if model.get("mode") != "regression":
-        return pd.Series(False, index=df.index)
-    mask = pd.Series(True, index=df.index)
-    for p in model["predictors"]:
-        if p not in df.columns:
-            return pd.Series(False, index=df.index)
-        x = pd.to_numeric(df[p], errors="coerce")
-        mask &= x.notna()
-        mask &= (x >= model["baseline_min"][p]) & (x <= model["baseline_max"][p])
-    return mask
-
-def determine_optimal_baseline(df_engine, min_cycles=ECTM_BASELINE_MIN, max_cycles=ECTM_BASELINE_TARGET):
-    """Return a reference-window size. This is an engineering configuration, not an OEM/FIM limit."""
-    return min(max_cycles, len(df_engine))
+def determine_optimal_baseline(df_engine, min_cycles=15, max_cycles=30):
+    """Validated reference-size policy."""
+    eng = str(df_engine["Engine"].iloc[-1]) if len(df_engine) else ""
+    target = ectm54.VALIDATED_BASELINES_CRUISE.get(eng, ectm54.CFG54.baseline_target_default)
+    return min(target, len(df_engine))
 
 @st.cache_data(show_spinner=False)
 def compute_engine_trend(df_engine: pd.DataFrame, use_correction: bool = True):
-    d = df_engine.copy()
-    d["Date"] = safe_parse_dates(d["Date"])
-    d = d.sort_values("Date").reset_index(drop=True)
-    d["ECTM_DQ_VALID"] = _ectm_quality_mask(d)
-    analysis_event = _ectm_select_event(d)
-    if "Event_Name" in d.columns:
-        d["ECTM_EVENT_MATCH"] = d["Event_Name"].fillna("UNKNOWN").astype(str).eq(analysis_event)
-    else:
-        d["ECTM_EVENT_MATCH"] = True
-    # No forward/backward fill: future observations must never populate historical predictors.
-    event_df = d[d["ECTM_EVENT_MATCH"] & d["ECTM_DQ_VALID"]].copy()
-    model_cols = list(CORRECTION_CANDIDATES) + ["T5", "Ng", "Wf"]
-    event_df = event_df.dropna(subset=[c for c in model_cols if c in event_df.columns])
-    n = min(ECTM_BASELINE_TARGET, len(event_df))
-    if n < ECTM_BASELINE_MIN:
-        for t in ["T5", "Ng", "Wf"]:
-            d[f"{t}_pred"] = np.nan
-            d[f"Delta_{t}"] = np.nan
-            d[f"Control_Limit_{t}"] = np.nan
-        d["Model_Applicable"] = False
-        d["Model_Confidence"] = "LOW"
-        d.attrs.update({"models": {}, "noise": {}, "baseline_n": n,
-                        "baseline_event": analysis_event, "model_ready": False,
-                        "reference_baseline": True})
-        return d
-    baseline = event_df.iloc[:n].copy()
-    predictors = [c for c in CORRECTION_CANDIDATES if c in baseline.columns] if use_correction else []
-    models = {}
-    noise = {}
-    applicable_by_target = {}
-    for target in ["T5", "Ng", "Wf"]:
-        model = _ectm_fit_model(baseline, predictors, target)
-        models[target] = model
-        pred = _ectm_apply_model(model, d)
-        domain = _ectm_domain_mask(model, d)
-        applicable = domain & d["ECTM_DQ_VALID"] & d["ECTM_EVENT_MATCH"]
-        d[f"{target}_pred"] = pred
-        d[f"Delta_{target}"] = np.where(applicable, pd.to_numeric(d[target], errors="coerce") - pred, np.nan)
-        applicable_by_target[target] = applicable
-        if model.get("mode") == "regression":
-            base_res = pd.to_numeric(baseline[target], errors="coerce").to_numpy() - _ectm_apply_model(model, baseline)
-        else:
-            base_res = pd.to_numeric(baseline[target], errors="coerce").to_numpy() - model["coef"][0]
-        base_res = base_res[np.isfinite(base_res)]
-        mad = np.median(np.abs(base_res - np.median(base_res))) if len(base_res) else np.nan
-        sigma = 1.4826 * mad if np.isfinite(mad) and mad > 1e-9 else (np.std(base_res, ddof=0) if len(base_res) else np.nan)
-        noise[target] = float(max(sigma, 1e-6)) if np.isfinite(sigma) else np.nan
-        d[f"Control_Limit_{target}"] = CONTROL_SIGMA * noise[target]
-    d["Delta_Ng_pct"] = d["Delta_Ng"]
-    wf_mean = float(pd.to_numeric(baseline["Wf"], errors="coerce").mean())
-    d["Delta_Wf_pct"] = 100.0 * d["Delta_Wf"] / wf_mean if np.isfinite(wf_mean) and wf_mean else np.nan
-    d["Model_Applicable"] = d[["Delta_T5", "Delta_Ng", "Delta_Wf"]].notna().all(axis=1)
-    d["Model_Confidence"] = np.where(d["Model_Applicable"], "HIGH", np.where(d["ECTM_DQ_VALID"] & d["ECTM_EVENT_MATCH"], "LOW", "INVALID"))
-    d.attrs.update({"models": models, "noise": noise, "baseline_n": n,
-                    "baseline_event": analysis_event, "model_ready": True,
-                    "reference_baseline": True})
-    return d
-
-def rolling_slope(series: pd.Series, window: int) -> float:
-    y = pd.to_numeric(series, errors="coerce").dropna().iloc[-window:].values
-    if len(y) < 2: return 0.0
-    x = np.arange(len(y))
-    slope, _ = np.polyfit(x, y, 1)
-    return float(slope)
-
-def sustained_flag(series: pd.Series, threshold: float, window: int) -> bool:
-    s = pd.to_numeric(series, errors="coerce").dropna()
-    if len(s) < window: return False
-    tail = s.iloc[-window:]
-    half = abs(threshold) / 2
-    return bool((tail > half).all()) if threshold > 0 else bool((tail < -half).all())
-
-def isolated_spike_flag(series: pd.Series, threshold: float) -> bool:
-    s = pd.to_numeric(series, errors="coerce").dropna()
-    if len(s) < 2: return False
-    last, prev = s.iloc[-1], s.iloc[-2]
-    half = abs(threshold) / 2
-    return bool(last > threshold and prev < half) if threshold > 0 else bool(last < threshold and prev > -half)
-
-def detect_trend_acceleration(series: pd.Series, window: int) -> bool:
-    if len(series) < window or window < 4: return False
-    tail = pd.to_numeric(series, errors="coerce").dropna().iloc[-window:].rolling(3, min_periods=1).mean().values
-    half = len(tail) // 2
-    if half < 2: return False
-    x_old, x_new = np.arange(half), np.arange(len(tail) - half)
-    slope_old, _ = np.polyfit(x_old, tail[:half], 1)
-    slope_new, _ = np.polyfit(x_new, tail[half:], 1)
-    same_sign = (slope_old > 0 and slope_new > 0) or (slope_old < 0 and slope_new < 0)
-    if not same_sign: return False
-    if abs(slope_old) < 1e-6: return abs(slope_new) > 0.05
-    return bool(abs(slope_new / slope_old) > 1.4)
+    """Final validated ECTM trend engine."""
+    df_engine = df_engine.sort_values("Date").reset_index(drop=True).copy()
+    if df_engine.empty:
+        return df_engine
+    eng = str(df_engine["Engine"].iloc[-1])
+    parts = [x.strip() for x in eng.split("|")]
+    registration, position = parts[0], (parts[1] if len(parts)>1 else "LH")
+    out = ectm54.compute_v54(df_engine, registration, position)
+    out = ectm54.classify_v54(out)
+    out["Delta_Ng_pct"] = out["Delta_Ng"]
+    n=int(out.attrs.get("baseline_n",0))
+    wf_mean=float(out.loc[out.index[:n],"Wf"].mean()) if n else 1.0
+    out["Delta_Wf_pct"]=100.0*out["Delta_Wf"]/wf_mean if wf_mean else out["Delta_Wf"]
+    for t in ["T5","Ng","Wf"]:
+        out[f"Adaptive_Sigma_{t}"]=out.attrs.get("noise",{}).get(t,1.0)
+    out.attrs["regression_downgraded"]=any(m.get("mode")!="regression" for m in out.attrs.get("models",{}).values())
+    return out
 
 def rolling_slope(series: pd.Series, window: int) -> float:
     y = series.iloc[-window:].values
@@ -1090,68 +950,109 @@ def classify_direction(value, shift_band):
     return "NORMAL"
 
 def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
-    if df_engine.empty:
-        return {"reg_prefix":"PK-OAM", "status_label":"INSUFFICIENT DATA", "health_level":EngineHealth.ADVISORY,
-                "d_t5":np.nan,"d_ng":np.nan,"d_wf":np.nan,"shift_t5":"NORMAL","shift_ng":"NORMAL","shift_wf":"NORMAL",
-                "alarm_wash":False,"alarm_borescope_t5":False,"alarm_borescope_ng":False,"sustained_t5":False,"isolated_t5":False,
-                "sustained_ng":False,"isolated_ng":False,"control_breach":False,"is_abnormal":False,"slope_t5":0.0,"slope_ng":0.0,
-                "rul_cycles":999,"rul_limiting_param":"T5","proj_date":"N/A","fc_per_day":0.0,
-                "rul_confidence":"Unavailable","rul_is_linear_caution":False,"model_confidence":"LOW"}
-    raw_latest = df_engine.iloc[-1]
-    valid = df_engine[df_engine.get("Model_Applicable", False)].copy()
-    # If the newest observation is outside the reference model domain, do not classify it as normal/critical.
-    latest_is_applicable = bool(raw_latest.get("Model_Applicable", False))
-    if valid.empty:
-        latest = raw_latest
-        d_t5=d_ng=d_wf=np.nan
-        health_level=EngineHealth.ADVISORY
-        status_label="LOW CONFIDENCE / OUTSIDE REFERENCE DOMAIN"
-        model_confidence="LOW"
-        return dict(latest=latest,d_t5=d_t5,d_ng=d_ng,d_wf=d_wf,shift_t5="N/A",shift_ng="N/A",shift_wf="N/A",
-                    alarm_wash=False,alarm_borescope_t5=False,alarm_borescope_ng=False,sustained_t5=False,isolated_t5=False,
-                    sustained_ng=False,isolated_ng=False,control_breach=False,is_abnormal=False,health_level=health_level,
-                    status_label=status_label,slope_t5=0.0,slope_ng=0.0,rul_cycles=999,rul_limiting_param="N/A",proj_date="N/A",
-                    fc_per_day=0.0,rul_confidence="Unavailable - no applicable condition-corrected observation",rul_is_linear_caution=False,
-                    reg_prefix=str(raw_latest.get("Engine","UNKNOWN")).split("|")[0].strip(),model_confidence=model_confidence,
-                    latest_observation_applicable=False)
-    latest = valid.iloc[-1]
-    d_t5,d_ng,d_wf = float(latest["Delta_T5"]),float(latest["Delta_Ng"]),float(latest["Delta_Wf"])
-    shift_t5=classify_direction(d_t5,SHIFT_T5_C); shift_ng=classify_direction(d_ng,SHIFT_NG_PCT); shift_wf=classify_direction(float(latest["Delta_Wf_pct"]),SHIFT_WF_PCT)
-    alarm_wash=d_t5>=T5_WASH_C; alarm_borescope_t5=d_t5>=T5_BORESCOPE_C; alarm_borescope_ng=d_ng<=NG_BORESCOPE_LOW_PCT
-    sustained_t5=sustained_flag(valid["Delta_T5"],T5_WASH_C,SUSTAIN_WINDOW); isolated_t5=isolated_spike_flag(valid["Delta_T5"],T5_WASH_C)
-    sustained_ng=sustained_flag(valid["Delta_Ng"],NG_BORESCOPE_LOW_PCT,SUSTAIN_WINDOW); isolated_ng=isolated_spike_flag(valid["Delta_Ng"],NG_BORESCOPE_LOW_PCT)
-    stat_band_breach=any(abs(float(latest[f"Delta_{t}"]))>float(latest[f"Control_Limit_{t}"]) for t in ["T5","Ng","Wf"] if np.isfinite(latest.get(f"Control_Limit_{t}",np.nan)))
-    is_abnormal=alarm_borescope_t5 or alarm_borescope_ng
-    control_breach=stat_band_breach or alarm_wash or sustained_t5 or sustained_ng
-    if not latest_is_applicable:
-        health_level=EngineHealth.ADVISORY; status_label="LOW CONFIDENCE / LATEST DATA OUTSIDE REFERENCE DOMAIN"
-    elif is_abnormal:
-        health_level=EngineHealth.CRITICAL; status_label="CRITICAL / ABNORMAL"
-    elif control_breach:
-        health_level=EngineHealth.ADVISORY; status_label="ADVISORY / WATCH"
-    else:
-        health_level=EngineHealth.NORMAL; status_label="NORMAL TREND"
-    slope_t5=rolling_slope(valid["Delta_T5"],TREND_WINDOW); slope_ng=rolling_slope(valid["Delta_Ng"],TREND_WINDOW)
-    rul_t5=calculate_rul(d_t5,slope_t5,T5_BORESCOPE_C,"UP"); rul_ng=calculate_rul(d_ng,slope_ng,NG_BORESCOPE_LOW_PCT,"DOWN")
-    rul_cycles=min(rul_t5,rul_ng); rul_limiting_param="Ng" if rul_ng<rul_t5 else "T5"
-    accel_window=min(TREND_WINDOW*2,len(valid)); accel_t5=detect_trend_acceleration(valid["Delta_T5"],accel_window); accel_ng=detect_trend_acceleration(valid["Delta_Ng"],accel_window)
-    rul_is_linear_caution=bool(accel_t5 or accel_ng)
-    rul_confidence="Low - trend is accelerating; linear extrapolation likely overstates remaining life" if rul_is_linear_caution else "Indicative only - assumes a constant (linear) degradation rate"
-    match_reg=re.search(r"(PK-[A-Z0-9]{3,4})",str(latest.get("Engine","UNKNOWN")).upper()); reg_prefix=match_reg.group(1) if match_reg else str(latest.get("Engine","UNKNOWN")).split("|")[0].strip()
-    fc_per_day=get_aircraft_utilization_rate(reg_prefix,df_util); days_left=int(rul_cycles/fc_per_day) if fc_per_day>0 else 999; days_left=min(days_left,3650)
-    proj_date=(datetime.now()+timedelta(days=days_left)).strftime("%Y-%m-%d") if rul_cycles<999 else "Stable"
-    return dict(latest=latest,d_t5=d_t5,d_ng=d_ng,d_wf=d_wf,shift_t5=shift_t5,shift_ng=shift_ng,shift_wf=shift_wf,
-                alarm_wash=alarm_wash,alarm_borescope_t5=alarm_borescope_t5,alarm_borescope_ng=alarm_borescope_ng,
-                sustained_t5=sustained_t5,isolated_t5=isolated_t5,sustained_ng=sustained_ng,isolated_ng=isolated_ng,
-                control_breach=control_breach,is_abnormal=is_abnormal,health_level=health_level,status_label=status_label,
-                slope_t5=slope_t5,slope_ng=slope_ng,rul_cycles=rul_cycles,rul_limiting_param=rul_limiting_param,proj_date=proj_date,
-                fc_per_day=fc_per_day,rul_confidence=rul_confidence,rul_is_linear_caution=rul_is_linear_caution,reg_prefix=reg_prefix,
-                model_confidence="HIGH" if latest_is_applicable else "LOW",latest_observation_applicable=latest_is_applicable,
-                baseline_event=df_engine.attrs.get("baseline_event"),baseline_n=df_engine.attrs.get("baseline_n",0))
+    latest=df_engine.iloc[-1]
+    d_t5,d_ng,d_wf=latest["Delta_T5"],latest["Delta_Ng"],latest["Delta_Wf"]
+    confidence=str(latest.get("Model_Confidence","LOW"))
+    row_status=str(latest.get("ECTM_Row_Status","UNAVAILABLE"))
 
-# [TIER 1 UPGRADE] Enhanced Recommendation Output with Structured Fields
+    if confidence!="HIGH":
+        health_level=EngineHealth.LOW_CONFIDENCE
+        status_label="LOW CONFIDENCE"
+    elif row_status=="CRITICAL":
+        health_level=EngineHealth.CRITICAL
+        status_label="CRITICAL / ABNORMAL"
+    elif row_status=="ADVISORY":
+        health_level=EngineHealth.ADVISORY
+        status_label="ADVISORY / WATCH"
+    else:
+        health_level=EngineHealth.NORMAL
+        status_label="NORMAL TREND"
+
+    shift_t5=classify_direction(d_t5,SHIFT_T5_C) if np.isfinite(d_t5) else "NORMAL"
+    shift_ng=classify_direction(d_ng,SHIFT_NG_PCT) if np.isfinite(d_ng) else "NORMAL"
+    shift_wf=classify_direction(latest.get("Delta_Wf_pct",d_wf),SHIFT_WF_PCT) if np.isfinite(d_wf) else "NORMAL"
+    alarm_wash=bool(np.isfinite(d_t5) and d_t5>=T5_WASH_C)
+    alarm_borescope_t5=bool(np.isfinite(d_t5) and d_t5>=T5_BORESCOPE_C)
+    alarm_borescope_ng=bool(np.isfinite(d_ng) and d_ng<=NG_BORESCOPE_LOW_PCT)
+
+    vals_t5=df_engine["Delta_T5"].dropna()
+    vals_ng=df_engine["Delta_Ng"].dropna()
+    sustained_t5=sustained_flag(vals_t5,T5_WASH_C,SUSTAIN_WINDOW)
+    isolated_t5=isolated_spike_flag(vals_t5,T5_WASH_C)
+    sustained_ng=sustained_flag(vals_ng,NG_BORESCOPE_LOW_PCT,SUSTAIN_WINDOW)
+    isolated_ng=isolated_spike_flag(vals_ng,NG_BORESCOPE_LOW_PCT)
+
+    slope_t5=rolling_slope(vals_t5,TREND_WINDOW)
+    slope_ng=rolling_slope(vals_ng,TREND_WINDOW)
+
+    if confidence=="HIGH":
+        r5=calculate_rul(d_t5,slope_t5,T5_BORESCOPE_C,"UP")
+        rn=calculate_rul(d_ng,slope_ng,NG_BORESCOPE_LOW_PCT,"DOWN")
+        rul_cycles=min(r5,rn)
+        rul_limiting_param="Ng" if rn<r5 else "T5"
+    else:
+        r5=rn=rul_cycles=999
+        rul_limiting_param="N/A"
+
+    mm=re.search(r"(PK-[A-Z0-9]{3,4})",str(latest["Engine"]).upper())
+    reg_prefix=mm.group(1) if mm else str(latest["Engine"]).split("|")[0].strip()
+    fc_per_day=get_aircraft_utilization_rate(reg_prefix,df_util)
+    days_left=int(rul_cycles/fc_per_day) if fc_per_day>0 and rul_cycles<999 else 999
+    proj_date=(datetime.now()+timedelta(days=days_left)).strftime("%Y-%m-%d") if rul_cycles<999 else "Stable"
+
+    return dict(
+        latest=latest,d_t5=d_t5,d_ng=d_ng,d_wf=d_wf,
+        shift_t5=shift_t5,shift_ng=shift_ng,shift_wf=shift_wf,
+        alarm_wash=alarm_wash,alarm_borescope_t5=alarm_borescope_t5,
+        alarm_borescope_ng=alarm_borescope_ng,
+        sustained_t5=sustained_t5,isolated_t5=isolated_t5,
+        sustained_ng=sustained_ng,isolated_ng=isolated_ng,
+        control_breach=row_status=="ADVISORY",is_abnormal=row_status=="CRITICAL",
+        health_level=health_level,status_label=status_label,
+        slope_t5=slope_t5,slope_ng=slope_ng,
+        rul_cycles=rul_cycles,rul_limiting_param=rul_limiting_param,
+        proj_date=proj_date,fc_per_day=fc_per_day,
+        rul_confidence=("Unavailable because current ECTM confidence is LOW." if confidence!="HIGH"
+                        else "Indicative only - assumes a constant (linear) degradation rate"),
+        rul_is_linear_caution=False,
+        reg_prefix=reg_prefix,model_confidence=confidence,
+        ectm_signal=str(latest.get("ECTM_Signal","")),
+        baseline_n=int(df_engine.attrs.get("baseline_n",0)),
+        baseline_policy=df_engine.attrs.get("baseline_policy","UNKNOWN"),
+        reference_model_quality=str(latest.get("Reference_Model_Quality","LOW")),
+        reference_model_quality_reason=str(latest.get("Reference_Model_Quality_Reason","")),
+        current_applicability=bool(latest.get("Current_Applicability",False)),
+        current_domain_coverage_pct=float(latest.get("Current_Domain_Coverage_pct",0)),
+        historical_domain_coverage_min_pct=float(
+            latest.get("Historical_Domain_Coverage_Min_pct",
+                       latest.get("Domain_Coverage_Min_pct",0))
+        ),
+        confidence_reason=str(latest.get("Confidence_Reason","")),
+        engine_state=str(latest.get("Engine_State_Reference","UNSPECIFIED")),
+        engine_state_available=bool(latest.get("Engine_State_Available",False)),
+        engine_state_quality=str(latest.get("Engine_State_Quality","NOT_PROVIDED")),
+    )
+
 def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     recs = []
+    if status.get("health_level") == EngineHealth.LOW_CONFIDENCE:
+        recs.append(dict(
+            level="slate",
+            title="ECTM Assessment Unavailable | Reference Model Confidence Low",
+            fim_ref="N/A — no FIM-level diagnosis from low-confidence model",
+            priority="VERIFY REFERENCE / DATA QUALITY",
+            downtime="0 Hours (No automatic maintenance action)",
+            signature=(
+                f"Reference quality={status.get('reference_model_quality','LOW')} | "
+                f"Current applicability={'YES' if status.get('current_applicability') else 'NO'} | "
+                f"Current domain coverage={status.get('current_domain_coverage_pct',0):.0f}% | "
+                f"Historical min coverage={status.get('historical_domain_coverage_min_pct',0):.1f}%"
+            ),
+            body=("The dashboard does not have sufficient validated reference-model confidence for this assessment. "
+                  "This is not an engine-health diagnosis and should not be interpreted as an Advisory or Critical condition.\n\n"
+                  "**Engineering Directive:** verify the engine-state reference, operating regime, data quality, and current reference-domain applicability before using ECTM deviation for maintenance decisions.")
+        ))
+        return recs
     sig_str = f"ΔT5: {status['d_t5']:+.1f}°C | ΔNg: {status['d_ng']:+.2f}% | ΔWf: {status['d_wf']:+.1f} PPH"
     
     if status["isolated_t5"] or status["isolated_ng"]:
@@ -1384,7 +1285,7 @@ def make_raw_vs_predicted(df_engine: pd.DataFrame, param: str, unit: str, color:
 
 def make_t5_gauge_chart(d_t5: float, health_level: EngineHealth) -> go.Figure:
     # Menentukan warna jarum/bar spidometer berdasarkan level kesehatan mesin
-    bar_color = "#DC2626" if health_level == EngineHealth.CRITICAL else ("#D97706" if health_level == EngineHealth.ADVISORY else "#16A34A")
+    bar_color = "#DC2626" if health_level == EngineHealth.CRITICAL else ("#D97706" if health_level == EngineHealth.ADVISORY else ("#64748B" if health_level == EngineHealth.LOW_CONFIDENCE else "#16A34A"))
     
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
@@ -2096,19 +1997,12 @@ if missing_required:
     st.error(f"Ingestion Error: Mandatory schema columns missing: {', '.join(missing_required)}. Rectify within Data Collection.")
     st.stop()
 
-for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns and c not in {"AML No", "Event_Name", "Reference"}]:
+for col in REQUIRED_COLUMNS[2:] + [c for c in OPTIONAL_COLUMNS if c in df_raw.columns and c != "AML No"]:
     if df_raw[col].dtype == object:
         df_raw[col] = df_raw[col].astype(str).str.replace(",", ".", regex=False)
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce")
 
 df_raw["Date"] = safe_parse_dates(df_raw["Date"])
-
-# [ECTM V5] Run the data-quality gate on the ingested telemetry before trend analysis.
-_ectm_audit_alerts = run_data_quality_audit(df_raw)
-for _msg in _ectm_audit_alerts[:10]:
-    st.sidebar.warning(_msg)
-if len(_ectm_audit_alerts) > 10:
-    st.sidebar.warning(f"{len(_ectm_audit_alerts)-10} additional data-quality/event alerts omitted from sidebar display.")
 
 # [PATCH #7] Pengaman otomatis jika file CSV lama tidak memiliki kolom 'AML No'
 # [BUG FIX] The original fallback was f"AML-{date}" - date only, with no
@@ -2123,27 +2017,40 @@ if len(_ectm_audit_alerts) > 10:
 # include the registration/engine identity in the fallback key so it stays
 # unique per aircraft, not just per date.
 # --- KODE BARU (Pengaman Sel Kosong / NaN & Type Guard) ---
+def _build_fallback_aml(reg_series: pd.Series, date_series: pd.Series) -> pd.Series:
+    """[BUG FIX] Previously built via Series "+" concatenation, which
+    crashed in production with TypeError on Streamlit Cloud's Python 3.14
+    + newest pandas: that environment defaults string columns to
+    PyArrow-backed dtype, and its "+"/"__radd__" operator overloads raised
+    inside pyarrow's operator dispatch when mixed with plain Python string
+    literals in this exact pattern. .astype(str) alone was not a reliable
+    fix, since pandas 3.x can map .astype(str) to the same arrow-backed
+    dtype rather than legacy object dtype. Building the value with plain
+    Python f-strings row-by-row sidesteps pandas/pyarrow operator dispatch
+    entirely, so it is correct regardless of which string dtype a given
+    pandas version defaults to."""
+    dates_fmt = pd.to_datetime(date_series, errors="coerce")
+    return pd.Series(
+        [
+            f"AML-{reg if pd.notnull(reg) and str(reg).strip() else 'UNKN'}-"
+            f"{d.strftime('%Y%m%d') if pd.notnull(d) else 'UNKN'}"
+            for reg, d in zip(reg_series, dates_fmt)
+        ],
+        index=reg_series.index,
+    )
+
 if "AML No" not in df_raw.columns:
     _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
-    df_raw["AML No"] = (
-        "AML-" + _fallback_reg.fillna("UNKN").astype(str) + "-" +
-        pd.to_datetime(df_raw["Date"], errors="coerce").dt.strftime("%Y%m%d%H%M%S").fillna("UNKN").astype(str)
-    )
+    df_raw["AML No"] = _build_fallback_aml(_fallback_reg, df_raw["Date"])
 else:
     # Jika kolom AML No sudah ada, isi sel yang kosong/NaN dengan fallback ID otomatis
     _fallback_reg = df_raw["Engine"].astype(str).str.split("|").str[0].str.strip()
-    _fallback_key = (
-        "AML-" + _fallback_reg.fillna("UNKN").astype(str) + "-" +
-        pd.to_datetime(df_raw["Date"], errors="coerce").dt.strftime("%Y%m%d%H%M%S").fillna("UNKN").astype(str)
-    )
+    _fallback_key = _build_fallback_aml(_fallback_reg, df_raw["Date"])
     df_raw["AML No"] = df_raw["AML No"].replace(["", "NAN", "nan", "None"], np.nan).fillna(_fallback_key)
     
 if "AML No" not in df_util_current.columns and not df_util_current.empty:
-    _fallback_reg_u = df_util_current["Registration"].astype(str) if "Registration" in df_util_current.columns else "UNKN"
-    df_util_current["AML No"] = (
-        "AML-" + _fallback_reg_u + "-" +
-        pd.to_datetime(df_util_current.get("Work (Date)"), errors="coerce").dt.strftime("%Y%m%d").fillna("UNKN").astype(str)
-    )
+    _fallback_reg_u = df_util_current["Registration"].astype(str) if "Registration" in df_util_current.columns else pd.Series("UNKN", index=df_util_current.index)
+    df_util_current["AML No"] = _build_fallback_aml(_fallback_reg_u, df_util_current.get("Work (Date)"))
     
 if "AML No" in df_raw.columns:
     df_raw["AML No"] = df_raw["AML No"].astype(str).str.strip().str.upper()
@@ -2235,7 +2142,12 @@ if menu_selection == "Overview":
         if len(df_sub) >= 2:
             df_sub_proc = compute_engine_trend(df_sub, use_correction)
             st_sub = build_status(df_sub_proc, df_util_current)
-            stat_lbl = st_sub.get("status_label", "N/A")
+            stat_lbl = (
+                "CRITICAL" if st_sub["health_level"] == EngineHealth.CRITICAL else
+                "ADVISORY" if st_sub["health_level"] == EngineHealth.ADVISORY else
+                "LOW CONFIDENCE" if st_sub["health_level"] == EngineHealth.LOW_CONFIDENCE else
+                "NORMAL"
+            )
             rul_val = st_sub["rul_cycles"]
             accel_marker = " [ACCELERATING]" if st_sub["rul_is_linear_caution"] else ""
             rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}"
@@ -2285,7 +2197,8 @@ if menu_selection == "Overview":
             def get_hm_class(st_val):
                 if st_val == "CRITICAL": return "hm-red"
                 if st_val == "ADVISORY": return "hm-amber"
-                return "hm-green"
+                if st_val == "NORMAL": return "hm-green"
+                return "hm-gray"  # LOW CONFIDENCE or any unrecognized value - fail-safe, not fail-green
 
             # Sistem otomatis mencari foto pesawat berdasarkan registrasi
             img_candidates = [
@@ -2485,27 +2398,17 @@ elif menu_selection == "Data Collection":
                             reg_id = f"PK-{match.group(1)}" if match else "UNKNOWN"
                             
                             if 'DateTime (1)' in df_raw_file.columns:
-                                m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press', 'Event Name (1)': 'Event_Name', 'Reference (1)': 'Reference', 'dNG (1)': 'dNg_AIRFAST', 'dITT (1)': 'dITT_AIRFAST', 'dWF (1)': 'dWf_AIRFAST'}
+                                m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
                                 if 'IS PREFERRED (1)' in df_raw_file.columns:
                                     df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (1)'] != 'N']
-                                _present_map = {src: dst for src, dst in m.items() if src in df_raw_file.columns}
-                                _missing_core = [src for src in ['DateTime (1)', 'ITT (1)', 'NG (1)', 'WF (1)'] if src not in df_raw_file.columns]
-                                if _missing_core:
-                                    st.warning(f'{filename}: skipped LH telemetry; missing mandatory source columns: {", ".join(_missing_core)}')
-                                    continue
-                                df_mapped = df_raw_file[list(_present_map.keys())].rename(columns=_present_map).copy()
+                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
                                 df_mapped['Engine'] = f'{reg_id} | LH'
                                 new_data_frames.append(df_mapped)
                             elif 'DateTime (2)' in df_raw_file.columns:
-                                m = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press', 'Event Name (2)': 'Event_Name', 'Reference (2)': 'Reference', 'dNG (2)': 'dNg_AIRFAST', 'dITT (2)': 'dITT_AIRFAST', 'dWF (2)': 'dWf_AIRFAST'}
+                                m = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
                                 if 'IS PREFERRED (2)' in df_raw_file.columns:
                                     df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (2)'] != 'N']
-                                _present_map = {src: dst for src, dst in m.items() if src in df_raw_file.columns}
-                                _missing_core = [src for src in ['DateTime (2)', 'ITT (2)', 'NG (2)', 'WF (2)'] if src not in df_raw_file.columns]
-                                if _missing_core:
-                                    st.warning(f'{filename}: skipped RH telemetry; missing mandatory source columns: {", ".join(_missing_core)}')
-                                    continue
-                                df_mapped = df_raw_file[list(_present_map.keys())].rename(columns=_present_map).copy()
+                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
                                 df_mapped['Engine'] = f'{reg_id} | RH'
                                 new_data_frames.append(df_mapped)
                     
@@ -2715,6 +2618,8 @@ elif menu_selection == "Data Analysis":
             st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
         elif status["health_level"] == EngineHealth.ADVISORY:
             st.markdown("<span class='badge-amber'>ADVISORY / WATCH</span>", unsafe_allow_html=True)
+        elif status["health_level"] == EngineHealth.LOW_CONFIDENCE:
+            st.markdown("<span style='display:inline-block;padding:6px 12px;border-radius:999px;background:#E2E8F0;color:#334155;font-weight:800;font-size:0.78rem;'>LOW CONFIDENCE / ASSESSMENT UNAVAILABLE</span>", unsafe_allow_html=True)
         else:
             st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
 
