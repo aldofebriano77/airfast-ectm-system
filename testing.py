@@ -34,6 +34,7 @@ import ectm_v5_5_core_optimized as ectm54
 from llp_integration import (
     load_llp_workbook,
     engine_llp_view,
+    validate_engine_mapping,
     LLP_DEFAULT_FILENAME,
 )
 
@@ -2304,6 +2305,17 @@ df_llp_all, llp_meta, llp_issues = _load_llp_cached(_llp_path, _llp_mtime_ns)
 df_llp_engine = engine_llp_view(df_llp_all, selected_engine)
 llp_report_dates = df_llp_engine["Report Date"].dropna() if not df_llp_engine.empty else pd.Series(dtype="datetime64[ns]")
 
+# LLP ↔ ECTM identity validation. Reporting only; never changes ECTM status logic.
+llp_mapping = validate_engine_mapping(engines_available, df_llp_all)
+llp_mapping_matched = int((llp_mapping["LLP Mapping"] == "MATCHED").sum()) if not llp_mapping.empty else 0
+llp_mapping_missing = int((llp_mapping["LLP Mapping"] == "NO LLP SHEET").sum()) if not llp_mapping.empty else 0
+llp_mapping_discrepancies = int(
+    (
+        (llp_mapping["Registration Match"] == "SOURCE DISCREPANCY")
+        | (llp_mapping["Profile Check"] == "SOURCE DISCREPANCY")
+    ).sum()
+) if not llp_mapping.empty else 0
+
 df_engine = df_raw[df_raw["Engine"] == selected_engine].copy()
 
 # Inisialisasi default aman untuk mencegah error saat kosong
@@ -2968,6 +2980,39 @@ elif menu_selection == "Data Analysis":
             f"LLP source report date: **{_llp_report_date}** · "
             f"Source workbook: **{llp_meta.get('source_file', LLP_DEFAULT_FILENAME)}**"
         )
+
+        if llp_mapping_missing == 0 and llp_mapping_discrepancies == 0:
+            st.success(
+                f"LLP ↔ ECTM identity mapping verified: **{llp_mapping_matched}/{len(engines_available)} engines matched**."
+            )
+        else:
+            st.warning(
+                f"LLP ↔ ECTM identity check: **{llp_mapping_matched}/{len(engines_available)} matched** · "
+                f"**{llp_mapping_missing} missing LLP mapping(s)** · "
+                f"**{llp_mapping_discrepancies} source discrepancy(ies)**. "
+                "These do not change ECTM health classification."
+            )
+
+        with st.expander("View LLP ↔ ECTM Identity Validation", expanded=False):
+            st.caption(
+                "Validation compares the actual ECTM engine keys with the LLP workbook. "
+                "Source discrepancies are surfaced, not silently corrected."
+            )
+            st.dataframe(
+                llp_mapping,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ECTM Engine": st.column_config.TextColumn("ECTM Engine"),
+                    "LLP Mapping": st.column_config.TextColumn("LLP Mapping"),
+                    "LLP Components": st.column_config.NumberColumn("LLP Components"),
+                    "Overdue": st.column_config.NumberColumn("Overdue"),
+                    "Installed At": st.column_config.TextColumn("Installed At"),
+                    "Registration Match": st.column_config.TextColumn("Registration Match"),
+                    "Current Profile": st.column_config.TextColumn("Current Profile"),
+                    "Profile Check": st.column_config.TextColumn("Profile Check"),
+                },
+            )
 
         if llp_issues:
             _engine_issues = [
