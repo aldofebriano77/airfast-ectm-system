@@ -2907,105 +2907,6 @@ elif menu_selection == "Data Analysis":
         """, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>LLP Component Life</h4>", unsafe_allow_html=True)
-        st.caption(
-            "Parallel maintenance-planning layer. LLP information does not change the ECTM Engine Health Status."
-        )
-
-        if df_llp_engine.empty:
-            if llp_meta.get("available", False):
-                st.info(
-                    f"No LLP component records were mapped to **{selected_engine}** in the current workbook."
-                )
-            else:
-                st.info(
-                    f"LLP source unavailable. Place **{LLP_DEFAULT_FILENAME}** beside the dashboard "
-                    "to enable component-life monitoring. ECTM analysis remains unaffected."
-                )
-        else:
-            _llp_report_date = (
-                llp_report_dates.max().strftime("%d %b %Y")
-                if not llp_report_dates.empty else "Not available"
-            )
-            _llp_overdue = int((df_llp_engine["Life Status"] == "OVERDUE").sum())
-
-            l1, l2, l3 = st.columns(3)
-            l1.metric("LLP Components", len(df_llp_engine))
-            l2.metric("Overdue", _llp_overdue)
-            l3.metric("LLP Report Date", _llp_report_date)
-
-            if llp_issues:
-                _engine_issues = [
-                    x for x in llp_issues
-                    if selected_engine.split("|")[0].strip().upper() in x.upper()
-                ]
-                if _engine_issues:
-                    st.warning(
-                        "**LLP Source Metadata Warning:** " + " ".join(_engine_issues)
-                    )
-
-            _llp_display = df_llp_engine[
-                [
-                    "Component", "P/N", "S/N", "Basis", "Remaining",
-                    "Estimated Due Date", "Work Reference", "Life Status"
-                ]
-            ].copy()
-
-            _llp_display["Remaining"] = _llp_display.apply(
-                lambda r: (
-                    f"{r['Remaining']:,.1f} {r['Basis']}"
-                    if pd.notna(r["Remaining"]) and str(r["Basis"]).strip()
-                    else ("Not available" if pd.isna(r["Remaining"]) else f"{r['Remaining']:,.1f}")
-                ),
-                axis=1
-            )
-            _llp_display["Estimated Due Date"] = _llp_display["Estimated Due Date"].apply(
-                lambda x: x.strftime("%d %b %Y") if pd.notna(x) else "Not projected"
-            )
-
-            # Keep the main table compact; full source fields remain accessible below.
-            _llp_display = _llp_display.rename(columns={
-                "Component": "Component",
-                "P/N": "P/N",
-                "S/N": "S/N",
-                "Basis": "Basis",
-                "Remaining": "Life Remaining",
-                "Estimated Due Date": "Estimated Due",
-                "Work Reference": "Work Ref.",
-                "Life Status": "Status",
-            })
-
-            st.dataframe(
-                _llp_display,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Status": st.column_config.TextColumn("Status"),
-                    "Life Remaining": st.column_config.TextColumn("Life Remaining"),
-                    "Estimated Due": st.column_config.TextColumn("Estimated Due"),
-                },
-            )
-
-            with st.expander("View LLP Source & Traceability Details", expanded=False):
-                st.caption(
-                    f"Source workbook: **{llp_meta.get('source_file', LLP_DEFAULT_FILENAME)}** · "
-                    f"Report date: **{_llp_report_date}**"
-                )
-                st.dataframe(
-                    df_llp_engine[
-                        [
-                            "Component #", "Component", "P/N", "S/N",
-                            "Work Reference", "Work Description", "Interval",
-                            "Last Accomplishment", "Accumulated", "Expiration",
-                            "Remaining", "Basis", "Estimated Due Date",
-                            "Status", "Installed At", "Current Profile"
-                        ]
-                    ],
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-        st.markdown("---")
         st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>ECTM Diagnostic Flags</h4>", unsafe_allow_html=True)
         st.caption("These flags explain the ECTM assessment and do not replace the Engine Health Status.")
         if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift detected")
@@ -3022,6 +2923,162 @@ elif menu_selection == "Data Analysis":
             on_click=navigate_to_menu,
             args=("Logbook", status["reg_prefix"])
         )
+
+    # ==================================================================================
+    # ==================================================================================
+    # LLP COMPONENT LIFE — FULL-WIDTH MAINTENANCE PLANNING PANEL
+    # ==================================================================================
+    st.markdown("---")
+    st.markdown(
+        "<h3 style='color:#003B6F; margin-bottom:2px;'>LLP Component Life & Maintenance Planning</h3>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Component-life information is shown as a separate maintenance-planning layer. "
+        "It does not change the ECTM Engine Health Status."
+    )
+
+    if df_llp_engine.empty:
+        if llp_meta.get("available", False):
+            st.info(
+                f"No LLP component records were mapped to **{selected_engine}** in the current workbook."
+            )
+        else:
+            st.info(
+                f"LLP source unavailable. Place **{LLP_DEFAULT_FILENAME}** beside the dashboard "
+                "to enable component-life monitoring. ECTM analysis remains unaffected."
+            )
+    else:
+        _llp_report_date = (
+            llp_report_dates.max().strftime("%d %b %Y")
+            if not llp_report_dates.empty else "Not available"
+        )
+        _llp_overdue = int((df_llp_engine["Life Status"] == "OVERDUE").sum())
+        _llp_fh_count = int((df_llp_engine["Basis"].astype(str).str.upper() == "FH").sum())
+        _llp_fc_count = int((df_llp_engine["Basis"].astype(str).str.upper() == "FC").sum())
+
+        # Compact planning snapshot. No "due soon" threshold is invented here.
+        l1, l2, l3, l4 = st.columns(4)
+        l1.metric("LLP Components", len(df_llp_engine))
+        l2.metric("Overdue", _llp_overdue)
+        l3.metric("FH-Based", _llp_fh_count)
+        l4.metric("FC-Based", _llp_fc_count)
+
+        st.caption(
+            f"LLP source report date: **{_llp_report_date}** · "
+            f"Source workbook: **{llp_meta.get('source_file', LLP_DEFAULT_FILENAME)}**"
+        )
+
+        if llp_issues:
+            _engine_issues = [
+                x for x in llp_issues
+                if selected_engine.split("|")[0].strip().upper() in x.upper()
+            ]
+            if _engine_issues:
+                st.warning(
+                    "**LLP Source Metadata Warning:** " + " ".join(_engine_issues)
+                )
+
+        _llp_display = df_llp_engine[
+            [
+                "Component", "P/N", "S/N", "Basis", "Remaining",
+                "Estimated Due Date", "Work Reference", "Life Status"
+            ]
+        ].copy()
+
+        _llp_display["Remaining"] = _llp_display.apply(
+            lambda r: (
+                f"{r['Remaining']:,.1f} {r['Basis']}"
+                if pd.notna(r["Remaining"]) and str(r["Basis"]).strip()
+                else (
+                    "Not available"
+                    if pd.isna(r["Remaining"])
+                    else f"{r['Remaining']:,.1f}"
+                )
+            ),
+            axis=1,
+        )
+        _llp_display["Estimated Due Date"] = _llp_display["Estimated Due Date"].apply(
+            lambda x: x.strftime("%d %b %Y") if pd.notna(x) else "Not projected"
+        )
+        _llp_display = _llp_display.rename(columns={
+            "Remaining": "Life Remaining",
+            "Estimated Due Date": "Estimated Due",
+            "Work Reference": "Work Ref.",
+            "Life Status": "Status",
+        })
+
+        # Semantic formatting is deliberately restricted to LLP Status.
+        try:
+            _llp_styled = _llp_display.style.map(
+                lambda v: (
+                    "font-weight:700; color:#B91C1C;"
+                    if str(v).upper() == "OVERDUE"
+                    else "font-weight:600; color:#166534;"
+                ),
+                subset=["Status"],
+            )
+        except AttributeError:
+            _llp_styled = _llp_display.style.applymap(
+                lambda v: (
+                    "font-weight:700; color:#B91C1C;"
+                    if str(v).upper() == "OVERDUE"
+                    else "font-weight:600; color:#166534;"
+                ),
+                subset=["Status"],
+            )
+
+        st.dataframe(
+            _llp_styled,
+            use_container_width=True,
+            hide_index=True,
+            height=min(520, 56 + 42 * len(_llp_display)),
+            column_config={
+                "Component": st.column_config.TextColumn(
+                    "Component", width="large"
+                ),
+                "P/N": st.column_config.TextColumn(
+                    "P/N", width="medium"
+                ),
+                "S/N": st.column_config.TextColumn(
+                    "S/N", width="medium"
+                ),
+                "Basis": st.column_config.TextColumn(
+                    "Basis", width="small"
+                ),
+                "Life Remaining": st.column_config.TextColumn(
+                    "Life Remaining", width="medium"
+                ),
+                "Estimated Due": st.column_config.TextColumn(
+                    "Estimated Due", width="medium"
+                ),
+                "Work Ref.": st.column_config.TextColumn(
+                    "Work Ref.", width="medium"
+                ),
+                "Status": st.column_config.TextColumn(
+                    "Status", width="small"
+                ),
+            },
+        )
+
+        with st.expander("View LLP Source & Traceability Details", expanded=False):
+            st.caption(
+                "Source-level fields are retained for auditability. "
+                "The dashboard does not silently correct source metadata discrepancies."
+            )
+            st.dataframe(
+                df_llp_engine[
+                    [
+                        "Component #", "Component", "P/N", "S/N",
+                        "Work Reference", "Work Description", "Interval",
+                        "Last Accomplishment", "Accumulated", "Expiration",
+                        "Remaining", "Basis", "Estimated Due Date",
+                        "Status", "Installed At", "Current Profile"
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     st.markdown("---")
     with st.expander("View Raw Flight Observations", expanded=False):
