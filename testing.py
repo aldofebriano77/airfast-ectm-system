@@ -1286,6 +1286,31 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
         engine_state_quality=str(latest.get("Engine_State_Quality","NOT_PROVIDED")),
     )
 
+def humanize_confidence_reason(reason: str) -> str:
+    """Translate internal confidence codes into user-facing engineering language.
+
+    The raw Confidence_Reason value remains available in the data/report for traceability;
+    this helper only improves presentation clarity.
+    """
+    key = str(reason or "").strip().upper()
+    mapping = {
+        "REFERENCE_MODEL_QUALITY_LOW":
+            "The reference model has not met the validation-quality gate required for a high-confidence assessment.",
+        "CURRENT_FLIGHT_OUTSIDE_REFERENCE_DOMAIN":
+            "The current flight condition is outside the validated operating domain of the reference model.",
+        "INVALID_DATA_OR_EVENT_MISMATCH":
+            "The observation contains invalid data or does not match the validated engine-state/event reference.",
+        "HIGH_REFERENCE_QUALITY_AND_CURRENT_APPLICABILITY":
+            "The validated reference model is applicable to the current flight condition.",
+    }
+    return mapping.get(
+        key,
+        str(reason).replace("_", " ").strip().capitalize()
+        if str(reason).strip()
+        else "ECTM assessment confidence is limited."
+    )
+
+
 def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     recs = []
     if status.get("model_confidence") != "HIGH":
@@ -1303,7 +1328,7 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
             ),
             body=("AIRFAST operational status remains NORMAL because no valid ECTM Advisory or Critical condition has been established. "
                   "ECTM confidence is limited for this engine, so the model result is not used to declare an abnormal engine condition.\n\n"
-                  f"**Reason:** {status.get('confidence_reason','ECTM assessment confidence is limited.')}\n\n"
+                  f"**Reason:** {humanize_confidence_reason(status.get('confidence_reason',''))}\n\n"
                   "**Engineering Directive:** verify the engine-state reference, operating regime, data quality, and current reference-domain applicability before using ECTM deviation for maintenance decisions.")
         ))
         return recs
@@ -1324,20 +1349,40 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                   "3. Defer invasive hardware maintenance; confirm whether shift persists across subsequent operating cycles.")
         ))
     if status["alarm_borescope_t5"] or status["alarm_borescope_ng"]:
-        recs.append(dict(
-            level="red", 
-            title="Mandatory Hot-Section Borescope Inspection Required", 
-            fim_ref="FIM Fig. 103 Sheet 9, Note 3",
-            priority="IMMEDIATE GROUNDING",
-            downtime="Est. 8 - 12 Hours (Invasive Inspection)",
-            signature=f"Critical FIM Breach -> {sig_str}",
-            body=(f"Thermodynamic residuals breached critical OEM limits: Delta T5 = **{status['d_t5']:+.1f} °C** (Limit: +15.0 °C) / "
-                  f"Delta Ng = **{status['d_ng']:+.2f} %** (Limit: -1.0% to -1.5%).\n\n**Line Engineering Directives:**\n"
-                  "1. Ground powerplant and schedule immediate hot-section borescope inspection per AMM Ref. 72-00-00.\n"
-                  "2. Inspect combustion chamber liner, small exit duct, CT stator vanes, and CT rotor blades for thermal distortion or severe erosion.\n"
-                  "3. Execute compressor performance recovery wash protocols upon completion of mechanical inspections.\n"
-                  "4. If structural distress exceeds repairable AMM limits, route powerplant to an approved P&WC overhaul facility.")
-        ))
+        # Keep recommendation severity consistent with the ECTM health layer:
+        # one FIM-level threshold observation is ADVISORY; persistent FIM-level
+        # deviation is CRITICAL. Do not expose "IMMEDIATE GROUNDING" for a
+        # single-point advisory observation.
+        if status["health_level"] == EngineHealth.CRITICAL:
+            recs.append(dict(
+                level="red",
+                title="Persistent FIM-Level Deviation | Immediate Engineering Review",
+                fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+                priority="IMMEDIATE ENGINEERING REVIEW",
+                downtime="To be determined by applicable FIM/maintenance procedure",
+                signature=f"Persistent FIM-level deviation -> {sig_str}",
+                body=(f"Thermodynamic residuals have remained at or beyond the configured FIM-level threshold: "
+                      f"Delta T5 = **{status['d_t5']:+.1f} °C** / Delta Ng = **{status['d_ng']:+.2f} %**.\n\n"
+                      "**Engineering Directive:** follow the applicable PT6A FIM troubleshooting/inspection procedure "
+                      "and verify the condition against the aircraft maintenance record before assigning any grounding or invasive-maintenance action.\n\n"
+                      "The ECTM system classifies this condition as CRITICAL because the FIM-level deviation persisted "
+                      "for the configured persistence window.")
+            ))
+        else:
+            recs.append(dict(
+                level="amber",
+                title="FIM-Level Threshold Reached | Verify and Monitor Persistence",
+                fim_ref="FIM Fig. 103 Sheet 9, Note 3",
+                priority="FIM REVIEW / ROUTINE FOLLOW-UP",
+                downtime="0 Hours (No automatic grounding action)",
+                signature=f"Single-point FIM-level threshold observation -> {sig_str}",
+                body=(f"The latest thermodynamic observation reached the configured FIM-level threshold: "
+                      f"Delta T5 = **{status['d_t5']:+.1f} °C** / Delta Ng = **{status['d_ng']:+.2f} %**.\n\n"
+                      "**Engineering Directive:** verify the indication and follow the applicable PT6A FIM procedure. "
+                      "Continue monitoring subsequent cycles to determine whether the deviation persists.\n\n"
+                      "The ECTM system classifies this observation as ADVISORY rather than CRITICAL because the "
+                      "configured persistence criterion has not yet been met.")
+            ))
     elif status["alarm_wash"] or status["sustained_t5"]:
         recs.append(dict(
             level="amber", 
@@ -2442,7 +2487,7 @@ if menu_selection == "Overview":
                 "Monitoring Note": (
                     "ECTM reference model applicable."
                     if st_sub["model_confidence"] == "HIGH"
-                    else st_sub.get("confidence_reason", "ECTM assessment confidence is limited.")
+                    else humanize_confidence_reason(st_sub.get("confidence_reason", ""))
                 ),
                 "Latest Δ T5": f"{st_sub['d_t5']:+.1f} °C",
                 "T5 Slope": f"{st_sub['slope_t5']:+.2f} °C/cyc",
@@ -3032,14 +3077,14 @@ elif menu_selection == "Data Analysis":
         )
 
         if status["model_confidence"] != "HIGH":
-            reason = status.get("confidence_reason", "ECTM assessment confidence is limited.")
+            reason = humanize_confidence_reason(status.get("confidence_reason", ""))
             st.markdown(
                 f"<div style='margin-top:8px;padding:9px 12px;border-left:4px solid #D97706;"
                 f"background:#FFF7ED;border-radius:0 6px 6px 0;color:#7C2D12;font-size:0.82rem;'>"
                 f"<b>ECTM Assessment Limited</b><br>"
                 f"<span style='color:#92400E;'>ECTM Confidence: LOW</span><br>"
                 f"{reason}<br>"
-                f"<span style='color:#64748B;'>This does not indicate an Advisory or Critical engine condition.</span>"
+                f"<span style='color:#64748B;'>Operational engine status remains NORMAL. This is a model-confidence limitation, not an Advisory or Critical health declaration.</span>"
                 f"</div>",
                 unsafe_allow_html=True
             )
@@ -3644,7 +3689,8 @@ elif menu_selection == "Recommendations":
         "-------------------------------------------------------------------------",
         f"Computed Residuals: Delta T5: {status['d_t5']:+.1f} degC | Delta Ng: {status['d_ng']:+.2f} % | Delta Wf: {status['d_wf']:+.1f} PPH",
         f"Engine Health Status: {overall_status_label} | ECTM Confidence: {status['model_confidence']}",
-        f"ECTM Confidence Reason: {status['confidence_reason']}",
+        f"ECTM Confidence Reason: {humanize_confidence_reason(status.get('confidence_reason', ''))}",
+        f"ECTM Confidence Reason Code: {status.get('confidence_reason', '')}",
         f"Predictive RUL: {'NOT ASSESSED — ECTM CONFIDENCE LOW' if status['model_confidence'] != 'HIGH' else str(status['rul_cycles']) + ' Cycles (' + str(status['proj_date']) + ')'}",
         f"RUL Confidence: {status['rul_confidence']}",
         f"LLP Components Mapped: {len(df_llp_engine)} | LLP Report Date: {(llp_report_dates.max().strftime('%Y-%m-%d') if not llp_report_dates.empty else 'Not available')}",
