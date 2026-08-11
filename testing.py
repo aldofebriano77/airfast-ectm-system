@@ -1154,9 +1154,10 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
     confidence=str(latest.get("Model_Confidence","LOW"))
     row_status=str(latest.get("ECTM_Row_Status","UNAVAILABLE"))
 
+    # Model confidence is diagnostic metadata, not engine-health status.
     if confidence!="HIGH":
-        health_level=EngineHealth.LOW_CONFIDENCE
-        status_label="LOW CONFIDENCE"
+        health_level=EngineHealth.NORMAL
+        status_label="NORMAL TREND"
     elif row_status=="CRITICAL":
         health_level=EngineHealth.CRITICAL
         status_label="CRITICAL / ABNORMAL"
@@ -1234,12 +1235,12 @@ def build_status(df_engine: pd.DataFrame, df_util: pd.DataFrame):
 
 def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
     recs = []
-    if status.get("health_level") == EngineHealth.LOW_CONFIDENCE:
+    if status.get("model_confidence") != "HIGH":
         recs.append(dict(
             level="slate",
-            title="ECTM Assessment Unavailable | Reference Model Confidence Low",
+            title="ECTM Monitoring Note | Assessment Confidence Limited",
             fim_ref="N/A — no FIM-level diagnosis from low-confidence model",
-            priority="VERIFY REFERENCE / DATA QUALITY",
+            priority="MONITORING NOTE",
             downtime="0 Hours (No automatic maintenance action)",
             signature=(
                 f"Reference quality={status.get('reference_model_quality','LOW')} | "
@@ -1247,8 +1248,9 @@ def generate_recommendations(df_engine: pd.DataFrame, status: dict) -> list:
                 f"Current domain coverage={status.get('current_domain_coverage_pct',0):.0f}% | "
                 f"Historical min coverage={status.get('historical_domain_coverage_min_pct',0):.1f}%"
             ),
-            body=("The dashboard does not have sufficient validated reference-model confidence for this assessment. "
-                  "This is not an engine-health diagnosis and should not be interpreted as an Advisory or Critical condition.\n\n"
+            body=("AIRFAST operational status remains NORMAL because no valid ECTM Advisory or Critical condition has been established. "
+                  "ECTM confidence is limited for this engine, so the model result is not used to declare an abnormal engine condition.\n\n"
+                  f"**Reason:** {status.get('confidence_reason','ECTM assessment confidence is limited.')}\n\n"
                   "**Engineering Directive:** verify the engine-state reference, operating regime, data quality, and current reference-domain applicability before using ECTM deviation for maintenance decisions.")
         ))
         return recs
@@ -2344,14 +2346,13 @@ if menu_selection == "Overview":
             stat_lbl = (
                 "CRITICAL" if st_sub["health_level"] == EngineHealth.CRITICAL else
                 "ADVISORY" if st_sub["health_level"] == EngineHealth.ADVISORY else
-                "LOW CONFIDENCE" if st_sub["health_level"] == EngineHealth.LOW_CONFIDENCE else
                 "NORMAL"
             )
             rul_val = st_sub["rul_cycles"]
             accel_marker = " [ACCELERATING]" if st_sub["rul_is_linear_caution"] else ""
             rul_str = (
-                "RUL UNAVAILABLE — LOW CONFIDENCE"
-                if st_sub["health_level"] == EngineHealth.LOW_CONFIDENCE
+                "RUL NOT ASSESSED — ECTM CONFIDENCE LOW"
+                if st_sub["model_confidence"] != "HIGH"
                 else ("Stable (>100 Cycles)" if rul_val >= 999
                       else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}")
             )
@@ -2359,6 +2360,12 @@ if menu_selection == "Overview":
             fleet_summary_data.append({
                 "Powerplant Serial / Position": eng,
                 "Status": stat_lbl,
+                "ECTM Confidence": ("HIGH" if st_sub["model_confidence"] == "HIGH" else "LOW — LIMITED"),
+                "Monitoring Note": (
+                    "ECTM reference model applicable."
+                    if st_sub["model_confidence"] == "HIGH"
+                    else st_sub.get("confidence_reason", "ECTM assessment confidence is limited.")
+                ),
                 "Latest Δ T5": f"{st_sub['d_t5']:+.1f} °C",
                 "T5 Slope": f"{st_sub['slope_t5']:+.2f} °C/cyc",
                 "Latest Δ Ng": f"{st_sub['d_ng']:+.2f} %",
@@ -2780,10 +2787,21 @@ elif menu_selection == "Data Analysis":
             st.markdown("<span class='badge-red'>CRITICAL / ABNORMAL</span>", unsafe_allow_html=True)
         elif status["health_level"] == EngineHealth.ADVISORY:
             st.markdown("<span class='badge-amber'>ADVISORY / WATCH</span>", unsafe_allow_html=True)
-        elif status["health_level"] == EngineHealth.LOW_CONFIDENCE:
-            st.markdown("<span style='display:inline-block;padding:6px 12px;border-radius:999px;background:#E2E8F0;color:#334155;font-weight:800;font-size:0.78rem;'>LOW CONFIDENCE / ASSESSMENT UNAVAILABLE</span>", unsafe_allow_html=True)
         else:
             st.markdown("<span class='badge-green'>NORMAL TREND</span>", unsafe_allow_html=True)
+
+        if status["model_confidence"] != "HIGH":
+            reason = status.get("confidence_reason", "ECTM assessment confidence is limited.")
+            st.markdown(
+                f"<div style='margin-top:8px;padding:9px 12px;border-left:4px solid #D97706;"
+                f"background:#FFF7ED;border-radius:0 6px 6px 0;color:#7C2D12;font-size:0.82rem;'>"
+                f"<b>ECTM Assessment Limited</b><br>"
+                f"<span style='color:#92400E;'>Model Confidence: LOW</span><br>"
+                f"{reason}<br>"
+                f"<span style='color:#64748B;'>This does not indicate an Advisory or Critical engine condition.</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
         st.write("")
         
@@ -2797,8 +2815,8 @@ elif menu_selection == "Data Analysis":
 
         rul_val = status["rul_cycles"]
         rul_display = (
-            "RUL UNAVAILABLE — LOW CONFIDENCE"
-            if status["health_level"] == EngineHealth.LOW_CONFIDENCE
+            "RUL NOT ASSESSED — ECTM CONFIDENCE LOW"
+            if status["model_confidence"] != "HIGH"
             else ("Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Flight Cycles")
         )
         date_display = f"Est. Date: {status['proj_date']} ({status['fc_per_day']:.1f} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
@@ -3030,7 +3048,9 @@ elif menu_selection == "Recommendations":
         f"Date Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Latest Cycle: {status['latest']['Date'].strftime('%Y-%m-%d')}",
         "-------------------------------------------------------------------------",
         f"Computed Residuals: Delta T5: {status['d_t5']:+.1f} degC | Delta Ng: {status['d_ng']:+.2f} % | Delta Wf: {status['d_wf']:+.1f} PPH",
-        f"System Status Classification: {overall_status_label} | Predictive RUL: {status['rul_cycles']} Cycles ({status['proj_date']})",
+        f"System Status Classification: {overall_status_label} | ECTM Model Confidence: {status['model_confidence']}",
+        f"ECTM Confidence Reason: {status['confidence_reason']}",
+        f"Predictive RUL: {'NOT ASSESSED — ECTM CONFIDENCE LOW' if status['model_confidence'] != 'HIGH' else str(status['rul_cycles']) + ' Cycles (' + str(status['proj_date']) + ')'}",
         f"RUL Confidence Note: {status['rul_confidence']}",
         "-------------------------------------------------------------------------",
         "MAINTENANCE DIRECTIVES & RECOMMENDATIONS:",
