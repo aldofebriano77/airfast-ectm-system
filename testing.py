@@ -31,6 +31,11 @@ import plotly.graph_objects as go
 import streamlit as st
 import plotly.express as px
 import ectm_v5_5_core_optimized as ectm54
+from llp_integration import (
+    load_llp_workbook,
+    engine_llp_view,
+    LLP_DEFAULT_FILENAME,
+)
 
 try:
     from fpdf import FPDF
@@ -2285,6 +2290,20 @@ selected_engine = st.session_state["target_engine"]
 use_correction = st.session_state["target_use_correction"]
 baseline_n_input = st.session_state.get("target_baseline_n", 6)
 
+# ======================================================================================
+# LLP PARALLEL DATA LAYER
+# IMPORTANT: LLP never modifies ECTM health classification, confidence, baseline or RUL.
+# ======================================================================================
+@st.cache_data(show_spinner=False)
+def _load_llp_cached(path_str: str, mtime_ns: int):
+    return load_llp_workbook(path_str)
+
+_llp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), LLP_DEFAULT_FILENAME)
+_llp_mtime_ns = os.stat(_llp_path).st_mtime_ns if os.path.exists(_llp_path) else 0
+df_llp_all, llp_meta, llp_issues = _load_llp_cached(_llp_path, _llp_mtime_ns)
+df_llp_engine = engine_llp_view(df_llp_all, selected_engine)
+llp_report_dates = df_llp_engine["Report Date"].dropna() if not df_llp_engine.empty else pd.Series(dtype="datetime64[ns]")
+
 df_engine = df_raw[df_raw["Engine"] == selected_engine].copy()
 
 # Inisialisasi default aman untuk mencegah error saat kosong
@@ -2396,7 +2415,8 @@ if menu_selection == "Overview":
         f"Data status: **{_sync_label}** · "
         f"Source workbooks detected: **{_sync_files}** · "
         f"Telemetry records: **{len(df_raw):,}** · "
-        f"Utilization records: **{len(df_util_current):,}**"
+        f"Utilization records: **{len(df_util_current):,}** · "
+        f"LLP coverage: **{df_llp_all['Engine Key'].nunique() if not df_llp_all.empty else 0}/{len(engines_available)} engines**"
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -2887,6 +2907,105 @@ elif menu_selection == "Data Analysis":
         """, unsafe_allow_html=True)
 
         st.markdown("---")
+        st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>LLP Component Life</h4>", unsafe_allow_html=True)
+        st.caption(
+            "Parallel maintenance-planning layer. LLP information does not change the ECTM Engine Health Status."
+        )
+
+        if df_llp_engine.empty:
+            if llp_meta.get("available", False):
+                st.info(
+                    f"No LLP component records were mapped to **{selected_engine}** in the current workbook."
+                )
+            else:
+                st.info(
+                    f"LLP source unavailable. Place **{LLP_DEFAULT_FILENAME}** beside the dashboard "
+                    "to enable component-life monitoring. ECTM analysis remains unaffected."
+                )
+        else:
+            _llp_report_date = (
+                llp_report_dates.max().strftime("%d %b %Y")
+                if not llp_report_dates.empty else "Not available"
+            )
+            _llp_overdue = int((df_llp_engine["Life Status"] == "OVERDUE").sum())
+
+            l1, l2, l3 = st.columns(3)
+            l1.metric("LLP Components", len(df_llp_engine))
+            l2.metric("Overdue", _llp_overdue)
+            l3.metric("LLP Report Date", _llp_report_date)
+
+            if llp_issues:
+                _engine_issues = [
+                    x for x in llp_issues
+                    if selected_engine.split("|")[0].strip().upper() in x.upper()
+                ]
+                if _engine_issues:
+                    st.warning(
+                        "**LLP Source Metadata Warning:** " + " ".join(_engine_issues)
+                    )
+
+            _llp_display = df_llp_engine[
+                [
+                    "Component", "P/N", "S/N", "Basis", "Remaining",
+                    "Estimated Due Date", "Work Reference", "Life Status"
+                ]
+            ].copy()
+
+            _llp_display["Remaining"] = _llp_display.apply(
+                lambda r: (
+                    f"{r['Remaining']:,.1f} {r['Basis']}"
+                    if pd.notna(r["Remaining"]) and str(r["Basis"]).strip()
+                    else ("Not available" if pd.isna(r["Remaining"]) else f"{r['Remaining']:,.1f}")
+                ),
+                axis=1
+            )
+            _llp_display["Estimated Due Date"] = _llp_display["Estimated Due Date"].apply(
+                lambda x: x.strftime("%d %b %Y") if pd.notna(x) else "Not projected"
+            )
+
+            # Keep the main table compact; full source fields remain accessible below.
+            _llp_display = _llp_display.rename(columns={
+                "Component": "Component",
+                "P/N": "P/N",
+                "S/N": "S/N",
+                "Basis": "Basis",
+                "Remaining": "Life Remaining",
+                "Estimated Due Date": "Estimated Due",
+                "Work Reference": "Work Ref.",
+                "Life Status": "Status",
+            })
+
+            st.dataframe(
+                _llp_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Status": st.column_config.TextColumn("Status"),
+                    "Life Remaining": st.column_config.TextColumn("Life Remaining"),
+                    "Estimated Due": st.column_config.TextColumn("Estimated Due"),
+                },
+            )
+
+            with st.expander("View LLP Source & Traceability Details", expanded=False):
+                st.caption(
+                    f"Source workbook: **{llp_meta.get('source_file', LLP_DEFAULT_FILENAME)}** · "
+                    f"Report date: **{_llp_report_date}**"
+                )
+                st.dataframe(
+                    df_llp_engine[
+                        [
+                            "Component #", "Component", "P/N", "S/N",
+                            "Work Reference", "Work Description", "Interval",
+                            "Last Accomplishment", "Accumulated", "Expiration",
+                            "Remaining", "Basis", "Estimated Due Date",
+                            "Status", "Installed At", "Current Profile"
+                        ]
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        st.markdown("---")
         st.markdown("<h4 style='color:#003B6F; margin-bottom:4px;'>ECTM Diagnostic Flags</h4>", unsafe_allow_html=True)
         st.caption("These flags explain the ECTM assessment and do not replace the Engine Health Status.")
         if status["isolated_t5"] or status["isolated_ng"]: st.write("▪ Isolated single-cycle shift detected")
@@ -3114,6 +3233,7 @@ elif menu_selection == "Recommendations":
         f"ECTM Confidence Reason: {status['confidence_reason']}",
         f"Predictive RUL: {'NOT ASSESSED — ECTM CONFIDENCE LOW' if status['model_confidence'] != 'HIGH' else str(status['rul_cycles']) + ' Cycles (' + str(status['proj_date']) + ')'}",
         f"RUL Confidence: {status['rul_confidence']}",
+        f"LLP Components Mapped: {len(df_llp_engine)} | LLP Report Date: {(llp_report_dates.max().strftime('%Y-%m-%d') if not llp_report_dates.empty else 'Not available')}",
         "-------------------------------------------------------------------------",
         "MAINTENANCE DIRECTIVES & RECOMMENDATIONS:",
     ]
