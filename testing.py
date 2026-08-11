@@ -2478,6 +2478,111 @@ if menu_selection == "Overview":
         f"LLP coverage: **{df_llp_all['Engine Key'].nunique() if not df_llp_all.empty else 0}/{len(engines_available)} engines**"
     )
 
+    # ==================================================================================
+    # LLP FLEET WATCH — MAINTENANCE PLANNING SNAPSHOT
+    # ==================================================================================
+    st.markdown("<h3 style='color:#003B6F; margin-bottom:4px;'>LLP Fleet Maintenance Watch</h3>", unsafe_allow_html=True)
+    st.caption(
+        "Fleet-level LLP visibility is kept separate from ECTM health status. "
+        "No 'due soon' threshold is inferred; Remaining and source-data availability are shown directly."
+    )
+
+    _fleet_llp_rows = []
+    for _eng in engines_available:
+        _llp_sub = (
+            df_llp_all[df_llp_all["Engine Key"].astype(str).str.upper() == str(_eng).upper()].copy()
+            if not df_llp_all.empty else pd.DataFrame()
+        )
+
+        _reg = str(_eng).split("|")[0].strip().upper()
+        _pos = str(_eng).split("|")[1].strip().upper() if "|" in str(_eng) else ""
+        _overdue = int((_llp_sub["Life Status"] == "OVERDUE").sum()) if not _llp_sub.empty else 0
+
+        _fh = pd.to_numeric(
+            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FH", "Remaining"],
+            errors="coerce",
+        ) if not _llp_sub.empty else pd.Series(dtype=float)
+        _fc = pd.to_numeric(
+            _llp_sub.loc[_llp_sub["Basis"].astype(str).str.upper() == "FC", "Remaining"],
+            errors="coerce",
+        ) if not _llp_sub.empty else pd.Series(dtype=float)
+
+        _due = (
+            _llp_sub["Estimated Due Date"].dropna().min()
+            if not _llp_sub.empty and _llp_sub["Estimated Due Date"].notna().any()
+            else pd.NaT
+        )
+
+        _registration_ok = True
+        _profile_ok = True
+        if not _llp_sub.empty:
+            _installed = set(_llp_sub["Installed At"].astype(str).str.upper().str.strip())
+            _profiles = set(_llp_sub["Current Profile"].astype(str).str.upper().str.strip())
+            _registration_ok = not _installed or _reg in _installed
+            _profile_ok = not _profiles or all("DHC-6 SERIES 400" in x for x in _profiles)
+
+        if _llp_sub.empty:
+            _source_state = "NO LLP DATA"
+        elif not _registration_ok or not _profile_ok:
+            _source_state = "SOURCE CHECK"
+        else:
+            _source_state = "AVAILABLE"
+
+        _fleet_llp_rows.append({
+            "Powerplant": _eng,
+            "LLP Components": int(len(_llp_sub)),
+            "Overdue": _overdue,
+            "Lowest Remaining FH": f"{_fh.min():,.1f} FH" if not _fh.dropna().empty else "—",
+            "Lowest Remaining FC": f"{_fc.min():,.0f} FC" if not _fc.dropna().empty else "—",
+            "Earliest Estimated Due": _due.strftime("%d %b %Y") if pd.notna(_due) else "—",
+            "Source": _source_state,
+        })
+
+    _fleet_llp = pd.DataFrame(_fleet_llp_rows)
+    _fleet_llp_components = int(_fleet_llp["LLP Components"].sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_overdue = int(_fleet_llp["Overdue"].sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_available = int((_fleet_llp["Source"] == "AVAILABLE").sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_source_check = int((_fleet_llp["Source"] == "SOURCE CHECK").sum()) if not _fleet_llp.empty else 0
+    _fleet_llp_missing = int((_fleet_llp["Source"] == "NO LLP DATA").sum()) if not _fleet_llp.empty else 0
+
+    w1, w2, w3, w4 = st.columns(4)
+    w1.metric("LLP Components", _fleet_llp_components)
+    w2.metric("Overdue", _fleet_llp_overdue)
+    w3.metric("Engines with LLP Data", f"{_fleet_llp_available}/{len(engines_available)}")
+    w4.metric("Source Checks", _fleet_llp_source_check + _fleet_llp_missing)
+
+    if _fleet_llp_overdue > 0:
+        st.warning(
+            f"**{_fleet_llp_overdue} LLP component(s) have no remaining life according to the source workbook.** "
+            "Review the component-level LLP record."
+        )
+    elif _fleet_llp_source_check > 0 or _fleet_llp_missing > 0:
+        st.info(
+            f"LLP data coverage requires review: **{_fleet_llp_source_check} source discrepancy engine(s)** "
+            f"and **{_fleet_llp_missing} engine(s) without an LLP sheet**. "
+            "These do not change ECTM health status."
+        )
+    else:
+        st.success(
+            f"LLP fleet mapping available for **{_fleet_llp_available}/{len(engines_available)} engines** "
+            "with no overdue component reported."
+        )
+
+    st.dataframe(
+        _fleet_llp,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Powerplant": st.column_config.TextColumn("Powerplant", width="medium"),
+            "LLP Components": st.column_config.NumberColumn("LLP Components", width="small"),
+            "Overdue": st.column_config.NumberColumn("Overdue", width="small"),
+            "Lowest Remaining FH": st.column_config.TextColumn("Lowest Remaining FH", width="medium"),
+            "Lowest Remaining FC": st.column_config.TextColumn("Lowest Remaining FC", width="medium"),
+            "Earliest Estimated Due": st.column_config.TextColumn("Earliest Estimated Due", width="medium"),
+            "Source": st.column_config.TextColumn("Source", width="medium"),
+        },
+    )
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown("<h3 style='color:#003B6F; margin-bottom:8px;'>Operation Control Center (OCC) | Fleet Health Map</h3>", unsafe_allow_html=True)
@@ -3321,6 +3426,164 @@ elif menu_selection == "Recommendations":
 
     overall_status_label = status["status_label"]
     st.markdown(f"**Observed Shift Vector:** `ΔT5: {status['shift_t5']}` | `ΔNg: {status['shift_ng']}` | `ΔWf: {status['shift_wf']}` &nbsp;&nbsp;|&nbsp;&nbsp; **Engine Health Status:** **{overall_status_label}**")
+
+    # ==================================================================================
+    # STEP 7 — MAINTENANCE PLANNING CONTEXT
+    # Read-only cross-reference of ECTM + LLP + PIREP/MAREP.
+    # This layer provides evidence/context only and never creates a new health class.
+    # ==================================================================================
+    st.markdown("---")
+    st.markdown(
+        "<h3 style='color:#003B6F; margin-bottom:4px;'>Maintenance Planning Context</h3>",
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Cross-reference of ECTM assessment, LLP component life, and maintenance records. "
+        "This section is contextual only; it does not override ECTM health status or create a maintenance decision automatically."
+    )
+
+    # --- LLP context for the selected powerplant ---------------------------------------
+    _mp_llp = df_llp_engine.copy() if not df_llp_engine.empty else pd.DataFrame()
+    _mp_llp_overdue = int((_mp_llp["Life Status"] == "OVERDUE").sum()) if not _mp_llp.empty else 0
+
+    _mp_fh = pd.to_numeric(
+        _mp_llp.loc[_mp_llp["Basis"].astype(str).str.upper() == "FH", "Remaining"],
+        errors="coerce",
+    ) if not _mp_llp.empty else pd.Series(dtype=float)
+    _mp_fc = pd.to_numeric(
+        _mp_llp.loc[_mp_llp["Basis"].astype(str).str.upper() == "FC", "Remaining"],
+        errors="coerce",
+    ) if not _mp_llp.empty else pd.Series(dtype=float)
+
+    _mp_due = (
+        _mp_llp["Estimated Due Date"].dropna().min()
+        if not _mp_llp.empty and _mp_llp["Estimated Due Date"].notna().any()
+        else pd.NaT
+    )
+
+    # --- Maintenance-record context ----------------------------------------------------
+    _mp_reg = str(status.get("reg_prefix", "")).strip().upper()
+    _mp_rep = df_rep_current.copy() if not df_rep_current.empty else pd.DataFrame()
+
+    if not _mp_rep.empty and "Registration" in _mp_rep.columns:
+        _mp_rep_reg = _mp_rep[
+            _mp_rep["Registration"].astype(str).str.upper().str.strip() == _mp_reg
+        ].copy()
+    else:
+        _mp_rep_reg = pd.DataFrame()
+
+    # ATA 71–80 are treated as powerplant-related because the existing
+    # process_maintenance_reports() ATA map explicitly defines those chapters.
+    _pp_ata_codes = {str(x) for x in range(71, 81)}
+    if not _mp_rep_reg.empty and "ATA_Desc" in _mp_rep_reg.columns:
+        _mp_rep_reg["_ATA_Code"] = (
+            _mp_rep_reg["ATA_Desc"].astype(str).str.extract(r"^(\d+)", expand=False)
+        )
+        _mp_pp_rep = _mp_rep_reg[_mp_rep_reg["_ATA_Code"].isin(_pp_ata_codes)].copy()
+    else:
+        _mp_pp_rep = pd.DataFrame()
+
+    if not _mp_pp_rep.empty and "Date" in _mp_pp_rep.columns:
+        _mp_pp_rep = _mp_pp_rep.sort_values("Date", ascending=False)
+
+    _mp_latest_date = (
+        pd.to_datetime(_mp_pp_rep["Date"], errors="coerce").max()
+        if not _mp_pp_rep.empty else pd.NaT
+    )
+
+    # --- Three-layer snapshot ----------------------------------------------------------
+    m1, m2, m3 = st.columns(3)
+
+    with m1:
+        st.markdown("**ECTM Assessment**")
+        st.metric("Health Status", overall_status_label)
+        st.caption(
+            f"Confidence: **{status.get('model_confidence', 'N/A')}** · "
+            f"ΔT5 {status.get('d_t5', float('nan')):+.1f} °C · "
+            f"ΔNg {status.get('d_ng', float('nan')):+.2f}%"
+        )
+
+    with m2:
+        st.markdown("**LLP Component Life**")
+        if _mp_llp.empty:
+            st.metric("Mapped Components", 0)
+            st.caption("No LLP record mapped to this engine.")
+        else:
+            st.metric("Mapped Components", len(_mp_llp))
+            _mp_parts = []
+            if not _mp_fh.dropna().empty:
+                _mp_parts.append(f"Min FH: **{_mp_fh.min():,.1f} FH**")
+            if not _mp_fc.dropna().empty:
+                _mp_parts.append(f"Min FC: **{_mp_fc.min():,.0f} FC**")
+            if _mp_llp_overdue:
+                st.warning(f"**{_mp_llp_overdue} overdue LLP component(s)** in source workbook.")
+            elif _mp_parts:
+                st.caption(" · ".join(_mp_parts))
+            if pd.notna(_mp_due):
+                st.caption(f"Earliest estimated due: **{_mp_due.strftime('%d %b %Y')}**")
+
+    with m3:
+        st.markdown("**Maintenance Records**")
+        st.metric("PIREP / MAREP", len(_mp_rep_reg))
+        st.caption(f"Powerplant ATA 71–80: **{len(_mp_pp_rep)} record(s)**")
+        if pd.notna(_mp_latest_date):
+            st.caption(f"Latest powerplant record: **{_mp_latest_date.strftime('%d %b %Y')}**")
+
+    # Explicit guardrail: source discrepancies are surfaced rather than silently joined.
+    _mp_identity_note = None
+    if "llp_mapping" in globals() and not llp_mapping.empty:
+        _mp_row = llp_mapping[
+            llp_mapping["ECTM Engine"].astype(str).str.upper() == str(selected_engine).upper()
+        ]
+        if not _mp_row.empty:
+            _mp_rmatch = _mp_row.iloc[0].get("Registration Match", "N/A")
+            _mp_pcheck = _mp_row.iloc[0].get("Profile Check", "N/A")
+            if _mp_rmatch == "SOURCE DISCREPANCY" or _mp_pcheck == "SOURCE DISCREPANCY":
+                _mp_identity_note = (
+                    "LLP source identity requires review for this powerplant. "
+                    "The dashboard does not silently reconcile the source record."
+                )
+
+    if _mp_identity_note:
+        st.warning(_mp_identity_note)
+
+    # Recent powerplant-related maintenance evidence, without claiming causality.
+    with st.expander("View Recent Powerplant Maintenance Evidence", expanded=False):
+        if _mp_pp_rep.empty:
+            st.info(
+                "No PIREP / MAREP record in ATA 71–80 was found for this registration."
+            )
+        else:
+            _mp_evidence = _mp_pp_rep.head(8).copy()
+            _mp_evidence["Date"] = pd.to_datetime(
+                _mp_evidence["Date"], errors="coerce"
+            ).dt.strftime("%d %b %Y")
+            _mp_evidence["Note / Report"] = (
+                _mp_evidence["Note / Report"].astype(str).str.replace(r"\s+", " ", regex=True)
+            )
+            _mp_evidence["Corrective Action"] = (
+                _mp_evidence["Corrective Action"].astype(str).str.replace(r"\s+", " ", regex=True)
+            )
+            _mp_evidence = _mp_evidence[
+                ["Date", "ATA_Desc", "Position", "Note / Report", "Corrective Action"]
+            ].rename(columns={
+                "Date": "Date",
+                "ATA_Desc": "ATA",
+                "Position": "Position",
+                "Note / Report": "Defect / Observation",
+                "Corrective Action": "Corrective Action",
+            })
+            st.caption(
+                "These records are maintenance evidence for the airframe registration. "
+                "They are not automatically attributed as the cause of the current ECTM result."
+            )
+            st.dataframe(
+                _mp_evidence,
+                use_container_width=True,
+                hide_index=True,
+                height=min(360, 60 + 44 * len(_mp_evidence)),
+            )
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     # [TIER 1 UPGRADE] Structured Recommendation Cards (Integrated Enterprise Checklist)

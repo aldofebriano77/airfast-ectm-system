@@ -207,10 +207,17 @@ def compute_v54(df_engine, registration, position, cfg=CFG54):
     for t in cfg.targets:
         applicable_count += d[f"Domain_Applicable_{t}"].astype(bool).to_numpy()
     d["Current_Domain_Coverage_pct"]=100.0*applicable_count/len(cfg.targets) if cfg.targets else 0.0
+    # A flight may have one target missing and still be analyzable from the
+    # remaining validated targets. However, if ALL ECTM target observations
+    # (T5/Ng/Wf) are absent, the row must not be classified as NORMAL merely
+    # because the predictor domain is valid.
+    target_available=d[list(cfg.targets)].notna().any(axis=1).to_numpy()
+    d["Target_Data_Available"]=target_available
     d["Current_Applicability"]=(
         d["DQ_VALID"].to_numpy()
         & d["Event_Match"].to_numpy()
         & applicable_all
+        & target_available
     )
 
     historical_min=min(domain_coverages.values()) if domain_coverages else 0.0
