@@ -30,7 +30,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import plotly.express as px
-import ectm_v5_5_core as ectm54
+import ectm_v5_5_core_optimized as ectm54
 
 try:
     from fpdf import FPDF

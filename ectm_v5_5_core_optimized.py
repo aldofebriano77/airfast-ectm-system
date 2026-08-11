@@ -248,33 +248,56 @@ def compute_v54(df_engine, registration, position, cfg=CFG54):
     return d
 
 def classify_v54(d,cfg=CFG54,critical_persistence=3):
+    """Vectorized ECTM classification; preserves the v5.4/v5.5 decision rules."""
     out=d.copy()
     out["ECTM_Row_Status"]="UNAVAILABLE"
     out["ECTM_Signal"]=""
-    for i in out.index:
-        if out.at[i,"Model_Confidence"]!="HIGH" or not bool(out.at[i,"Model_Applicable"]):
-            continue
-        hist=out.loc[:i]
-        hv=hist[hist["Model_Confidence"].eq("HIGH") & hist["Model_Applicable"]]
-        t5=hv["Delta_T5"]; ng=hv["Delta_Ng"]
-        t5_up=(t5>=cfg.t5_borescope_c).tail(critical_persistence).all() if len(t5)>=critical_persistence else False
-        ng_down=(ng<=cfg.ng_borescope_low_pct).tail(critical_persistence).all() if len(ng)>=critical_persistence else False
-        stat=any(
-            np.isfinite(out.at[i,f"Delta_{t}"]) and
-            np.isfinite(out.at[i,f"Control_Limit_{t}"]) and
-            abs(out.at[i,f"Delta_{t}"])>out.at[i,f"Control_Limit_{t}"]
-            for t in cfg.targets
-        )
-        single=(out.at[i,"Delta_T5"]>=cfg.t5_borescope_c or out.at[i,"Delta_Ng"]<=cfg.ng_borescope_low_pct)
-        if t5_up or ng_down:
-            out.at[i,"ECTM_Row_Status"]="CRITICAL"
-            out.at[i,"ECTM_Signal"]="PERSISTENT_FIM_LEVEL_DEVIATION"
-        elif single:
-            out.at[i,"ECTM_Row_Status"]="ADVISORY"
-            out.at[i,"ECTM_Signal"]="SINGLE_POINT_FIM_THRESHOLD_REACHED; VERIFY_INDICATION_AND_PERSISTENCE"
-        elif stat:
-            out.at[i,"ECTM_Row_Status"]="ADVISORY"
-            out.at[i,"ECTM_Signal"]="STATISTICAL_EARLY_WARNING"
-        else:
-            out.at[i,"ECTM_Row_Status"]="NORMAL"
+
+    high_app = (
+        out["Model_Confidence"].eq("HIGH").to_numpy()
+        & out["Model_Applicable"].astype(bool).to_numpy()
+    )
+    high_idx = out.index[high_app]
+
+    if len(high_idx) == 0:
+        return out
+
+    # Work only on HIGH + applicable rows, exactly as the original loop did.
+    hv = out.loc[high_idx]
+    t5 = pd.to_numeric(hv["Delta_T5"], errors="coerce")
+    ng = pd.to_numeric(hv["Delta_Ng"], errors="coerce")
+
+    if len(hv) >= critical_persistence:
+        t5_up_seq = (t5 >= cfg.t5_borescope_c).rolling(critical_persistence).sum().eq(critical_persistence)
+        ng_down_seq = (ng <= cfg.ng_borescope_low_pct).rolling(critical_persistence).sum().eq(critical_persistence)
+    else:
+        t5_up_seq = pd.Series(False, index=hv.index)
+        ng_down_seq = pd.Series(False, index=hv.index)
+
+    # Statistical control-limit breach, vectorized across all targets.
+    stat = pd.Series(False, index=hv.index)
+    for t in cfg.targets:
+        delta = pd.to_numeric(hv[f"Delta_{t}"], errors="coerce")
+        limit = pd.to_numeric(hv[f"Control_Limit_{t}"], errors="coerce")
+        stat |= delta.notna() & limit.notna() & delta.abs().gt(limit)
+
+    single = (
+        (t5 >= cfg.t5_borescope_c) |
+        (ng <= cfg.ng_borescope_low_pct)
+    )
+
+    critical = t5_up_seq | ng_down_seq
+    advisory = (~critical) & (single | stat)
+
+    out.loc[high_idx, "ECTM_Row_Status"] = "NORMAL"
+    out.loc[high_idx[advisory.to_numpy()], "ECTM_Row_Status"] = "ADVISORY"
+    out.loc[high_idx[critical.to_numpy()], "ECTM_Row_Status"] = "CRITICAL"
+
+    out.loc[high_idx[advisory.to_numpy() & single.to_numpy()],
+            "ECTM_Signal"] = "SINGLE_POINT_FIM_THRESHOLD_REACHED; VERIFY_INDICATION_AND_PERSISTENCE"
+    out.loc[high_idx[advisory.to_numpy() & (~single).to_numpy()],
+            "ECTM_Signal"] = "STATISTICAL_EARLY_WARNING"
+    out.loc[high_idx[critical.to_numpy()],
+            "ECTM_Signal"] = "PERSISTENT_FIM_LEVEL_DEVIATION"
+
     return out
