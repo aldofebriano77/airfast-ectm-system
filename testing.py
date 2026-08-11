@@ -766,6 +766,152 @@ def save_ectm_db(): st.session_state["df_data"].to_csv(ECTM_DB_PATH, index=False
 def save_util_db(): st.session_state["df_util"].to_csv(UTIL_DB_PATH, index=False)
 def save_rep_db(): _sanitize_for_csv(st.session_state["df_rep"]).to_csv(REP_DB_PATH, index=False)
 
+
+def _file_signature(paths):
+    """Return a stable fingerprint for source workbooks."""
+    sig = []
+    for path in sorted(paths):
+        try:
+            stt = os.stat(path)
+            sig.append((os.path.basename(path), stt.st_size, stt.st_mtime_ns))
+        except OSError:
+            continue
+    return tuple(sig)
+
+def _normalise_event_column(df):
+    """Preserve an Event_Name supplied by the source; never invent one."""
+    df = df.copy()
+    aliases = ["Event_Name", "Event Name", "Event", "EVENT_NAME", "EVENT"]
+    src = next((c for c in aliases if c in df.columns), None)
+    if src and src != "Event_Name":
+        df["Event_Name"] = df[src]
+    if "Event_Name" in df.columns:
+        df["Event_Name"] = df["Event_Name"].astype("string").str.strip()
+        df.loc[df["Event_Name"].isin(["", "<NA>", "nan", "None"]), "Event_Name"] = pd.NA
+    return df
+
+def sync_local_fleet_data(data_dir="data"):
+    """Sync all local source workbooks into the persistent SSOT.
+
+    The operation is idempotent: rerunning the dashboard does not create duplicate
+    rows. Source rows are refreshed, while explicit MANUAL records are retained.
+    """
+    if not os.path.isdir(data_dir):
+        return {"ok": False, "reason": "missing_directory", "files": 0, "ectm": 0, "util": 0, "rep": 0, "skipped": []}
+
+    files = [os.path.join(data_dir, f) for f in os.listdir(data_dir)
+             if f.lower().endswith((".xlsx", ".xls")) and not f.startswith("~")]
+    if not files:
+        return {"ok": True, "reason": "no_files", "files": 0, "ectm": 0, "util": 0, "rep": 0, "skipped": []}
+
+    source_ectm, source_util, source_rep, skipped = [], [], [], []
+
+    for filepath in files:
+        filename = os.path.basename(filepath)
+        try:
+            raw = pd.read_excel(filepath)
+        except Exception as exc:
+            skipped.append(f"{filename}: {exc}")
+            continue
+
+        # 1) Flight utilization
+        if "utilization" in filename.lower() or ("FH" in raw.columns and "FC" in raw.columns):
+            if "Work (Date)" in raw.columns and "Registration" in raw.columns:
+                u = raw.copy()
+                u["Work (Date)"] = safe_parse_dates(u["Work (Date)"])
+                u = u.dropna(subset=["Registration", "Work (Date)"]).copy()
+                u["Registration"] = u["Registration"].astype(str).str.strip().str.upper()
+                u["Data_Source"] = "LOCAL_SYNC"
+                source_util.append(u)
+            continue
+
+        # 2) PIREP / MAREP
+        if ("maintenance" in filename.lower() or "pirep" in filename.lower()
+                or "report" in filename.lower()
+                or ("ATA" in raw.columns and "Corrective Action" in raw.columns)):
+            r = process_maintenance_reports(raw)
+            if not r.empty:
+                r["Data_Source"] = "LOCAL_SYNC"
+                source_rep.append(r)
+            continue
+
+        # 3) Engine telemetry / pilot flight logbook exports
+        match = re.search(r"(O[A-Z]{2})", filename.upper())
+        reg_id = f"PK-{match.group(1)}" if match else "UNKNOWN"
+        for num, pos in (("1", "LH"), ("2", "RH")):
+            dt_col = f"DateTime ({num})"
+            if dt_col not in raw.columns:
+                continue
+            mapping = {
+                dt_col: "Date", f"ITT ({num})": "T5", f"NG ({num})": "Ng",
+                f"WF ({num})": "Wf", f"IOAT ({num})": "IOAT", f"P.ALT ({num})": "Press_Alt",
+                f"Torque ({num})": "TQ", f"NP ({num})": "Np", f"IAS ({num})": "IAS",
+                f"Oil Temperature ({num})": "Oil_Temp", f"Oil Pressure ({num})": "Oil_Press"
+            }
+            missing = [c for c in mapping if c not in raw.columns]
+            if missing:
+                skipped.append(f"{filename} #{num}: missing {missing}")
+                continue
+            src = _normalise_event_column(raw)
+            pref = f"IS PREFERRED ({num})"
+            if pref in src.columns:
+                src = src[src[pref].astype(str).str.upper().ne("N")].copy()
+            mapped = src[list(mapping.keys())].rename(columns=mapping).copy()
+            if "Event_Name" in src.columns:
+                mapped["Event_Name"] = src.loc[mapped.index, "Event_Name"].values
+            mapped["Engine"] = f"{reg_id} | {pos}"
+            mapped["Data_Source"] = "LOCAL_SYNC"
+            source_ectm.append(mapped)
+
+    # ECTM merge: refresh source rows but preserve deliberate manual records.
+    if source_ectm:
+        sync = pd.concat(source_ectm, ignore_index=True)
+        sync["Date"] = pd.to_datetime(sync["Date"], errors="coerce")
+        sync = sync.dropna(subset=["Date"]).copy()
+        if "AML No" not in sync.columns:
+            sync["AML No"] = sync.apply(
+                lambda r: f"AML-{str(r['Engine']).split('|')[0].strip()}-{r['Date'].strftime('%Y%m%d%H%M%S')}", axis=1
+            )
+        current = st.session_state["df_data"].copy()
+        current["Date"] = pd.to_datetime(current.get("Date"), errors="coerce")
+        if "Data_Source" not in current.columns:
+            current["Data_Source"] = "LEGACY_DB"
+        merged = pd.concat([current, sync], ignore_index=True)
+        merged["_priority"] = merged["Data_Source"].map({"LOCAL_SYNC": 1, "LEGACY_DB": 1, "UPLOAD": 1, "MANUAL": 2}).fillna(1)
+        merged = merged.sort_values(["Date", "_priority"])
+        merged = merged.drop_duplicates(subset=["Date", "Engine"], keep="last").drop(columns=["_priority"])
+        st.session_state["df_data"] = merged.sort_values("Date").reset_index(drop=True)
+
+    # Utilization merge.
+    if source_util:
+        sync_u = pd.concat(source_util, ignore_index=True)
+        cur_u = st.session_state["df_util"].copy()
+        if "Data_Source" not in cur_u.columns:
+            cur_u["Data_Source"] = "LEGACY_DB"
+        cur_u = pd.concat([cur_u, sync_u], ignore_index=True)
+        cur_u = cur_u.drop_duplicates(subset=["Registration", "Work (Date)", "FH", "FC"], keep="last")
+        st.session_state["df_util"] = cur_u.reset_index(drop=True)
+        st.session_state["util_is_real"] = not cur_u.empty
+
+    # PIREP / MAREP merge.
+    if source_rep:
+        sync_r = process_maintenance_reports(pd.concat(source_rep, ignore_index=True))
+        cur_r = st.session_state["df_rep"].copy()
+        if "Data_Source" not in cur_r.columns:
+            cur_r["Data_Source"] = "LEGACY_DB"
+        cur_r = pd.concat([cur_r, sync_r], ignore_index=True)
+        cur_r = cur_r.drop_duplicates(subset=["Registration", "Date", "ATA", "Note / Report"], keep="last")
+        st.session_state["df_rep"] = process_maintenance_reports(cur_r)
+        st.session_state["rep_is_real"] = not st.session_state["df_rep"].empty
+
+    save_ectm_db()
+    save_util_db()
+    save_rep_db()
+    return {"ok": True, "reason": "synced", "files": len(files),
+            "ectm": sum(len(x) for x in source_ectm),
+            "util": sum(len(x) for x in source_util),
+            "rep": sum(len(x) for x in source_rep), "skipped": skipped}
+
 if "df_data" not in st.session_state:
     if os.path.exists(ECTM_DB_PATH):
         st.session_state["df_data"] = pd.read_csv(ECTM_DB_PATH)
@@ -783,6 +929,21 @@ if "df_data" not in st.session_state:
         save_ectm_db()
         save_util_db()
         save_rep_db()
+
+# Auto-sync local source workbooks on rerun when any source file changed.
+# The database remains the persistent SSOT between reruns.
+if "_auto_sync_signature" not in st.session_state:
+    st.session_state["_auto_sync_signature"] = None
+_auto_data_dir = "data"
+if os.path.isdir(_auto_data_dir):
+    _auto_paths = [os.path.join(_auto_data_dir, f) for f in os.listdir(_auto_data_dir)
+                   if f.lower().endswith((".xlsx", ".xls")) and not f.startswith("~")]
+    _auto_sig = _file_signature(_auto_paths)
+    if _auto_sig != st.session_state["_auto_sync_signature"]:
+        _auto_result = sync_local_fleet_data(_auto_data_dir)
+        if _auto_result.get("ok"):
+            st.session_state["_auto_sync_signature"] = _auto_sig
+            st.session_state["_auto_sync_last_result"] = _auto_result
 
 def csv_template() -> bytes:
     cols = ["AML No"] + REQUIRED_COLUMNS + [c for c in OPTIONAL_COLUMNS if c not in REQUIRED_COLUMNS and c != "AML No"]
@@ -2353,89 +2514,21 @@ elif menu_selection == "Data Collection":
         st.caption("One-click synchronization. The system will automatically scan the local `data/` directory, extract all raw #1 and #2 aircraft engine Excel exports, map thermodynamic parameters, and build the persistent database.")
         
         if st.button("🔄 Sync All Fleet Data from Local Server", type="primary", use_container_width=True):
-            data_dir = "data" 
-            if not os.path.exists(data_dir):
-                st.error(f"Directory '{data_dir}' not found in the project folder!")
+            with st.spinner("Enterprise Sync: membaca seluruh source workbook..."):
+                result = sync_local_fleet_data("data")
+            if not result.get("ok"):
+                st.error("Directory 'data' tidak ditemukan. Pastikan source workbook tersedia di folder project.")
             else:
-                import os
-                import re
-                
-                # Ambil SEMUA file Excel di folder data (Abaikan file temporer)
-                all_excel_files = [
-                    f for f in os.listdir(data_dir)
-                    if f.endswith(('.xlsx', '.xls')) and not f.startswith('~')
-                ]
-                
-                if not all_excel_files:
-                    st.warning(f"Tidak ada file Excel yang ditemukan di folder '{data_dir}'.")
-                else:
-                    new_data_frames = []
-                    with st.spinner(f"Enterprise Sync: Menarik {len(all_excel_files)} file dari local storage..."):
-                        for filename in all_excel_files:
-                            filepath = os.path.join(data_dir, filename)
-                            df_raw_file = pd.read_excel(filepath)
-                            
-                            # --- 1. DETEKSI FLIGHT UTILIZATION ---
-                            if 'utilization' in filename.lower() or ('FH' in df_raw_file.columns and 'FC' in df_raw_file.columns):
-                                if 'Work (Date)' in df_raw_file.columns and 'Registration' in df_raw_file.columns:
-                                    df_raw_file['Work (Date)'] = safe_parse_dates(df_raw_file['Work (Date)'])
-                                    df_u_clean = df_raw_file.dropna(subset=['Registration', 'Work (Date)'])
-                                    st.session_state["df_util"] = pd.concat([st.session_state["df_util"], df_u_clean], ignore_index=True)
-                                    st.session_state["df_util"] = st.session_state["df_util"].drop_duplicates(subset=["Registration", "Work (Date)", "FH", "FC"], keep="last")
-                                    st.session_state["util_is_real"] = True
-                                continue 
-                            
-                            # --- 2. DETEKSI PIREP / MAREP (LOGBOOK KERUSAKAN) ---
-                            if 'maintenance' in filename.lower() or 'pirep' in filename.lower() or 'report' in filename.lower() or ('ATA' in df_raw_file.columns and 'Corrective Action' in df_raw_file.columns):
-                                df_r_clean = process_maintenance_reports(df_raw_file)
-                                st.session_state["df_rep"] = pd.concat([st.session_state["df_rep"], df_r_clean], ignore_index=True)
-                                st.session_state["df_rep"] = st.session_state["df_rep"].drop_duplicates(subset=["Registration", "Date", "ATA", "Note / Report"], keep="last")
-                                st.session_state["rep_is_real"] = True
-                                continue 
-                            
-                            # --- 3. DETEKSI ENGINE TELEMETRY (ECTM) ---
-                            match = re.search(r'(O[A-Z]{2})', filename.upper())
-                            reg_id = f"PK-{match.group(1)}" if match else "UNKNOWN"
-                            
-                            if 'DateTime (1)' in df_raw_file.columns:
-                                m = {'DateTime (1)': 'Date', 'ITT (1)': 'T5', 'NG (1)': 'Ng', 'WF (1)': 'Wf', 'IOAT (1)': 'IOAT', 'P.ALT (1)': 'Press_Alt', 'Torque (1)': 'TQ', 'NP (1)': 'Np', 'IAS (1)': 'IAS', 'Oil Temperature (1)': 'Oil_Temp', 'Oil Pressure (1)': 'Oil_Press'}
-                                if 'IS PREFERRED (1)' in df_raw_file.columns:
-                                    df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (1)'] != 'N']
-                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
-                                df_mapped['Engine'] = f'{reg_id} | LH'
-                                new_data_frames.append(df_mapped)
-                            elif 'DateTime (2)' in df_raw_file.columns:
-                                m = {'DateTime (2)': 'Date', 'ITT (2)': 'T5', 'NG (2)': 'Ng', 'WF (2)': 'Wf', 'IOAT (2)': 'IOAT', 'P.ALT (2)': 'Press_Alt', 'Torque (2)': 'TQ', 'NP (2)': 'Np', 'IAS (2)': 'IAS', 'Oil Temperature (2)': 'Oil_Temp', 'Oil Pressure (2)': 'Oil_Press'}
-                                if 'IS PREFERRED (2)' in df_raw_file.columns:
-                                    df_raw_file = df_raw_file[df_raw_file['IS PREFERRED (2)'] != 'N']
-                                df_mapped = df_raw_file[list(m.keys())].rename(columns=m).copy()
-                                df_mapped['Engine'] = f'{reg_id} | RH'
-                                new_data_frames.append(df_mapped)
-                    
-                    # Simpan Engine Telemetry
-                    if new_data_frames:
-                        df_final = pd.concat(new_data_frames, ignore_index=True)
-                        df_final['Date'] = pd.to_datetime(df_final['Date'], errors='coerce')
-                        df_final = df_final.dropna(subset=['Date'])
-                        df_final['Date'] = df_final['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                        if "AML No" not in df_final.columns:
-                            df_final['AML No'] = df_final.apply(
-                                lambda row: f"AML-{str(row['Engine']).split('|')[0].strip()}-"
-                                            f"{str(row['Date'])[:19].replace('-', '').replace(':', '').replace(' ', '')}",
-                                axis=1
-                            )
-                        st.session_state["df_data"] = pd.concat([st.session_state["df_data"], df_final], ignore_index=True)
-                        st.session_state["df_data"] = st.session_state["df_data"].drop_duplicates(subset=["Date", "Engine"], keep="last").sort_values("Date")
-                    
-                    # Simpan Permanen ke .airfast_db
-                    save_ectm_db() 
-                    save_util_db()
-                    save_rep_db()
-                    
-                    execute_silent_watchdog() 
-                    st.success("Enterprise Sync Complete! Data Mesin, Utilisasi, dan Logbook berhasil diperbarui.")
-                    st.rerun()
-                        
+                st.success(
+                    f"Enterprise Sync Complete — ECTM: {result.get('ectm', 0):,} rows | "
+                    f"Utilization: {result.get('util', 0):,} rows | "
+                    f"PIREP/MAREP: {result.get('rep', 0):,} rows."
+                )
+                if result.get("skipped"):
+                    st.warning("Sebagian source tidak terbaca: " + " | ".join(result["skipped"][:5]))
+                execute_silent_watchdog()
+                st.rerun()
+
         st.session_state["df_data"] = st.data_editor(st.session_state["df_data"], num_rows="dynamic", use_container_width=True)
         if st.button("Save Manual Edits to Database"):
             save_ectm_db()
@@ -2466,8 +2559,13 @@ elif menu_selection == "Data Collection":
                         "FH": float(u_fh), "FC": int(u_fc), "Block Hours": float(u_bh),
                         "From": u_from, "To": u_to
                     }])
+                    new_u_row["Data_Source"] = "MANUAL"
                     st.session_state["df_util"] = pd.concat([st.session_state["df_util"], new_u_row], ignore_index=True)
+                    st.session_state["df_util"] = st.session_state["df_util"].drop_duplicates(
+                        subset=["Registration", "Work (Date)", "FH", "FC"], keep="last"
+                    )
                     st.session_state["util_is_real"] = True
+                    save_util_db()
                     st.success(f"Successfully logged utilization for {u_reg} ({u_fh} FH / {u_fc} FC)!")
                     st.rerun()
 
@@ -2476,9 +2574,17 @@ elif menu_selection == "Data Collection":
         if up_util is not None:
             df_u_new = pd.read_excel(up_util)
             df_u_new['Work (Date)'] = safe_parse_dates(df_u_new['Work (Date)'])
-            st.session_state["df_util"] = df_u_new.dropna(subset=['Registration', 'Work (Date)'])
+            df_u_new = df_u_new.dropna(subset=['Registration', 'Work (Date)']).copy()
+            df_u_new["Data_Source"] = "UPLOAD"
+            cur_u = st.session_state["df_util"].copy()
+            if "Data_Source" not in cur_u.columns:
+                cur_u["Data_Source"] = "LEGACY_DB"
+            st.session_state["df_util"] = pd.concat([cur_u, df_u_new], ignore_index=True).drop_duplicates(
+                subset=["Registration", "Work (Date)", "FH", "FC"], keep="last"
+            )
             st.session_state["util_is_real"] = not st.session_state["df_util"].empty
-            st.success("Flight Utilization dataset synchronized!")
+            save_util_db()
+            st.success("Flight Utilization dataset synchronized and persisted!")
             st.rerun()
         if not st.session_state.get("util_is_real", False):
             st.warning("No real utilization file found on disk. RUL calendar projections are currently using a "
@@ -2512,6 +2618,7 @@ elif menu_selection == "Data Collection":
                 if submitted_rep:
                     new_r_row = pd.DataFrame([{
                         "AML No": r_aml if r_aml else f"AML-{r_reg}-{pd.to_datetime(r_date).strftime('%Y%m%d')}",
+                        "Date": pd.to_datetime(r_date),
                         "Registration": r_reg, "ATA": int(r_ata),
                         "Note / Report": r_note if r_note else "No description provided.",
                         "Corrective Action": r_action if r_action else "Pending action.",
@@ -2520,17 +2627,29 @@ elif menu_selection == "Data Collection":
                     }])
                     st.session_state["df_rep"] = pd.concat([st.session_state["df_rep"], new_r_row], ignore_index=True)
                     st.session_state["df_rep"] = process_maintenance_reports(st.session_state["df_rep"])
+                    st.session_state["df_rep"]["Data_Source"] = st.session_state["df_rep"].get("Data_Source", "LEGACY_DB")
+                    st.session_state["df_rep"].loc[st.session_state["df_rep"].index[-1], "Data_Source"] = "MANUAL"
                     st.session_state["rep_is_real"] = True
+                    save_rep_db()
                     st.success(f"Successfully logged PIREP / MAREP report [{r_aml}] for {r_reg}!")
                     st.rerun()
 
         st.caption("Upload PIREP & MAREP Excel file (e.g., `Pilot & Maintenance Report DHC6-400.xlsx`) to power the Defect Correlator.")
         up_rep = st.file_uploader("Upload PIREP / MAREP File (.xlsx)", type=["xlsx"], key="up_rep_file")
         if up_rep is not None:
-            df_r_new = pd.read_excel(up_rep)
-            st.session_state["df_rep"] = process_maintenance_reports(df_r_new)
+            df_r_new = process_maintenance_reports(pd.read_excel(up_rep))
+            df_r_new["Data_Source"] = "UPLOAD"
+            cur_r = st.session_state["df_rep"].copy()
+            if "Data_Source" not in cur_r.columns:
+                cur_r["Data_Source"] = "LEGACY_DB"
+            st.session_state["df_rep"] = process_maintenance_reports(
+                pd.concat([cur_r, df_r_new], ignore_index=True).drop_duplicates(
+                    subset=["Registration", "Date", "ATA", "Note / Report"], keep="last"
+                )
+            )
             st.session_state["rep_is_real"] = not st.session_state["df_rep"].empty
-            st.success("PIREP / MAREP reports synchronized & mapped!")
+            save_rep_db()
+            st.success("PIREP / MAREP reports synchronized, merged, and persisted!")
             st.rerun()
         if not st.session_state.get("rep_is_real", False):
             st.warning("No real PIREP / MAREP file found on disk. The Defect Correlator is currently "
