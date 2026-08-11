@@ -31,12 +31,59 @@ import plotly.graph_objects as go
 import streamlit as st
 import plotly.express as px
 import ectm_v5_5_core_optimized as ectm54
-from llp_integration import (
-    load_llp_workbook,
-    engine_llp_view,
-    validate_engine_mapping,
-    LLP_DEFAULT_FILENAME,
-)
+# LLP integration is kept backward-compatible so an older llp_integration.py
+# cannot crash the entire dashboard during deployment.
+try:
+    from llp_integration import (
+        load_llp_workbook,
+        engine_llp_view,
+        validate_engine_mapping,
+        LLP_DEFAULT_FILENAME,
+    )
+except ImportError:
+    from llp_integration import (
+        load_llp_workbook,
+        engine_llp_view,
+        LLP_DEFAULT_FILENAME,
+    )
+
+    def validate_engine_mapping(ectm_engine_keys, llp_data):
+        """Local compatibility fallback for older LLP integration modules."""
+        expected = [str(x).strip() for x in ectm_engine_keys if str(x).strip()]
+        rows = []
+        for key in expected:
+            k = key.upper()
+            subset = (
+                llp_data[llp_data["Engine Key"].astype(str).str.upper() == k]
+                if not llp_data.empty and "Engine Key" in llp_data.columns
+                else pd.DataFrame()
+            )
+            reg = key.split("|")[0].strip().upper() if "|" in key else key.upper()
+            installed = (
+                sorted(set(subset["Installed At"].astype(str).str.strip().str.upper()))
+                if not subset.empty and "Installed At" in subset.columns else []
+            )
+            profile = (
+                sorted(set(subset["Current Profile"].astype(str).str.strip()))
+                if not subset.empty and "Current Profile" in subset.columns else []
+            )
+            rows.append({
+                "ECTM Engine": key,
+                "LLP Mapping": "MATCHED" if not subset.empty else "NO LLP SHEET",
+                "LLP Components": int(len(subset)),
+                "Overdue": int((subset["Life Status"] == "OVERDUE").sum()) if not subset.empty else 0,
+                "Installed At": ", ".join(installed) if installed else "N/A",
+                "Registration Match": (
+                    "MATCH" if not installed or reg in installed else "SOURCE DISCREPANCY"
+                ),
+                "Current Profile": ", ".join(profile) if profile else "N/A",
+                "Profile Check": (
+                    "OK"
+                    if not profile or all("DHC-6 SERIES 400" in p.upper() for p in profile)
+                    else "SOURCE DISCREPANCY"
+                ),
+            })
+        return pd.DataFrame(rows)
 
 try:
     from fpdf import FPDF
