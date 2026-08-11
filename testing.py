@@ -778,16 +778,51 @@ def _file_signature(paths):
             continue
     return tuple(sig)
 
-def _normalise_event_column(df):
-    """Preserve an Event_Name supplied by the source; never invent one."""
+def _find_source_column(df, candidates):
+    """Case/whitespace-insensitive lookup for source workbook headers."""
+    exact = {str(c): c for c in df.columns}
+    for c in candidates:
+        if c in exact:
+            return exact[c]
+    norm = {re.sub(r"\s+", " ", str(c).strip()).lower(): c for c in df.columns}
+    for c in candidates:
+        key = re.sub(r"\s+", " ", str(c).strip()).lower()
+        if key in norm:
+            return norm[key]
+    return None
+
+
+def _normalise_event_column(df, position=None):
+    """Preserve source Event Name; never invent an event."""
     df = df.copy()
-    aliases = ["Event_Name", "Event Name", "Event", "EVENT_NAME", "EVENT"]
-    src = next((c for c in aliases if c in df.columns), None)
-    if src and src != "Event_Name":
+    suffix = "1" if position == "LH" else ("2" if position == "RH" else None)
+    candidates = []
+    if suffix:
+        candidates += [f"Event Name ({suffix})", f"Event_Name ({suffix})"]
+    candidates += ["Event_Name", "Event Name", "Event", "EVENT_NAME", "EVENT"]
+    src = _find_source_column(df, candidates)
+    if src is not None:
         df["Event_Name"] = df[src]
-    if "Event_Name" in df.columns:
         df["Event_Name"] = df["Event_Name"].astype("string").str.strip()
         df.loc[df["Event_Name"].isin(["", "<NA>", "nan", "None"]), "Event_Name"] = pd.NA
+    elif "Event_Name" not in df.columns:
+        df["Event_Name"] = pd.NA
+    return df
+
+
+def _normalise_reference_column(df, position=None):
+    """Preserve AIRFAST Reference metadata using the LH/RH source convention."""
+    df = df.copy()
+    suffix = "1" if position == "LH" else ("2" if position == "RH" else None)
+    candidates = []
+    if suffix:
+        candidates += [f"Reference ({suffix})", f"Reference_{suffix}"]
+    candidates += ["Reference", "Reference_Name", "Reference Name"]
+    src = _find_source_column(df, candidates)
+    if src is not None:
+        df["Reference"] = df[src]
+    elif "Reference" not in df.columns:
+        df["Reference"] = pd.NA
     return df
 
 def sync_local_fleet_data(data_dir="data"):
@@ -852,13 +887,16 @@ def sync_local_fleet_data(data_dir="data"):
             if missing:
                 skipped.append(f"{filename} #{num}: missing {missing}")
                 continue
-            src = _normalise_event_column(raw)
+            src = _normalise_event_column(raw, pos)
+            src = _normalise_reference_column(src, pos)
             pref = f"IS PREFERRED ({num})"
             if pref in src.columns:
                 src = src[src[pref].astype(str).str.upper().ne("N")].copy()
             mapped = src[list(mapping.keys())].rename(columns=mapping).copy()
             if "Event_Name" in src.columns:
                 mapped["Event_Name"] = src.loc[mapped.index, "Event_Name"].values
+            if "Reference" in src.columns:
+                mapped["Reference"] = src.loc[mapped.index, "Reference"].values
             mapped["Engine"] = f"{reg_id} | {pos}"
             mapped["Data_Source"] = "LOCAL_SYNC"
             source_ectm.append(mapped)
@@ -2311,7 +2349,12 @@ if menu_selection == "Overview":
             )
             rul_val = st_sub["rul_cycles"]
             accel_marker = " [ACCELERATING]" if st_sub["rul_is_linear_caution"] else ""
-            rul_str = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}"
+            rul_str = (
+                "RUL UNAVAILABLE — LOW CONFIDENCE"
+                if st_sub["health_level"] == EngineHealth.LOW_CONFIDENCE
+                else ("Stable (>100 Cycles)" if rul_val >= 999
+                      else f"{rul_val} Cycles ({st_sub['proj_date']}){accel_marker}")
+            )
             
             fleet_summary_data.append({
                 "Powerplant Serial / Position": eng,
@@ -2753,7 +2796,11 @@ elif menu_selection == "Data Analysis":
         st.metric("Latest \u0394 Wf Residual", f"{status['d_wf']:+.1f} PPH", delta=f"{status['latest']['Delta_Wf_pct']:+.1f}% shift", delta_color="inverse")
 
         rul_val = status["rul_cycles"]
-        rul_display = "Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Flight Cycles"
+        rul_display = (
+            "RUL UNAVAILABLE — LOW CONFIDENCE"
+            if status["health_level"] == EngineHealth.LOW_CONFIDENCE
+            else ("Stable (>100 Cycles)" if rul_val >= 999 else f"{rul_val} Flight Cycles")
+        )
         date_display = f"Est. Date: {status['proj_date']} ({status['fc_per_day']:.1f} cyc/day)" if rul_val < 999 else "No Intervention Scheduled"
         rul_caution_color = "#B42318" if status["rul_is_linear_caution"] else "#64748B"
 
