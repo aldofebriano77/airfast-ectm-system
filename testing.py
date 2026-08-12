@@ -1640,7 +1640,41 @@ def make_t5_gauge_chart(d_t5: float, health_level: EngineHealth) -> go.Figure:
 # ======================================================================================
 from email.mime.application import MIMEApplication
 
-def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False, recommendations: list = None, alert_key: str = None):
+# Explicit email delivery states. These are intentionally distinct so that
+# simulation and queueing can never be mistaken for successful delivery.
+EMAIL_DELIVERED = "DELIVERED"
+EMAIL_QUEUED = "QUEUED"
+EMAIL_SIMULATED = "SIMULATED"
+EMAIL_INVALID_RECIPIENTS = "INVALID_RECIPIENTS"
+EMAIL_FAILED = "FAILED"
+
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+def validate_recipient_addresses(recipients):
+    if recipients is None:
+        return [], []
+    valid, invalid = [], []
+    for raw in recipients:
+        addr = str(raw).strip()
+        if not addr:
+            continue
+        if _EMAIL_RE.match(addr):
+            valid.append(addr)
+        else:
+            invalid.append(addr)
+    return list(dict.fromkeys(valid)), invalid
+
+def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str, recipients: list, is_automated: bool = False, recommendations: list = None, alert_key: str = None, queue_key: str = None):
+    valid_recipients, invalid_recipients = validate_recipient_addresses(recipients)
+    if invalid_recipients or not valid_recipients:
+        detail = ", ".join(invalid_recipients) if invalid_recipients else "no recipient address provided"
+        if is_automated:
+            st.sidebar.error(f"Automated transmittal blocked: invalid recipient address(es): {detail}")
+        else:
+            st.error(f"Transmittal blocked: invalid recipient address(es): {detail}")
+        return EMAIL_INVALID_RECIPIENTS
+    recipients = valid_recipients
+
     try:
         sender_email = st.secrets["email"]["sender_address"]
         sender_password = st.secrets["email"]["app_password"]
@@ -1655,12 +1689,19 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
     trigger_type = "[AUTOMATED WATCHDOG]" if is_automated else "[MANUAL TRANSMITTAL]"
 
     if not live_mode:
+        # Simulation is never treated as delivery and never enters the sent ledger.
         if is_automated:
-            st.toast(f"AUTOMATED ALERT FIRED: Powerplant {engine_id} breached CRITICAL limit.", icon="🚨")
-            st.sidebar.error(f"AUTOMATED NOTICE TRANSMITTED\nTarget: {recipients[0] if recipients else 'N/A'}\nEngine: {engine_id} ({status_label})")
+            st.toast(f"AUTOMATED ALERT SIMULATED: SMTP is not configured for {engine_id}.", icon="🧪")
+            st.sidebar.warning(
+                f"SIMULATED AUTOMATED NOTICE — not transmitted. "
+                f"Target: {recipients[0] if recipients else 'N/A'} | Engine: {engine_id} ({status_label})"
+            )
         else:
-            st.info(f"[SYSTEM SIMULATION MODE - {trigger_type}] SMTP secrets not configured. Notice simulated for {engine_id} to: {', '.join(recipients)}.")
-        return True
+            st.info(
+                f"[SYSTEM SIMULATION MODE - {trigger_type}] SMTP secrets not configured. "
+                f"Notice simulated for {engine_id}. No email was transmitted and no ledger entry was created."
+            )
+        return EMAIL_SIMULATED
 
     if health == EngineHealth.CRITICAL:
         intro_text = (f"ECTM CRITICAL ALERT: An abnormal thermodynamic parameter shift (CRITICAL BREACH) has been confirmed on Powerplant {engine_id}.\n"
@@ -1854,8 +1895,8 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
             server.login(sender_email, sender_password)
             server.send_message(msg)
         if is_automated:
-            st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
-        return True
+            st.toast(f"AUTOMATED NOTICE DELIVERED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
+        return EMAIL_DELIVERED
     except Exception as ssl_err:
         try:
             with smtplib.SMTP(smtp_server, 587, timeout=5) as server:
@@ -1863,21 +1904,27 @@ def send_engineering_notice(engine_id: str, status_dict: dict, report_body: str,
                 server.login(sender_email, sender_password)
                 server.send_message(msg)
             if is_automated:
-                st.toast(f"AUTOMATED NOTICE TRANSMITTED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
-            return True
+                st.toast(f"AUTOMATED NOTICE DELIVERED: Critical alert for {engine_id} delivered to {recipients[0] if recipients else 'MCC'}.", icon="✅")
+            return EMAIL_DELIVERED
         except Exception as tls_err:
             # Preserved detail error asli untuk console & UI
             err_detail = f"SSL: {type(ssl_err).__name__}: {ssl_err} | TLS: {type(tls_err).__name__}: {tls_err}"
-            print(f"[SMTP FAILURE] {engine_id}: {err_detail}")
-            save_to_pending_queue(engine_id, status_dict, report_body, recipients, recommendations, alert_key=alert_key)
-            
-            # [POIN 2 FIX: Visual Feedback di UI untuk Jalur Otomatis]
-            if is_automated:
-                st.toast(f"⚠️ SMTP Failure for {engine_id}. Alert saved to Offline Queue.", icon="⚠️")
-                st.sidebar.warning(f"WATCHDOG SMTP QUEUED: {engine_id}\nDetail: {type(tls_err).__name__}")
-            else:
-                st.warning(f"SMTP Transmittal Failed for **{engine_id}**. Details: `{err_detail}`. Notice preserved in Pending Transmittal Queue.")
-            return False
+            queued_ok = save_to_pending_queue(
+                engine_id, status_dict, report_body, recipients, recommendations,
+                alert_key=alert_key, queue_key=queue_key, last_error=err_detail
+            )
+            if queued_ok:
+                if is_automated:
+                    st.toast(f"⚠️ SMTP Failure for {engine_id}. Alert queued for retry.", icon="⚠️")
+                    st.sidebar.warning(f"WATCHDOG SMTP QUEUED: {engine_id}\nDetail: {type(tls_err).__name__}")
+                else:
+                    st.warning(
+                        f"SMTP Transmittal Failed for **{engine_id}**. Details: `{err_detail}`. "
+                        "Notice preserved in Pending Transmittal Queue."
+                    )
+                return EMAIL_QUEUED
+            st.error(f"SMTP Transmittal Failed for **{engine_id}** and could not be safely queued.")
+            return EMAIL_FAILED
 
 # --- [PERSISTENT DISK LEDGER / ANTI-SPAM ENGINE] ---
 LEDGER_FILE_PATH = os.path.join(".streamlit_cache", "alert_dispatch_ledger.json")
@@ -1923,18 +1970,13 @@ def load_pending_queue() -> dict:
     except Exception:
         return {}
 
-def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, recipients: list, recommendations: list = None, alert_key: str = None):
+def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, recipients: list, recommendations: list = None, alert_key: str = None, queue_key: str = None, last_error: str = None):
     os.makedirs(os.path.dirname(QUEUE_FILE_PATH), exist_ok=True)
     queue = load_pending_queue()
-    queue_key = f"{engine_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if not queue_key:
+        queue_key = f"{engine_id}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    previous = queue.get(queue_key, {})
 
-    # [BUG FIX] flight_date and alert_key were previously not preserved here,
-    # so retry_pending_queue() had no way to register a successful retry in
-    # the dedup ledger - meaning a retried alert could be sent AGAIN by a
-    # later watchdog scan for the same underlying finding. alert_key is only
-    # set for watchdog-originated sends (see execute_silent_watchdog); manual
-    # ad-hoc dispatches from the Recommendations page intentionally pass
-    # alert_key=None, since a human resend shouldn't be ledger-gated.
     flight_date_str = None
     try:
         latest_row = status_dict.get("latest")
@@ -1943,7 +1985,6 @@ def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, r
     except Exception:
         flight_date_str = None
 
-    # Sanitasi status_dict agar 100% aman diserialisasi ke JSON (mencegah crash akibat Enum/Timestamp)
     safe_status = {
         "health_level": status_dict["health_level"].name if hasattr(status_dict["health_level"], "name") else str(status_dict["health_level"]),
         "status_label": str(status_dict.get("status_label", "UNKNOWN")),
@@ -1954,22 +1995,29 @@ def save_to_pending_queue(engine_id: str, status_dict: dict, report_body: str, r
         "alarm_borescope_ng": bool(status_dict.get("alarm_borescope_ng", False)),
         "reg_prefix": str(status_dict.get("reg_prefix", "ENG"))
     }
-    
+
+    attempts = int(previous.get("attempts", 0)) + 1
     queue[queue_key] = {
-        "failed_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "failed_timestamp": previous.get("failed_timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        "last_attempt_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "attempts": attempts,
         "engine_id": engine_id,
         "status_dict": safe_status,
         "report_body": report_body,
         "recipients": recipients,
-        "recommendations": recommendations if recommendations else [],
-        "alert_key": alert_key,
-        "flight_date": flight_date_str
+        "recommendations": recommendations if recommendations else previous.get("recommendations", []),
+        "alert_key": alert_key if alert_key is not None else previous.get("alert_key"),
+        "flight_date": flight_date_str or previous.get("flight_date"),
+        "last_error": last_error or previous.get("last_error", "")
     }
     try:
         with open(QUEUE_FILE_PATH, "w") as f:
             json.dump(queue, f, indent=4)
+        return True
     except Exception as e:
         print(f"Failed to save pending queue: {e}")
+        return False
+
 
 def remove_from_pending_queue(queue_key: str):
     queue = load_pending_queue()
@@ -1984,12 +2032,13 @@ def remove_from_pending_queue(queue_key: str):
 def retry_pending_queue() -> tuple:
     queue = load_pending_queue()
     if not queue:
-        return 0, 0
+        return 0, 0, 0
     success_count = 0
     fail_count = 0
+    simulated_count = 0
+
     for key, item in list(queue.items()):
-        safe_status = item["status_dict"]
-        # Rekonstruksi tipe Enum EngineHealth untuk pemanggilan ulang
+        safe_status = item["status_dict"].copy()
         h_str = safe_status.get("health_level", "NORMAL")
         if "CRITICAL" in h_str:
             safe_status["health_level"] = EngineHealth.CRITICAL
@@ -1997,31 +2046,32 @@ def retry_pending_queue() -> tuple:
             safe_status["health_level"] = EngineHealth.ADVISORY
         else:
             safe_status["health_level"] = EngineHealth.NORMAL
-        
-        is_sent = send_engineering_notice(
+
+        result = send_engineering_notice(
             engine_id=item["engine_id"],
             status_dict=safe_status,
             report_body=item["report_body"],
             recipients=item["recipients"],
             is_automated=False,
-            recommendations=item.get("recommendations", [])
+            recommendations=item.get("recommendations", []),
+            alert_key=item.get("alert_key"),
+            queue_key=key
         )
-        if is_sent:
+        if result == EMAIL_DELIVERED:
             remove_from_pending_queue(key)
             success_count += 1
-            # [BUG FIX] Previously a successful retry was never registered in
-            # the dedup ledger, so a later watchdog scan for the same
-            # underlying CRITICAL finding could send a duplicate alert. Only
-            # register when alert_key was actually set (watchdog-originated
-            # sends) - manual ad-hoc dispatches intentionally stay ungated.
             if item.get("alert_key"):
                 save_alert_to_ledger(
                     item["alert_key"], item["engine_id"],
                     item.get("flight_date", "N/A"), item["recipients"]
                 )
+        elif result == EMAIL_SIMULATED:
+            simulated_count += 1
         else:
             fail_count += 1
-    return success_count, fail_count
+
+    return success_count, fail_count, simulated_count
+
 # -----------------------------------------------------
    
 def generate_ewo_html(engine_id, status_label, status, recommendations):
@@ -2126,6 +2176,8 @@ def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: lis
     n_crit = 0
     n_sent = 0
     n_already_sent = 0
+    n_simulated = 0
+    n_queued = 0
 
     for eng_id in scan_list:
         df_check = fresh_df[fresh_df["Engine"] == eng_id].copy()
@@ -2166,14 +2218,18 @@ def execute_silent_watchdog(engines_to_scan: list = None, custom_recipients: lis
                         recipients=recipients, is_automated=not is_manual_trigger, recommendations=recs_check,
                         alert_key=alert_key
                     )
-                    if is_delivered:
+                    if is_delivered == EMAIL_DELIVERED:
                         save_alert_to_ledger(alert_key, eng_id, flight_dt_str, recipients)
                         n_sent += 1
+                    elif is_delivered == EMAIL_SIMULATED:
+                        n_simulated += 1
+                    elif is_delivered == EMAIL_QUEUED:
+                        n_queued += 1
                 else:
                     n_already_sent += 1
                     print(f"[SILENT BYPASS] Alert for {alert_key} was already transmitted previously.")
                     
-    return n_crit, n_sent, n_already_sent
+    return n_crit, n_sent, n_already_sent, n_simulated, n_queued
 # -------------------------------------------------------------------
 
 # ======================================================================================
@@ -2260,7 +2316,7 @@ st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
 st.sidebar.markdown("---")
 st.sidebar.markdown("<p style='font-weight:700; color:#f0b73d; font-size:0.85rem; margin-bottom:2px;'>FLEET WATCHDOG</p>", unsafe_allow_html=True)
 st.sidebar.caption(
-    "Also runs automatically after a new logbook entry or CSV upload. This button "
+    "Also runs automatically after a new logbook entry or fleet data synchronization. This button "
     "triggers an additional full-fleet scan on demand. Deduplication is persisted "
     "to disk (alert_dispatch_ledger.json) - the same engine + date + status "
     "combination will not be re-alerted even across browser sessions or app restarts."
@@ -2438,7 +2494,7 @@ if run_watchdog_now:
         st.sidebar.error("Enter at least one recipient email before running the scan.")
     else:
         with st.spinner("Executing fleet-wide thermodynamic health scan..."):
-            n_crit, n_sent, n_already = execute_silent_watchdog(
+            n_crit, n_sent, n_already, n_simulated, n_queued = execute_silent_watchdog(
                 engines_to_scan=engines_available, 
                 custom_recipients=watchdog_recipients, 
                 is_manual_trigger=True
@@ -2448,7 +2504,10 @@ if run_watchdog_now:
         elif n_already == n_crit:
             st.sidebar.info(f"Scan complete - {n_crit} CRITICAL engine(s) detected, but all notices were already transmitted previously. No duplicate emails sent.")
         else:
-            st.sidebar.success(f"Scan complete - {n_crit} CRITICAL engine(s) processed ({n_sent} new alert(s) dispatched).")
+            st.sidebar.success(
+                f"Scan complete - {n_crit} CRITICAL engine(s): {n_sent} delivered, "
+                f"{n_queued} queued, {n_simulated} simulated."
+            )
 
 # ======================================================================================
 # 14. PAGE 1: HOME (FLEET MATRIX & OCC HEATMAP INTEGRATION)
@@ -3753,9 +3812,11 @@ elif menu_selection == "Recommendations":
             
             if st.button(f"Retry Dispatch Now ({n_pending} Pending Notices)", type="primary", use_container_width=True, key="btn_retry_queue"):
                 with st.spinner("Re-attempting SMTP transmission to MCC for all queued notices..."):
-                    succ, fail = retry_pending_queue()
+                    succ, fail, simulated = retry_pending_queue()
                     if succ > 0:
                         st.success(f"Successfully dispatched {succ} notice(s) to MCC!")
+                    if simulated > 0:
+                        st.info(f"{simulated} notice(s) remain queued because SMTP is still in simulation mode.")
                     if fail > 0:
                         st.error(f"Failed to dispatch {fail} notice(s). Network connection may still be unreachable.")
                     st.rerun()
@@ -3798,7 +3859,7 @@ elif menu_selection == "Recommendations":
                 else:
                     with st.spinner("Transmitting engineering notice via secure SMTP..."):
                         # Panggil fungsi kirim email TANPA menyertakan alert_key (Bypass Ledger)
-                        success = send_engineering_notice(
+                        dispatch_result = send_engineering_notice(
                             selected_engine, 
                             status, 
                             "\n".join(report_lines), 
@@ -3806,5 +3867,13 @@ elif menu_selection == "Recommendations":
                             is_automated=False, 
                             recommendations=recommendations
                         )
-                        if success: 
-                            st.success(f"✅ Manual Engineering Notice transmitted successfully to: {', '.join(recipients_list)}")
+                        if dispatch_result == EMAIL_DELIVERED:
+                            st.success(f"✅ Manual Engineering Notice delivered successfully to: {', '.join(recipients_list)}")
+                        elif dispatch_result == EMAIL_QUEUED:
+                            st.warning("⚠️ SMTP unavailable. Notice preserved in the pending transmittal queue for retry.")
+                        elif dispatch_result == EMAIL_SIMULATED:
+                            st.info("🧪 Simulation mode: no email was transmitted and no sent-ledger entry was created.")
+                        elif dispatch_result == EMAIL_INVALID_RECIPIENTS:
+                            st.error("❌ Dispatch blocked because one or more recipient addresses are invalid.")
+                        else:
+                            st.error("❌ Email transmission failed and could not be safely queued.")
