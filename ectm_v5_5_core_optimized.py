@@ -50,6 +50,14 @@ def quality_gate(d):
     if "Np" in d:
         bad=(d["Np"]<70)|(d["Np"]>100)
         q &= ~bad; reasons["DQ_Extreme_Np"]=bad
+    # Keep the ECTM baseline protected from physically implausible atmospheric
+    # input. This is intentionally aligned with the dashboard DQ audit
+    # (-40°C to +55°C), rather than introducing an Airfast-specific statistical
+    # cutoff. TQ is deliberately not hard-gated here because no authoritative
+    # universal threshold is encoded in the supplied source material.
+    if "IOAT" in d:
+        bad=(d["IOAT"]<-40.0)|(d["IOAT"]>55.0)
+        q &= ~bad; reasons["DQ_Extreme_IOAT"]=bad
     return q,reasons
 
 def _fit(baseline,target,predictors):

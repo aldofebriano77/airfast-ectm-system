@@ -144,17 +144,19 @@ SHIFT_T5_C = 5.0
 SHIFT_NG_PCT = 0.5      
 SHIFT_WF_PCT = 2.0      
 
-T5_WASH_C = 10.0                
-T5_BORESCOPE_C = 15.0           
-NG_BORESCOPE_LOW_PCT = -1.0     
-NG_BORESCOPE_HIGH_PCT = -1.5    
+# Shared ECTM decision parameters: use the validated core as the single source
+# of truth so the dashboard UI/recommendation layer cannot silently drift.
+T5_WASH_C = ectm54.CFG54.t5_wash_c
+T5_BORESCOPE_C = ectm54.CFG54.t5_borescope_c
+NG_BORESCOPE_LOW_PCT = ectm54.CFG54.ng_borescope_low_pct
+NG_BORESCOPE_HIGH_PCT = -1.5
 
 OIL_PRESS_DROP_PSI = 5.0
 OIL_TEMP_RISE_C = 5.0
 
-SUSTAIN_WINDOW = 3              
-TREND_WINDOW = 10               
-CONTROL_SIGMA = 2.5             
+SUSTAIN_WINDOW = 3
+TREND_WINDOW = ectm54.CFG54.trend_window
+CONTROL_SIGMA = ectm54.CFG54.control_sigma
 
 # [PATCH #7] Menambahkan 'AML No' sebagai relational key utama antar ketiga file
 REQUIRED_COLUMNS = ["Date", "Engine", "T5", "Ng", "Wf"]
@@ -1077,6 +1079,9 @@ def run_data_quality_audit(df: pd.DataFrame) -> list:
 # ======================================================================================
 # 7. THERMODYNAMIC LEAST-SQUARES REGRESSION & ADAPTIVE NOISE BANDING
 # ======================================================================================
+# v5.5 hardening: the core quality gate also rejects physically implausible IOAT
+# values before baseline construction. The threshold is aligned with the existing
+# dashboard DQ audit; no Airfast-specific TQ cutoff is introduced.
 def fit_correction_model(df_baseline: pd.DataFrame, predictors: list, target: str):
     # [BUG FIX] Was raised to > 0.5 - an absolute cutoff in each predictor's
     # own raw units. IOAT (degC) and Press_Alt (feet) naturally have large
